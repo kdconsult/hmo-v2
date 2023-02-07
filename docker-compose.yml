@@ -75,6 +75,8 @@ services:
             - sail
     meilisearch:
         image: 'getmeili/meilisearch:latest'
+        environment:
+            MEILI_MASTER_KEY: '${MEILISEARCH_KEY}'
         ports:
             - '${FORWARD_MEILISEARCH_PORT:-7700}:7700'
         volumes:
