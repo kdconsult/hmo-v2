@@ -2,16 +2,22 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Traits\HasTranslations;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Scout\Searchable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasApiTokens, HasFactory, Notifiable, Searchable;
+    use HasApiTokens, HasFactory, HasTranslations, HasUuids, Notifiable, Searchable;
+
+    public $translatable = ['name'];
+
+
 
     /**
      * The attributes that are mass assignable.
@@ -40,6 +46,6 @@ class User extends Authenticatable
      * @var array<string, string>
      */
     protected $casts = [
-        'email_verified_at' => 'datetime',
+        'email_verified_at' => 'datetime'
     ];
 }
