@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\UserUpdated;
 use App\Http\Requests\ProfileUpdateRequest;
 use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -23,7 +24,8 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
             'locales' => config('app.allowed_locales'),
-            'user' => $request->user()->toArray(false)
+            'user' => $request->user()->toArray(false),
+            'list' => User::paginate(1)
         ]);
     }
 
@@ -32,6 +34,8 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
+        UserUpdated::dispatch($request->user());
+
         $request->user()->fill($request->validated());
 
         if ($request->user()->isDirty('email')) {
