@@ -3,9 +3,6 @@
 use App\Enums\DocumentType;
 use App\Models\DocumentSeries;
 use App\Models\Tenant;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-
-uses(RefreshDatabase::class);
 
 function createTestTenant(): Tenant
 {

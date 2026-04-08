@@ -85,3 +85,18 @@
 - [x] Unit tests: VatCalculationServiceTest (7 tests, all pass)
 - [x] Feature tests: DocumentSeriesTest
 - [x] Pint formatting: all files clean
+
+## Task 1.12 — Tenant Lifecycle Management ✅
+- [x] TenantStatus enum (Active, Suspended, MarkedForDeletion, ScheduledForDeletion) with canTransitionTo()
+- [x] Migration: add lifecycle columns to tenants (status, deactivated_at, marked_for_deletion_at, scheduled_for_deletion_at, deletion_scheduled_for, deactivation_reason, deactivated_by)
+- [x] Tenant model: $casts, scopes (active/suspended/markedForDeletion/scheduledForDeletion/dueForDeletion), lifecycle methods (suspend/markForDeletion/scheduleForDeletion/reactivate), deactivatedBy relation
+- [x] TenantFactory: suspended(), markedForDeletion(), scheduledForDeletion() states
+- [x] TenantPolicy: delete() always returns false, lifecycle actions gated by status
+- [x] TenantResource: removed broken SoftDeletingScope override and stale imports
+- [x] TenantsTable: removed TrashedFilter/ForceDelete/Restore/Delete bulk actions; added status badge column, SelectFilter, lifecycle row actions
+- [x] TenantForm: Lifecycle section (read-only, edit-only) showing all status fields
+- [x] TenantInfolist: Lifecycle section with all status entries
+- [x] TenancyServiceProvider: DeletingTenant safety guard — blocks deletion unless status=ScheduledForDeletion AND deletion_scheduled_for is past
+- [x] DeleteScheduledTenantsCommand (hmo:delete-scheduled-tenants) — scheduled daily
+- [x] Mail stubs: TenantSuspendedMail, TenantMarkedForDeletionMail, TenantScheduledForDeletionMail, TenantDeletedMail, TenantReactivatedMail
+- [x] TenantLifecycleTest: 17 tests covering all transitions, scopes, policy, safety guard, command
