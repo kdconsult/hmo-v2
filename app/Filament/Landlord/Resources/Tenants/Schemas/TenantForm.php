@@ -3,6 +3,7 @@
 namespace App\Filament\Landlord\Resources\Tenants\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -79,6 +80,38 @@ class TenantForm
                             ->maxLength(50),
                         DateTimePicker::make('subscription_ends_at')
                             ->label('Subscription Ends At'),
+                    ]),
+
+                Section::make('Lifecycle Status')
+                    ->columns(2)
+                    ->visibleOn('edit')
+                    ->schema([
+                        Placeholder::make('status')
+                            ->content(fn ($record) => $record?->status?->getLabel() ?? '-'),
+                        Placeholder::make('deactivation_reason')
+                            ->label('Deactivation Reason')
+                            ->content(fn ($record) => match ($record?->deactivation_reason) {
+                                'non_payment' => 'Non-payment',
+                                'tenant_request' => 'Tenant request',
+                                'other' => 'Other',
+                                default => '-',
+                            }),
+                        Placeholder::make('deactivated_at')
+                            ->label('Deactivated At')
+                            ->content(fn ($record) => $record?->deactivated_at?->toDateTimeString() ?? '-'),
+                        Placeholder::make('deactivated_by_name')
+                            ->label('Deactivated By')
+                            ->content(fn ($record) => $record?->deactivatedBy?->name ?? '-'),
+                        Placeholder::make('marked_for_deletion_at')
+                            ->label('Marked for Deletion At')
+                            ->content(fn ($record) => $record?->marked_for_deletion_at?->toDateTimeString() ?? '-'),
+                        Placeholder::make('scheduled_for_deletion_at')
+                            ->label('Scheduled for Deletion At')
+                            ->content(fn ($record) => $record?->scheduled_for_deletion_at?->toDateTimeString() ?? '-'),
+                        Placeholder::make('deletion_scheduled_for')
+                            ->label('Will Be Deleted On')
+                            ->content(fn ($record) => $record?->deletion_scheduled_for?->toDateTimeString() ?? '-')
+                            ->columnSpanFull(),
                     ]),
             ]);
     }

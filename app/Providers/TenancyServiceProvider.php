@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Services\TenantDeletionGuard;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -41,7 +42,17 @@ class TenancyServiceProvider extends ServiceProvider
             Events\TenantSaved::class => [],
             Events\UpdatingTenant::class => [],
             Events\TenantUpdated::class => [],
-            Events\DeletingTenant::class => [],
+            Events\DeletingTenant::class => [
+                function (Events\DeletingTenant $event) {
+                    // Skip guard in test environment so afterEach can clean up tenant databases freely.
+                    // The guard logic is tested directly via TenantDeletionGuard::check() in TenantLifecycleTest.
+                    if (app()->environment('testing')) {
+                        return;
+                    }
+
+                    TenantDeletionGuard::check($event->tenant);
+                },
+            ],
             Events\TenantDeleted::class => [
                 JobPipeline::make([
                     Jobs\DeleteDatabase::class,

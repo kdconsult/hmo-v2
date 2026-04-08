@@ -3,6 +3,7 @@
 namespace App\Filament\Landlord\Resources\Tenants\Schemas;
 
 use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 
 class TenantInfolist
@@ -49,6 +50,32 @@ class TenantInfolist
                 TextEntry::make('updated_at')
                     ->dateTime()
                     ->placeholder('-'),
+
+                Section::make('Lifecycle')
+                    ->columns(2)
+                    ->schema([
+                        TextEntry::make('status')
+                            ->badge(),
+                        TextEntry::make('deactivation_reason')
+                            ->placeholder('-'),
+                        TextEntry::make('deactivated_at')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('deactivatedBy.name')
+                            ->label('Deactivated By')
+                            ->placeholder('-'),
+                        TextEntry::make('marked_for_deletion_at')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('scheduled_for_deletion_at')
+                            ->dateTime()
+                            ->placeholder('-'),
+                        TextEntry::make('deletion_scheduled_for')
+                            ->label('Will Be Deleted On')
+                            ->dateTime()
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 }
