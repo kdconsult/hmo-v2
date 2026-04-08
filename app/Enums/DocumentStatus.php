@@ -43,16 +43,16 @@ enum DocumentStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::Confirmed => Heroicon::OutlinedCheckCircle->value,
-            self::Sent => Heroicon::OutlinedPaperAirplane->value,
-            self::PartiallyPaid => Heroicon::OutlinedBanknotes->value,
-            self::Paid => Heroicon::OutlinedCheckBadge->value,
-            self::Overdue => Heroicon::OutlinedExclamationCircle->value,
-            self::Cancelled => Heroicon::OutlinedXCircle->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::Confirmed => Heroicon::OutlinedCheckCircle,
+            self::Sent => Heroicon::OutlinedPaperAirplane,
+            self::PartiallyPaid => Heroicon::OutlinedBanknotes,
+            self::Paid => Heroicon::OutlinedCheckBadge,
+            self::Overdue => Heroicon::OutlinedExclamationCircle,
+            self::Cancelled => Heroicon::OutlinedXCircle,
         };
     }
 }

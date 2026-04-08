@@ -40,15 +40,15 @@ enum QuoteStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::Sent => Heroicon::OutlinedPaperAirplane->value,
-            self::Accepted => Heroicon::OutlinedHandThumbUp->value,
-            self::Rejected => Heroicon::OutlinedHandThumbDown->value,
-            self::Expired => Heroicon::OutlinedClock->value,
-            self::Converted => Heroicon::OutlinedArrowPath->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::Sent => Heroicon::OutlinedPaperAirplane,
+            self::Accepted => Heroicon::OutlinedHandThumbUp,
+            self::Rejected => Heroicon::OutlinedHandThumbDown,
+            self::Expired => Heroicon::OutlinedClock,
+            self::Converted => Heroicon::OutlinedArrowPath,
         };
     }
 }

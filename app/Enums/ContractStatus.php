@@ -37,14 +37,14 @@ enum ContractStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::Active => Heroicon::OutlinedCheckCircle->value,
-            self::Suspended => Heroicon::OutlinedPause->value,
-            self::Expired => Heroicon::OutlinedClock->value,
-            self::Cancelled => Heroicon::OutlinedXCircle->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::Active => Heroicon::OutlinedCheckCircle,
+            self::Suspended => Heroicon::OutlinedPause,
+            self::Expired => Heroicon::OutlinedClock,
+            self::Cancelled => Heroicon::OutlinedXCircle,
         };
     }
 }

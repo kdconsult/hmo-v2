@@ -40,15 +40,15 @@ enum OrderStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::Confirmed => Heroicon::OutlinedCheckCircle->value,
-            self::InProgress => Heroicon::OutlinedArrowPath->value,
-            self::PartiallyFulfilled => Heroicon::OutlinedEllipsisHorizontalCircle->value,
-            self::Fulfilled => Heroicon::OutlinedCheckBadge->value,
-            self::Cancelled => Heroicon::OutlinedXCircle->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::Confirmed => Heroicon::OutlinedCheckCircle,
+            self::InProgress => Heroicon::OutlinedArrowPath,
+            self::PartiallyFulfilled => Heroicon::OutlinedEllipsisHorizontalCircle,
+            self::Fulfilled => Heroicon::OutlinedCheckBadge,
+            self::Cancelled => Heroicon::OutlinedXCircle,
         };
     }
 }

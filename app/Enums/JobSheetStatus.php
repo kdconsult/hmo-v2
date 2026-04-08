@@ -40,15 +40,15 @@ enum JobSheetStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::Scheduled => Heroicon::OutlinedCalendar->value,
-            self::InProgress => Heroicon::OutlinedWrench->value,
-            self::OnHold => Heroicon::OutlinedPause->value,
-            self::Completed => Heroicon::OutlinedCheckCircle->value,
-            self::Invoiced => Heroicon::OutlinedDocumentText->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::Scheduled => Heroicon::OutlinedCalendar,
+            self::InProgress => Heroicon::OutlinedWrench,
+            self::OnHold => Heroicon::OutlinedPause,
+            self::Completed => Heroicon::OutlinedCheckCircle,
+            self::Invoiced => Heroicon::OutlinedDocumentText,
         };
     }
 }

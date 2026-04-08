@@ -37,20 +37,20 @@ enum NavigationGroup: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Dashboard => Heroicon::OutlinedHome->value,
-            self::Crm => Heroicon::OutlinedUsers->value,
-            self::Catalog => Heroicon::OutlinedCube->value,
-            self::Sales => Heroicon::OutlinedShoppingCart->value,
-            self::Purchases => Heroicon::OutlinedInboxArrowDown->value,
-            self::Warehouse => Heroicon::OutlinedBuildingStorefront->value,
-            self::FieldService => Heroicon::OutlinedWrenchScrewdriver->value,
-            self::Finance => Heroicon::OutlinedBanknotes->value,
-            self::Fiscal => Heroicon::OutlinedShieldCheck->value,
-            self::Reports => Heroicon::OutlinedChartBarSquare->value,
-            self::Settings => Heroicon::OutlinedCog6Tooth->value,
+            self::Dashboard => Heroicon::OutlinedHome,
+            self::Crm => Heroicon::OutlinedUsers,
+            self::Catalog => Heroicon::OutlinedCube,
+            self::Sales => Heroicon::OutlinedShoppingCart,
+            self::Purchases => Heroicon::OutlinedInboxArrowDown,
+            self::Warehouse => Heroicon::OutlinedBuildingStorefront,
+            self::FieldService => Heroicon::OutlinedWrenchScrewdriver,
+            self::Finance => Heroicon::OutlinedBanknotes,
+            self::Fiscal => Heroicon::OutlinedShieldCheck,
+            self::Reports => Heroicon::OutlinedChartBarSquare,
+            self::Settings => Heroicon::OutlinedCog6Tooth,
         };
     }
 }

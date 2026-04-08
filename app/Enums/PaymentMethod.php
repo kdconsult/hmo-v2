@@ -23,13 +23,13 @@ enum PaymentMethod: string implements HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Cash => Heroicon::OutlinedBanknotes->value,
-            self::BankTransfer => Heroicon::OutlinedBuildingLibrary->value,
-            self::Card => Heroicon::OutlinedCreditCard->value,
-            self::DirectDebit => Heroicon::OutlinedArrowPathRoundedSquare->value,
+            self::Cash => Heroicon::OutlinedBanknotes,
+            self::BankTransfer => Heroicon::OutlinedBuildingLibrary,
+            self::Card => Heroicon::OutlinedCreditCard,
+            self::DirectDebit => Heroicon::OutlinedArrowPathRoundedSquare,
         };
     }
 }

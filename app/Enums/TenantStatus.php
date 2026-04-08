@@ -34,13 +34,13 @@ enum TenantStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Active => Heroicon::OutlinedCheckCircle->value,
-            self::Suspended => Heroicon::OutlinedPause->value,
-            self::MarkedForDeletion => Heroicon::OutlinedExclamationTriangle->value,
-            self::ScheduledForDeletion => Heroicon::OutlinedXCircle->value,
+            self::Active => Heroicon::OutlinedCheckCircle,
+            self::Suspended => Heroicon::OutlinedPause,
+            self::MarkedForDeletion => Heroicon::OutlinedExclamationTriangle,
+            self::ScheduledForDeletion => Heroicon::OutlinedXCircle,
         };
     }
 

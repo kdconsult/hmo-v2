@@ -37,14 +37,14 @@ enum TransferStatus: string implements HasColor, HasIcon, HasLabel
         };
     }
 
-    public function getIcon(): ?string
+    public function getIcon(): string|Heroicon|null
     {
         return match ($this) {
-            self::Draft => Heroicon::OutlinedPencil->value,
-            self::InTransit => Heroicon::OutlinedTruck->value,
-            self::PartiallyReceived => Heroicon::OutlinedInboxArrowDown->value,
-            self::Received => Heroicon::OutlinedCheckBadge->value,
-            self::Cancelled => Heroicon::OutlinedXCircle->value,
+            self::Draft => Heroicon::OutlinedPencil,
+            self::InTransit => Heroicon::OutlinedTruck,
+            self::PartiallyReceived => Heroicon::OutlinedInboxArrowDown,
+            self::Received => Heroicon::OutlinedCheckBadge,
+            self::Cancelled => Heroicon::OutlinedXCircle,
         };
     }
 }
