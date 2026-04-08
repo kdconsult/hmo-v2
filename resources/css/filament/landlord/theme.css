@@ -1,0 +1,9 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/Landlord/**/*';
+@source '../../../../resources/views/filament/landlord/**/*';
+
+
+:root {
+    --container-7xl: 100%;
+}

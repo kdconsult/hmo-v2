@@ -9,17 +9,18 @@ use App\Models\Plan;
 use App\Models\User;
 use App\Support\EuCountries;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class TenantForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema
+        return $schema            
             ->components([
                 Section::make('Company Info')
                     ->columns(2)
@@ -179,31 +180,32 @@ class TenantForm
                     ->columns(2)
                     ->visibleOn('edit')
                     ->schema([
-                        Placeholder::make('status')
-                            ->content(fn ($record) => $record?->status?->getLabel() ?? '-'),
-                        Placeholder::make('deactivation_reason')
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->state(fn ($record) => $record?->status?->getLabel() ?? '-'),
+                        TextEntry::make('deactivation_reason')
                             ->label('Deactivation Reason')
-                            ->content(fn ($record) => match ($record?->deactivation_reason) {
+                            ->state(fn ($record) => match ($record?->deactivation_reason) {
                                 'non_payment' => 'Non-payment',
                                 'tenant_request' => 'Tenant request',
                                 'other' => 'Other',
                                 default => '-',
                             }),
-                        Placeholder::make('deactivated_at')
+                        TextEntry::make('deactivated_at')
                             ->label('Deactivated At')
-                            ->content(fn ($record) => $record?->deactivated_at?->toDateTimeString() ?? '-'),
-                        Placeholder::make('deactivated_by_name')
+                            ->state(fn ($record) => $record?->deactivated_at?->toDateTimeString() ?? '-'),
+                        TextEntry::make('deactivated_by_name')
                             ->label('Deactivated By')
-                            ->content(fn ($record) => $record?->deactivatedBy?->name ?? '-'),
-                        Placeholder::make('marked_for_deletion_at')
+                            ->state(fn ($record) => $record?->deactivatedBy?->name ?? '-'),
+                        TextEntry::make('marked_for_deletion_at')
                             ->label('Marked for Deletion At')
-                            ->content(fn ($record) => $record?->marked_for_deletion_at?->toDateTimeString() ?? '-'),
-                        Placeholder::make('scheduled_for_deletion_at')
+                            ->state(fn ($record) => $record?->marked_for_deletion_at?->toDateTimeString() ?? '-'),
+                        TextEntry::make('scheduled_for_deletion_at')
                             ->label('Scheduled for Deletion At')
-                            ->content(fn ($record) => $record?->scheduled_for_deletion_at?->toDateTimeString() ?? '-'),
-                        Placeholder::make('deletion_scheduled_for')
+                            ->state(fn ($record) => $record?->scheduled_for_deletion_at?->toDateTimeString() ?? '-'),
+                        TextEntry::make('deletion_scheduled_for')
                             ->label('Will Be Deleted On')
-                            ->content(fn ($record) => $record?->deletion_scheduled_for?->toDateTimeString() ?? '-')
+                            ->state(fn ($record) => $record?->deletion_scheduled_for?->toDateTimeString() ?? '-')
                             ->columnSpanFull(),
                     ]),
             ]);

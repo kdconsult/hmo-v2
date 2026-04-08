@@ -8,6 +8,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class DocumentSeriesForm
 {
@@ -25,9 +26,8 @@ class DocumentSeriesForm
                             ->required()
                             ->maxLength(100),
                         TextInput::make('prefix')
-                            ->required()
                             ->maxLength(20)
-                            ->upperCase(),
+                            ->dehydrateStateUsing(fn(string|null $state): string|null => $state ? Str::upper($state) : null),
                         TextInput::make('separator')
                             ->default('-')
                             ->maxLength(5),
