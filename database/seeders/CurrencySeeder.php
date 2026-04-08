@@ -10,8 +10,7 @@ class CurrencySeeder extends Seeder
     public function run(): void
     {
         $currencies = [
-            ['code' => 'BGN', 'name' => 'Bulgarian Lev', 'symbol' => 'лв', 'decimal_places' => 2, 'is_default' => true, 'is_active' => true],
-            ['code' => 'EUR', 'name' => 'Euro', 'symbol' => '€', 'decimal_places' => 2, 'is_default' => false, 'is_active' => true],
+            ['code' => 'EUR', 'name' => 'Euro', 'symbol' => '€', 'decimal_places' => 2, 'is_default' => true, 'is_active' => true],
             ['code' => 'USD', 'name' => 'US Dollar', 'symbol' => '$', 'decimal_places' => 2, 'is_default' => false, 'is_active' => true],
             ['code' => 'GBP', 'name' => 'British Pound', 'symbol' => '£', 'decimal_places' => 2, 'is_default' => false, 'is_active' => true],
             ['code' => 'RON', 'name' => 'Romanian Leu', 'symbol' => 'lei', 'decimal_places' => 2, 'is_default' => false, 'is_active' => true],

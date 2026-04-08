@@ -1,9 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Filament\Landlord\Resources\Tenants\Schemas;
 
+use App\Enums\SubscriptionStatus;
+use App\Models\Plan;
+use App\Models\User;
+use App\Support\EuCountries;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -21,65 +28,151 @@ class TenantForm
                             ->required()
                             ->maxLength(255)
                             ->columnSpanFull(),
+
                         TextInput::make('slug')
                             ->required()
                             ->unique(ignoreRecord: true)
-                            ->helperText('Used as the subdomain: slug.hmo.bg')
+                            ->helperText('Used as the subdomain: slug.'.last(config('tenancy.central_domains')))
                             ->alphaDash()
-                            ->maxLength(63),
+                            ->maxLength(63)
+                            ->visibleOn('edit'),
+
                         TextInput::make('email')
                             ->email()
                             ->maxLength(255),
+
                         TextInput::make('phone')
                             ->tel()
                             ->maxLength(50),
+
                         TextInput::make('eik')
-                            ->label('EIK')
+                            ->label('EIK / Company Number')
                             ->maxLength(20),
+
                         TextInput::make('vat_number')
                             ->label('VAT Number')
                             ->maxLength(20),
+
                         TextInput::make('mol')
-                            ->label('MOL')
+                            ->label('Responsible Person (MOL)')
                             ->maxLength(255),
+
                         TextInput::make('address_line_1')
                             ->label('Address')
                             ->maxLength(255),
+
                         TextInput::make('city')
                             ->maxLength(100),
+
                         TextInput::make('postal_code')
                             ->maxLength(20),
-                        TextInput::make('country_code')
+
+                        Select::make('country_code')
+                            ->label('Country')
+                            ->options(EuCountries::forSelect())
                             ->required()
                             ->default('BG')
-                            ->maxLength(2),
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function (?string $state, Set $set) {
+                                if ($state === null) {
+                                    return;
+                                }
+
+                                $country = EuCountries::get($state);
+                                if ($country === null) {
+                                    return;
+                                }
+
+                                $set('default_currency_code', $country['currency_code']);
+                                $set('timezone', $country['timezone']);
+                                $set('locale', $country['locale']);
+                            }),
                     ]),
 
                 Section::make('Localization')
                     ->columns(2)
                     ->schema([
-                        TextInput::make('locale')
+                        Select::make('locale')
+                            ->options(
+                                collect(EuCountries::all())
+                                    ->mapWithKeys(fn (array $c) => [$c['locale'] => $c['locale']])
+                                    ->sort()
+                                    ->all()
+                            )
                             ->required()
-                            ->default('bg')
-                            ->maxLength(5),
-                        TextInput::make('timezone')
+                            ->default('bg_BG')
+                            ->searchable(),
+
+                        Select::make('timezone')
+                            ->options(
+                                collect(EuCountries::timezones())
+                                    ->mapWithKeys(fn (string $tz) => [$tz => $tz])
+                                    ->sort()
+                                    ->all()
+                            )
                             ->required()
                             ->default('Europe/Sofia')
-                            ->maxLength(100),
-                        TextInput::make('default_currency_code')
+                            ->searchable(),
+
+                        Select::make('default_currency_code')
                             ->label('Default Currency')
+                            ->options([
+                                'EUR' => 'Euro (EUR)',
+                                'CZK' => 'Czech Koruna (CZK)',
+                                'DKK' => 'Danish Krone (DKK)',
+                                'HUF' => 'Hungarian Forint (HUF)',
+                                'PLN' => 'Polish Zloty (PLN)',
+                                'RON' => 'Romanian Leu (RON)',
+                                'SEK' => 'Swedish Krona (SEK)',
+                                'GBP' => 'British Pound (GBP)',
+                                'USD' => 'US Dollar (USD)',
+                            ])
                             ->required()
-                            ->default('BGN')
-                            ->maxLength(3),
+                            ->default('EUR')
+                            ->searchable(),
                     ]),
 
                 Section::make('Subscription')
                     ->columns(2)
                     ->schema([
-                        TextInput::make('subscription_plan')
-                            ->maxLength(50),
+                        Select::make('plan_id')
+                            ->label('Plan')
+                            ->relationship('plan', 'name')
+                            ->options(
+                                fn () => Plan::where('is_active', true)
+                                    ->orderBy('sort_order')
+                                    ->pluck('name', 'id')
+                            )
+                            ->required()
+                            ->default(fn () => Plan::where('slug', 'free')->value('id'))
+                            ->searchable(),
+
+                        Select::make('subscription_status')
+                            ->options(SubscriptionStatus::class)
+                            ->required()
+                            ->default(SubscriptionStatus::Trial)
+                            ->visibleOn('edit'),
+
+                        DateTimePicker::make('trial_ends_at')
+                            ->label('Trial Ends At')
+                            ->default(fn () => now()->addDays(14)),
+
                         DateTimePicker::make('subscription_ends_at')
-                            ->label('Subscription Ends At'),
+                            ->label('Paid Subscription Ends At')
+                            ->visibleOn('edit'),
+                    ]),
+
+                Section::make('Owner')
+                    ->description('The user who will manage this tenant\'s account.')
+                    ->columns(1)
+                    ->visibleOn('create')
+                    ->schema([
+                        Select::make('owner_user_id')
+                            ->label('Owner User')
+                            ->options(fn () => User::orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->helperText('Select an existing user or create a new one via Users resource first. Leave empty to create without an owner.'),
                     ]),
 
                 Section::make('Lifecycle Status')

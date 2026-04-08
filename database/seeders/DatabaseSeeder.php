@@ -1,16 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
+use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\TenantOnboardingService;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Central DB: create landlord admin user
+        // 1. Seed central plans first
+        $this->call(PlanSeeder::class);
+
+        $freePlan = Plan::where('slug', 'free')->firstOrFail();
+
+        // 2. Create landlord admin
         $landlord = User::updateOrCreate(
             ['email' => 'admin@hmo.localhost'],
             [
@@ -20,21 +29,7 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Create a demo tenant
-        $tenant = Tenant::updateOrCreate(
-            ['slug' => 'demo'],
-            [
-                'name' => 'Demo Company BG',
-                'email' => 'demo@hmo.localhost',
-                'country_code' => 'BG',
-                'locale' => 'bg',
-                'timezone' => 'Europe/Sofia',
-                'default_currency_code' => 'BGN',
-                'eik' => '123456789',
-            ]
-        );
-
-        // Create tenant admin user
+        // 3. Create tenant admin user (central DB)
         $tenantAdmin = User::updateOrCreate(
             ['email' => 'tenant-admin@hmo.localhost'],
             [
@@ -43,18 +38,33 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Attach tenant admin to the demo tenant
+        // 4. Create demo tenant
+        $tenant = Tenant::updateOrCreate(
+            ['slug' => 'demo'],
+            [
+                'name' => 'Demo Company',
+                'email' => 'demo@hmo.localhost',
+                'country_code' => 'BG',
+                'locale' => 'bg_BG',
+                'timezone' => 'Europe/Sofia',
+                'default_currency_code' => 'EUR',
+                'eik' => '123456789',
+                'plan_id' => $freePlan->id,
+                'subscription_status' => 'trial',
+                'trial_ends_at' => now()->addDays(14),
+            ]
+        );
+
+        // 5. Attach tenant admin to tenant pivot (central)
         $tenant->users()->syncWithoutDetaching([$tenantAdmin->id]);
 
-        // Seed tenant-specific data
-        tenancy()->initialize($tenant);
+        // 6. Create domain for the demo tenant
+        $appDomain = last(config('tenancy.central_domains'));
+        $tenant->domains()->updateOrCreate(
+            ['domain' => "demo.{$appDomain}"],
+        );
 
-        $this->call([
-            RolesAndPermissionsSeeder::class,
-            CurrencySeeder::class,
-            VatRateSeeder::class,
-        ]);
-
-        tenancy()->end();
+        // 7. Onboard the tenant (seeds tenant DB, creates TenantUser)
+        app(TenantOnboardingService::class)->onboard($tenant, $tenantAdmin);
     }
 }

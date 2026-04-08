@@ -8,6 +8,8 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
@@ -17,7 +19,25 @@ class VatRatesTable
     {
         return $table
             ->columns([
-                //
+                TextColumn::make('name')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('rate')
+                    ->suffix('%')
+                    ->sortable(),
+                TextColumn::make('type')
+                    ->badge()
+                    ->sortable(),
+                TextColumn::make('country_code')
+                    ->label('Country')
+                    ->badge()
+                    ->sortable(),
+                IconColumn::make('is_default')
+                    ->label('Default')
+                    ->boolean(),
+                IconColumn::make('is_active')
+                    ->label('Active')
+                    ->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),

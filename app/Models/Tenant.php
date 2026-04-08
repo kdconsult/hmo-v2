@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\SubscriptionStatus;
 use App\Enums\TenantStatus;
+use App\Support\TenantSlugGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,6 +22,9 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
 
     protected $casts = [
         'status' => TenantStatus::class,
+        'subscription_status' => SubscriptionStatus::class,
+        'trial_ends_at' => 'datetime',
+        'subscription_ends_at' => 'datetime',
         'deactivated_at' => 'datetime',
         'marked_for_deletion_at' => 'datetime',
         'scheduled_for_deletion_at' => 'datetime',
@@ -45,7 +50,9 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             'locale',
             'timezone',
             'default_currency_code',
-            'subscription_plan',
+            'plan_id',
+            'subscription_status',
+            'trial_ends_at',
             'subscription_ends_at',
             'status',
             'deactivated_at',
@@ -55,6 +62,25 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             'deactivation_reason',
             'deactivated_by',
         ];
+    }
+
+    // --- Static helpers ---
+
+    public static function generateUniqueSlug(): string
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $slug = TenantSlugGenerator::generate();
+            if (! static::where('slug', $slug)->exists()) {
+                return $slug;
+            }
+        }
+
+        // Fallback: append a random number when the adjective-noun pool is crowded
+        do {
+            $slug = TenantSlugGenerator::generate().'-'.rand(10, 999);
+        } while (static::where('slug', $slug)->exists());
+
+        return $slug;
     }
 
     // --- Relationships ---
@@ -67,6 +93,11 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class);
+    }
+
+    public function plan(): BelongsTo
+    {
+        return $this->belongsTo(Plan::class);
     }
 
     public function deactivatedBy(): BelongsTo
@@ -100,6 +131,26 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     public function scopeDueForDeletion(Builder $query): Builder
     {
         return $query->where('deletion_scheduled_for', '<=', now());
+    }
+
+    // --- Subscription helpers ---
+
+    public function onTrial(): bool
+    {
+        return $this->subscription_status === SubscriptionStatus::Trial
+            && $this->trial_ends_at !== null
+            && $this->trial_ends_at->isFuture();
+    }
+
+    public function hasActiveSubscription(): bool
+    {
+        return $this->subscription_status === SubscriptionStatus::Active;
+    }
+
+    /** True when the tenant can access the application (on active trial OR paid subscription). */
+    public function isSubscriptionAccessible(): bool
+    {
+        return $this->subscription_status?->isAccessible() ?? false;
     }
 
     // --- Computed helpers ---

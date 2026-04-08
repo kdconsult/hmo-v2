@@ -11,6 +11,8 @@ class TenantUser extends Model
 {
     use HasFactory, HasRoles, SoftDeletes;
 
+    protected string $guard_name = 'web';
+
     protected $fillable = [
         'user_id',
         'display_name',

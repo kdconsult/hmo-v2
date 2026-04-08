@@ -38,6 +38,36 @@ class User extends Authenticatable implements FilamentUser
         return false;
     }
 
+    /**
+     * Check a permission by delegating to this user's TenantUser record.
+     *
+     * Filament policies call hasPermissionTo() on the auth user. In the tenant
+     * panel the auth user is the central User, but roles live on TenantUser
+     * in the tenant DB. This method bridges the two without adding HasRoles to
+     * the central User, which would query the wrong (central) DB.
+     */
+    public function hasPermissionTo(string|\BackedEnum $permission, ?string $guardName = null): bool
+    {
+        try {
+            $tenantUser = TenantUser::where('user_id', $this->id)->first();
+
+            return $tenantUser?->hasPermissionTo($permission, $guardName ?? 'web') ?? false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public function hasRole(string|\BackedEnum|array $roles, ?string $guard = null): bool
+    {
+        try {
+            $tenantUser = TenantUser::where('user_id', $this->id)->first();
+
+            return $tenantUser?->hasRole($roles, $guard ?? 'web') ?? false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function tenants(): BelongsToMany
     {
         return $this->belongsToMany(Tenant::class);

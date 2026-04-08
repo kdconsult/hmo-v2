@@ -100,3 +100,38 @@
 - [x] DeleteScheduledTenantsCommand (hmo:delete-scheduled-tenants) — scheduled daily
 - [x] Mail stubs: TenantSuspendedMail, TenantMarkedForDeletionMail, TenantScheduledForDeletionMail, TenantDeletedMail, TenantReactivatedMail
 - [x] TenantLifecycleTest: 17 tests covering all transitions, scopes, policy, safety guard, command
+
+## Task 1.13 — Plans & Subscriptions ✅
+- [x] SubscriptionStatus enum (Trial, Active, Expired, Cancelled) with isAccessible()
+- [x] Plan model with isFree() helper
+- [x] plans migration (name, slug, price, billing_period, max_users, max_documents, is_active, sort_order)
+- [x] add_plan_subscription_fields_to_tenants migration (plan_id, subscription_status, trial_ends_at, subscription_ends_at)
+- [x] PlanSeeder (Free, Starter, Professional plans)
+- [x] PlanLimitService (can_add_user, can_add_document checks)
+- [x] PlanResource in Landlord panel (CRUD with PlanForm, PlansTable)
+- [x] CheckTrialExpirations command (hmo:check-trial-expirations) — scheduled daily
+- [x] CheckSubscriptionExpirations command (hmo:check-subscription-expirations) — scheduled daily
+- [x] EnsureActiveSubscription middleware (blocks suspended/expired tenants)
+- [x] SubscriptionPlansTest covering plan limit logic
+
+## Task 1.14 — Self-Registration & Tenant Onboarding ✅
+- [x] TenantOnboardingService: seeds tenant DB (roles, currencies, vat rates), creates TenantUser as super-admin
+- [x] RegisterTenant Livewire component (3-step wizard: Account → Organization → Plan)
+- [x] EuCountries support class (EU country list with currency, timezone, locale, VAT prefix)
+- [x] Guest layout (resources/views/components/layouts/guest.blade.php)
+- [x] Register-tenant Blade view with step indicator
+- [x] /register route wired to RegisterTenant
+- [x] WelcomeTenant, TrialExpiringSoon, TrialExpired, ProformaInvoice mail classes
+- [x] UsersRelationManager on TenantResource (Landlord panel)
+- [x] CreateTenant page updated: TenantOnboardingService called after admin creates tenant
+- [x] RegisterTenantTest: 12 feature tests covering all steps, validation, submit flow
+
+## Task 1.15 — Auto-Generated Tenant Subdomain ✅
+- [x] TenantSlugGenerator support class: 40 adjectives × 48 nouns → adjective-noun format (e.g. bright-harbor)
+- [x] Tenant::generateUniqueSlug(): tries adjective-noun, falls back to adjective-noun-NNN on collision
+- [x] Removed slug field from self-registration form (user no longer chooses subdomain)
+- [x] TenantForm: slug hidden on create (auto-generated), visible/editable on edit for landlord admins
+- [x] CreateTenant page: slug injected in mutateFormDataBeforeCreate()
+- [x] TenantSlugGeneratorTest (Unit): format, valid DNS chars, variance
+- [x] TenantSlugTest (Feature): pattern, uniqueness, retry on collision
+- [x] RegisterTenantTest updated: removed slug-input tests, asserts auto-generated slug pattern

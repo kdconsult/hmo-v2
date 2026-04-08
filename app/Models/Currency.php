@@ -15,12 +15,14 @@ class Currency extends Model
         'name',
         'symbol',
         'decimal_places',
+        'is_default',
         'is_active',
     ];
 
     protected function casts(): array
     {
         return [
+            'is_default' => 'boolean',
             'is_active' => 'boolean',
             'decimal_places' => 'integer',
         ];

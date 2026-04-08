@@ -4,6 +4,7 @@ namespace App\Filament\Landlord\Resources\Tenants\Tables;
 
 use App\Enums\TenantStatus;
 use App\Models\Tenant;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\EditAction;
@@ -39,8 +40,13 @@ class TenantsTable
                 TextColumn::make('country_code')
                     ->label('Country')
                     ->badge(),
-                TextColumn::make('subscription_plan')
+                TextColumn::make('plan.name')
+                    ->label('Plan')
                     ->badge()
+                    ->toggleable(),
+                TextColumn::make('subscription_status')
+                    ->badge()
+                    ->sortable()
                     ->toggleable(),
                 TextColumn::make('deactivated_at')
                     ->dateTime()
@@ -113,7 +119,7 @@ class TenantsTable
                             ->minDate(now()->addDay()),
                     ])
                     ->action(function (Tenant $record, array $data): void {
-                        $record->scheduleForDeletion($data['deletion_scheduled_for']);
+                        $record->scheduleForDeletion(Carbon::parse($data['deletion_scheduled_for']));
                     })
                     ->visible(fn (Tenant $record): bool => $record->status === TenantStatus::MarkedForDeletion)
                     ->authorize(fn (Tenant $record): bool => auth()->user()->can('scheduleForDeletion', $record)),

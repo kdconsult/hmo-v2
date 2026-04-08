@@ -1,5 +1,7 @@
 <?php
 
+use App\Console\Commands\CheckSubscriptionExpirations;
+use App\Console\Commands\CheckTrialExpirations;
 use App\Console\Commands\DeleteScheduledTenantsCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -10,3 +12,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(DeleteScheduledTenantsCommand::class)->daily();
+Schedule::command(CheckTrialExpirations::class)->dailyAt('06:00');
+Schedule::command(CheckSubscriptionExpirations::class)->dailyAt('06:05');

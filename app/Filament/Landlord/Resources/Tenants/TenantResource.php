@@ -7,6 +7,7 @@ use App\Filament\Landlord\Resources\Tenants\Pages\EditTenant;
 use App\Filament\Landlord\Resources\Tenants\Pages\ListTenants;
 use App\Filament\Landlord\Resources\Tenants\Pages\ViewTenant;
 use App\Filament\Landlord\Resources\Tenants\RelationManagers\DomainsRelationManager;
+use App\Filament\Landlord\Resources\Tenants\RelationManagers\UsersRelationManager;
 use App\Filament\Landlord\Resources\Tenants\Schemas\TenantForm;
 use App\Filament\Landlord\Resources\Tenants\Schemas\TenantInfolist;
 use App\Filament\Landlord\Resources\Tenants\Tables\TenantsTable;
@@ -44,6 +45,7 @@ class TenantResource extends Resource
     {
         return [
             DomainsRelationManager::class,
+            UsersRelationManager::class,
         ];
     }
 
