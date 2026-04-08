@@ -1,0 +1,65 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+
+class ViesValidationService
+{
+    private const CACHE_TTL = 86400; // 24 hours
+
+    /**
+     * Validate an EU VAT number via VIES.
+     *
+     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     */
+    public function validate(string $countryCode, string $vatNumber): array
+    {
+        $cacheKey = "vies_validation_{$countryCode}_{$vatNumber}";
+
+        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryCode, $vatNumber) {
+            return $this->callVies($countryCode, $vatNumber);
+        });
+    }
+
+    /**
+     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     */
+    private function callVies(string $countryCode, string $vatNumber): array
+    {
+        try {
+            $client = new \SoapClient(
+                'https://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl',
+                ['exceptions' => true, 'connection_timeout' => 10]
+            );
+
+            $result = $client->checkVat([
+                'countryCode' => strtoupper($countryCode),
+                'vatNumber' => preg_replace('/[^0-9A-Za-z]/', '', $vatNumber),
+            ]);
+
+            return [
+                'valid' => (bool) $result->valid,
+                'name' => $result->name !== '---' ? $result->name : null,
+                'address' => $result->address !== '---' ? $result->address : null,
+                'country_code' => $countryCode,
+                'vat_number' => $vatNumber,
+            ];
+        } catch (\Exception $e) {
+            Log::warning('VIES validation failed', [
+                'country_code' => $countryCode,
+                'vat_number' => $vatNumber,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [
+                'valid' => false,
+                'name' => null,
+                'address' => null,
+                'country_code' => $countryCode,
+                'vat_number' => $vatNumber,
+            ];
+        }
+    }
+}

@@ -1,7 +1,7 @@
 <?php
 
-test('the application returns a successful response', function () {
-    $response = $this->get('/');
+test('landlord panel login page is accessible', function () {
+    $response = $this->get('/landlord/login');
 
     $response->assertStatus(200);
 });
