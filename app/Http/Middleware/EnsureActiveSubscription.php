@@ -25,11 +25,16 @@ class EnsureActiveSubscription
 
         if (! $tenant->isSubscriptionAccessible()) {
             // Allow logout and the subscription-expired page through
-            if ($request->routeIs('filament.admin.auth.logout', 'subscription.expired')) {
+            if ($request->routeIs(
+                'filament.admin.auth.logout',
+                'filament.admin.pages.subscription-expired',
+                'filament.admin.pages.subscription',
+                'checkout.*',
+            )) {
                 return $next($request);
             }
 
-            return redirect()->route('subscription.expired');
+            return redirect()->route('filament.admin.pages.subscription-expired');
         }
 
         return $next($request);

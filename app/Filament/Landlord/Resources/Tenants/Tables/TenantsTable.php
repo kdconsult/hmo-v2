@@ -2,8 +2,16 @@
 
 namespace App\Filament\Landlord\Resources\Tenants\Tables;
 
+use App\Enums\PaymentGateway;
+use App\Enums\PaymentStatus;
+use App\Enums\SubscriptionStatus;
 use App\Enums\TenantStatus;
+use App\Mail\ProformaInvoice;
+use App\Models\Payment;
+use App\Models\Plan;
 use App\Models\Tenant;
+use App\Models\User;
+use App\Services\SubscriptionService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -11,9 +19,13 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Mail;
 
 class TenantsTable
 {
@@ -26,7 +38,8 @@ class TenantsTable
                     ->sortable(),
                 TextColumn::make('slug')
                     ->searchable()
-                    ->badge(),
+                    ->badge()
+                    ->suffix(fn (Tenant $record): string => $record->isLandlordTenant() ? ' ★' : ''),
                 TextColumn::make('status')
                     ->badge()
                     ->sortable(),
@@ -135,6 +148,118 @@ class TenantsTable
                     })
                     ->visible(fn (Tenant $record): bool => ! $record->isActive())
                     ->authorize(fn (Tenant $record): bool => auth()->user()->can('reactivate', $record)),
+
+                Action::make('changePlan')
+                    ->label('Change Plan')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('info')
+                    ->modalHeading('Change Subscription Plan')
+                    ->schema([
+                        Select::make('plan_id')
+                            ->label('New Plan')
+                            ->options(Plan::where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                            ->default(fn (Tenant $record) => $record->plan_id)
+                            ->required(),
+                    ])
+                    ->action(function (Tenant $record, array $data): void {
+                        $plan = Plan::findOrFail($data['plan_id']);
+                        app(SubscriptionService::class)->changePlan($record, $plan);
+                        Notification::make()->success()->title('Plan changed to '.$plan->name.'.')->send();
+                    })
+                    ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+
+                Action::make('cancelSubscription')
+                    ->label('Cancel Subscription')
+                    ->icon('heroicon-o-x-mark')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Cancel Subscription')
+                    ->modalDescription(fn (Tenant $record): string => 'The tenant will retain access until '.($record->subscription_ends_at?->format('d M Y') ?? 'the end of their current period').'.')
+                    ->action(function (Tenant $record): void {
+                        app(SubscriptionService::class)->cancelSubscription($record);
+                        Notification::make()->warning()->title('Subscription cancelled.')->send();
+                    })
+                    ->visible(fn (Tenant $record): bool => $record->subscription_status === SubscriptionStatus::Active)
+                    ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+
+                Action::make('recordPayment')
+                    ->label('Record Payment')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('success')
+                    ->modalHeading('Record Bank Transfer Payment')
+                    ->schema([
+                        Select::make('plan_id')
+                            ->label('Plan')
+                            ->options(Plan::where('is_active', true)->pluck('name', 'id'))
+                            ->default(fn (Tenant $record) => $record->plan_id)
+                            ->required(),
+                        TextInput::make('amount')
+                            ->label('Amount (EUR)')
+                            ->numeric()
+                            ->default(fn (Tenant $record) => $record->plan?->price)
+                            ->required(),
+                        TextInput::make('bank_transfer_reference')
+                            ->label('Bank Transfer Reference')
+                            ->required(),
+                        Textarea::make('notes')
+                            ->label('Notes')
+                            ->rows(2),
+                    ])
+                    ->action(function (Tenant $record, array $data): void {
+                        $plan = Plan::findOrFail($data['plan_id']);
+
+                        $payment = Payment::create([
+                            'tenant_id' => $record->id,
+                            'plan_id' => $plan->id,
+                            'amount' => $data['amount'],
+                            'currency' => 'EUR',
+                            'gateway' => PaymentGateway::BankTransfer,
+                            'status' => PaymentStatus::Pending,
+                            'bank_transfer_reference' => $data['bank_transfer_reference'],
+                            'notes' => $data['notes'] ?? null,
+                            'period_start' => now()->toDateString(),
+                            'period_end' => match ($plan->billing_period) {
+                                'monthly' => now()->addMonth()->toDateString(),
+                                'yearly' => now()->addYear()->toDateString(),
+                                default => null,
+                            },
+                            'recorded_by' => auth()->id(),
+                        ]);
+
+                        app(SubscriptionService::class)->recordPaymentAndActivate($record, $plan, $payment);
+
+                        Notification::make()->success()->title('Payment recorded and subscription activated.')->send();
+                    })
+                    ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+
+                Action::make('sendProformaInvoice')
+                    ->label('Send Proforma Invoice')
+                    ->icon('heroicon-o-document-text')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->modalHeading('Send Proforma Invoice')
+                    ->modalDescription('This will send a proforma invoice PDF to the tenant owner\'s email address.')
+                    ->action(function (Tenant $record): void {
+                        $plan = $record->plan;
+                        if (! $plan) {
+                            Notification::make()->danger()->title('Tenant has no plan assigned.')->send();
+
+                            return;
+                        }
+
+                        $ownerUser = $record->users()->first();
+                        if (! $ownerUser) {
+                            Notification::make()->danger()->title('No user found for this tenant.')->send();
+
+                            return;
+                        }
+
+                        $tenantUser = User::find($ownerUser->id);
+                        Mail::to($record->email)->send(new ProformaInvoice($record, $tenantUser, $plan));
+
+                        Notification::make()->success()->title('Proforma invoice sent to '.$record->email)->send();
+                    })
+                    ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([]),

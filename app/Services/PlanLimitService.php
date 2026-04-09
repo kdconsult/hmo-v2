@@ -7,6 +7,9 @@ namespace App\Services;
 use App\Models\Tenant;
 use App\Models\TenantUser;
 
+/**
+ * @phpstan-type UsageSummary array{users: array{current: int, max: int|null, unlimited: bool}, documents: array{current: int, max: int|null, unlimited: bool}}
+ */
 class PlanLimitService
 {
     /**
@@ -23,6 +26,30 @@ class PlanLimitService
         $count = $tenant->run(fn () => TenantUser::withoutTrashed()->count());
 
         return $count < $maxUsers;
+    }
+
+    /**
+     * Return current usage vs plan limits for users and documents.
+     *
+     * @return array{users: array{current: int, max: int|null, unlimited: bool}, documents: array{current: int, max: int|null, unlimited: bool}}
+     */
+    public function getUsageSummary(Tenant $tenant): array
+    {
+        $plan = $tenant->plan;
+        $currentUsers = $tenant->run(fn () => TenantUser::withoutTrashed()->count());
+
+        return [
+            'users' => [
+                'current' => $currentUsers,
+                'max' => $plan?->max_users,
+                'unlimited' => $plan?->max_users === null,
+            ],
+            'documents' => [
+                'current' => 0, // document model implemented in a later phase
+                'max' => $plan?->max_documents,
+                'unlimited' => $plan?->max_documents === null,
+            ],
+        ];
     }
 
     /**
