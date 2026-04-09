@@ -43,21 +43,23 @@ class TenantPolicy
 
     public function suspend(User $user, Tenant $tenant): bool
     {
-        return $user->is_landlord && $tenant->isActive();
+        return $user->is_landlord && $tenant->isActive() && ! $tenant->isLandlordTenant();
     }
 
     public function markForDeletion(User $user, Tenant $tenant): bool
     {
-        return $user->is_landlord && $tenant->isSuspended();
+        return $user->is_landlord && $tenant->isSuspended() && ! $tenant->isLandlordTenant();
     }
 
     public function scheduleForDeletion(User $user, Tenant $tenant): bool
     {
-        return $user->is_landlord && $tenant->status === TenantStatus::MarkedForDeletion;
+        return $user->is_landlord
+            && $tenant->status === TenantStatus::MarkedForDeletion
+            && ! $tenant->isLandlordTenant();
     }
 
     public function reactivate(User $user, Tenant $tenant): bool
     {
-        return $user->is_landlord && ! $tenant->isActive();
+        return $user->is_landlord && ! $tenant->isActive() && ! $tenant->isLandlordTenant();
     }
 }

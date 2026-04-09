@@ -2,6 +2,8 @@
 
 namespace App\Filament\Landlord\Resources\Tenants\Schemas;
 
+use App\Models\Tenant;
+use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -14,6 +16,14 @@ class TenantInfolist
             ->components([
                 TextEntry::make('id')
                     ->label('ID'),
+                IconEntry::make('is_landlord_tenant')
+                    ->label('Landlord Tenant')
+                    ->state(fn (Tenant $record): bool => $record->isLandlordTenant())
+                    ->boolean()
+                    ->trueIcon('heroicon-o-star')
+                    ->falseIcon('heroicon-o-minus')
+                    ->trueColor('warning')
+                    ->falseColor('gray'),
                 TextEntry::make('name'),
                 TextEntry::make('slug'),
                 TextEntry::make('email')

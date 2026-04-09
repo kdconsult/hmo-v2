@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
@@ -65,5 +66,37 @@ class DatabaseSeeder extends Seeder
 
         // 7. Onboard the tenant (seeds tenant DB, creates TenantUser)
         app(TenantOnboardingService::class)->onboard($tenant, $tenantAdmin);
+
+        // 8. Create landlord's own company tenant (dogfood tenant — never billed, always Active)
+        $professionalPlan = Plan::orderBy('sort_order', 'desc')->where('is_active', true)->first()
+            ?? $freePlan;
+
+        $landlordTenant = Tenant::updateOrCreate(
+            ['slug' => 'landlord'],
+            [
+                'name' => config('hmo.company_name') ?: 'Landlord Company',
+                'email' => config('hmo.landlord_email', 'admin@hmo.localhost'),
+                'country_code' => 'BG',
+                'locale' => 'bg_BG',
+                'timezone' => 'Europe/Sofia',
+                'default_currency_code' => 'EUR',
+                'eik' => config('hmo.company_eik') ?: '',
+                'vat_number' => config('hmo.company_vat') ?: '',
+                'plan_id' => $professionalPlan->id,
+                'subscription_status' => SubscriptionStatus::Active,
+                'subscription_ends_at' => null,
+                'trial_ends_at' => null,
+            ]
+        );
+
+        $landlordTenant->users()->syncWithoutDetaching([$landlord->id]);
+
+        $landlordTenant->domains()->updateOrCreate(
+            ['domain' => 'landlord'],
+        );
+
+        app(TenantOnboardingService::class)->onboard($landlordTenant, $landlord);
+
+        $this->command->info("Landlord tenant created. Set HMO_LANDLORD_TENANT_ID={$landlordTenant->id} in .env");
     }
 }
