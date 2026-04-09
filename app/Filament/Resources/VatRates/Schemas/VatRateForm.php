@@ -19,7 +19,7 @@ class VatRateForm
                     ->label('Country Code')
                     ->required()
                     ->maxLength(2)
-                    ->upperCase()
+                    ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : $state)
                     ->default('BG'),
                 Select::make('type')
                     ->options([

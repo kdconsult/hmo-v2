@@ -16,7 +16,7 @@ class CurrencyForm
                 TextInput::make('code')
                     ->required()
                     ->maxLength(3)
-                    ->upperCase()
+                    ->dehydrateStateUsing(fn (?string $state): ?string => $state ? strtoupper($state) : $state)
                     ->unique(ignoreRecord: true),
                 TextInput::make('name')
                     ->required()
