@@ -24,7 +24,7 @@
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_DATABASE" value="hmo_test_central"/>
-        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_HOST" value="hmo-postgres"/>
         <env name="DB_PORT" value="5432"/>
         <env name="DB_USERNAME" value="hmo"/>
         <env name="DB_PASSWORD" value="hmo_secret"/>
