@@ -31,6 +31,7 @@ class LandlordPanelProvider extends PanelProvider
                 'primary' => Color::Slate,
             ])
             ->viteTheme('resources/css/filament/landlord/theme.css')
+            ->databaseNotifications()
             ->discoverResources(in: app_path('Filament/Landlord/Resources'), for: 'App\Filament\Landlord\Resources')
             ->discoverPages(in: app_path('Filament/Landlord/Pages'), for: 'App\Filament\Landlord\Pages')
             ->pages([

@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Livewire;
 
 use App\Enums\SubscriptionStatus;
+use App\Mail\NewTenantRegistered;
 use App\Mail\WelcomeTenant;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Notifications\NewTenantRegisteredNotification;
 use App\Services\TenantOnboardingService;
 use App\Support\EuCountries;
 use Illuminate\Contracts\View\View;
@@ -115,6 +117,11 @@ class RegisterTenant extends Component
         app(TenantOnboardingService::class)->onboard($tenant, $user);
 
         Mail::to($user->email)->send(new WelcomeTenant($tenant, $user));
+
+        // Notify landlord
+        Mail::to(config('hmo.landlord_email'))->send(new NewTenantRegistered($tenant));
+        $notification = new NewTenantRegisteredNotification($tenant);
+        User::where('is_landlord', true)->each(fn (User $landlord) => $landlord->notify($notification));
 
         $this->redirect("http://{$slug}.{$appDomain}/admin", navigate: false);
     }
