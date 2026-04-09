@@ -126,6 +126,31 @@
 - [x] CreateTenant page updated: TenantOnboardingService called after admin creates tenant
 - [x] RegisterTenantTest: 12 feature tests covering all steps, validation, submit flow
 
+## Task 1.16 — Billing & Subscription Management ✅
+See full spec: [tasks/phase-1.16.md](phase-1.16.md)
+- [x] 1.16.1 — Subscription expired page + route fix
+- [x] 1.16.2 — Landlord notification on self-registration + config/hmo.php
+- [x] 1.16.3 — Payment model + PaymentGateway/PaymentStatus enums + migration
+- [x] 1.16.4 — SubscriptionService (single source of truth for subscription mutations)
+- [x] 1.16.5 — Install laravel/cashier + Stripe config + Billable on Tenant
+- [x] 1.16.6 — Stripe Checkout flow (tenant-side)
+- [x] 1.16.7 — Stripe webhook handler
+- [x] 1.16.8 — Manual bank transfer flow (landlord panel)
+- [x] 1.16.9 — Tenant subscription management page
+- [x] 1.16.10 — Proforma invoice enhancements (PDF via dompdf)
+- [x] 1.16.11 — Tests
+
+## Task 1.17 — Landlord Billing Management & Tenant Link ✅
+See full spec: [tasks/phase-1.17.md](phase-1.17.md)
+- [x] 1.17.1 — Landlord tenant config (HMO_LANDLORD_TENANT_ID) + Tenant model helpers
+- [x] 1.17.2 — DatabaseSeeder: landlord tenant on highest plan, Active, never expires
+- [x] 1.17.3 — Change Plan action on TenantsTable
+- [x] 1.17.4 — Cancel Subscription action on TenantsTable
+- [x] 1.17.5 — Landlord tenant protection (hide billing/lifecycle actions, policy guards)
+- [x] 1.17.6 — Fix Record Payment period_end to respect billing_period
+- [x] 1.17.7 — Future tenant invoicing bridge documented
+- [x] 1.17.8 — Tests (LandlordTenantTest, TenantBillingActionsTest)
+
 ## Task 1.15 — Auto-Generated Tenant Subdomain ✅
 - [x] TenantSlugGenerator support class: 40 adjectives × 48 nouns → adjective-noun format (e.g. bright-harbor)
 - [x] Tenant::generateUniqueSlug(): tries adjective-noun, falls back to adjective-noun-NNN on collision

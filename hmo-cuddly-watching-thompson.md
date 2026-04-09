@@ -6,6 +6,50 @@ Build a full SaaS SMB ERP-light system targeting EU markets (Bulgaria first) wit
 
 ---
 
+## SaaS Billing — Tenant Invoicing Bridge (Task 1.17)
+
+> **Phase 1 status (Task 1.17 complete):** The landlord manages SaaS subscriptions via the landlord panel. Bank transfer invoicing uses an interim `ProformaInvoice` mailable + "Record Payment" action. Card payments go through Stripe Checkout → webhook.
+
+### Landlord Tenant
+The SaaS operator will use the app as a regular tenant for their own business (dogfooding). This tenant is identified by `config('hmo.landlord_tenant_id')` (env: `HMO_LANDLORD_TENANT_ID`). When configured:
+- The tenant is on the highest plan, `subscription_status = Active`, `subscription_ends_at = null` (never expires)
+- Billing/lifecycle actions are hidden for this tenant in the landlord panel
+- `Tenant::isLandlordTenant()` and `Tenant::landlordTenant()` are available as model helpers
+
+**Setup:** Create your company tenant via the landlord panel, then set `HMO_LANDLORD_TENANT_ID=<id>` in `.env`. The DatabaseSeeder creates a `landlord` slug tenant automatically.
+
+### Future: Replacing the Interim Billing Flow
+
+When Phase 3 (Sales/Invoicing) is built, the SaaS billing must be updated:
+
+**Current (interim):**
+```
+Landlord panel → "Send Proforma Invoice" → ProformaInvoice mailable (PDF email)
+Landlord panel → "Record Payment" → Payment record → SubscriptionService::recordPaymentAndActivate
+```
+
+**Target (Phase 3+):**
+```
+Landlord panel → "Create Invoice"
+  → Identifies landlord tenant via config('hmo.landlord_tenant_id')
+  → Creates Invoice in landlord's tenant DB (via tenant invoicing system)
+  → Sends proforma PDF to client tenant's email
+
+Client pays → landlord marks Invoice as Paid in their tenant
+  → Event/job fires → calls SubscriptionService::recordPaymentAndActivate for client tenant
+  → Client subscription activated
+```
+
+**Integration points already in place (as of Task 1.17):**
+- `config('hmo.landlord_tenant_id')` — landlord tenant identifier
+- `Tenant::isLandlordTenant()` / `Tenant::landlordTenant()` — model helpers
+- `SubscriptionService::recordPaymentAndActivate()` — the bridge must call this
+- `Payment` model — must be created by the bridge when an invoice is paid
+
+**Stripe card payments bypass invoicing** — `StripeWebhookListener` → `SubscriptionService` remains unchanged.
+
+---
+
 ## Architecture Decisions
 
 | Decision | Choice |
