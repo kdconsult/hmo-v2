@@ -27,8 +27,9 @@ When a request enters a tenant context, stancl/tenancy runs:
 4. **QueueTenancyBootstrapper**: Carries tenant context into queued jobs
 
 #### Identification
-- Middleware: Domain-based identification (config: `central_domains` includes localhost, 127.0.0.1, env APP_DOMAIN)
-- Tenant lookup: `Tenant::getByDomain()` → `Domain::where('domain', $domain)->tenant()`
+- Middleware: Subdomain-based identification (`InitializeTenancyBySubdomain`) — extracts subdomain from hostname and looks it up in the `domains` table
+- Central domains config (`central_domains`): localhost, 127.0.0.1, env `APP_DOMAIN` (e.g. `hmo.localhost`)
+- Tenant lookup: `DomainTenantResolver` → `Domain::where('domain', $subdomain)->tenant()`
 
 #### Database Manager
 - PostgreSQL mode: Creates separate `tenant{id}` database per tenant
@@ -108,7 +109,7 @@ Extends `Stancl\Tenancy\Database\Models\Domain` (inherits stancl fields).
 **Columns** (stancl base):
 ```
 id (int, primary)
-domain (string, unique) – Full domain name (e.g., acme.hmo.localhost)
+domain (string, unique) – Subdomain only (e.g., "acme") — NOT the full hostname
 tenant_id (string, FK)  – References tenants.id
 created_at, updated_at
 ```

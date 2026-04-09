@@ -59,9 +59,8 @@ class DatabaseSeeder extends Seeder
         $tenant->users()->syncWithoutDetaching([$tenantAdmin->id]);
 
         // 6. Create domain for the demo tenant
-        $appDomain = last(config('tenancy.central_domains'));
         $tenant->domains()->updateOrCreate(
-            ['domain' => "demo.{$appDomain}"],
+            ['domain' => 'demo'],
         );
 
         // 7. Onboard the tenant (seeds tenant DB, creates TenantUser)

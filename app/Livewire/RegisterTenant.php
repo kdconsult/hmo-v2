@@ -107,7 +107,7 @@ class RegisterTenant extends Component
         ]);
 
         $tenant->domains()->create([
-            'domain' => "{$slug}.{$appDomain}",
+            'domain' => $slug,
         ]);
 
         $tenant->users()->attach($user->id);

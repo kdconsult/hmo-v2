@@ -25,8 +25,10 @@ class DomainsRelationManager extends RelationManager
         return $schema
             ->components([
                 TextInput::make('domain')
+                    ->label('Subdomain')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(63)
+                    ->helperText('Enter only the subdomain (e.g. "acme"), not the full domain.'),
             ]);
     }
 
@@ -36,6 +38,8 @@ class DomainsRelationManager extends RelationManager
             ->recordTitleAttribute('domain')
             ->columns([
                 TextColumn::make('domain')
+                    ->label('Subdomain')
+                    ->formatStateUsing(fn (string $state): string => "{$state}.".config('app.domain'))
                     ->searchable(),
             ])
             ->filters([

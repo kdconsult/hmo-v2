@@ -130,7 +130,7 @@ test('submit creates user, tenant, and domain', function () {
 
     expect($tenant)->not->toBeNull()
         ->and($tenant->slug)->toMatch('/^[a-z]+-[a-z]+(-\d+)?$/')
-        ->and($tenant->domains()->where('domain', 'like', "{$tenant->slug}.%")->exists())->toBeTrue()
+        ->and($tenant->domains()->where('domain', $tenant->slug)->exists())->toBeTrue()
         ->and($tenant->subscription_status)->toBe(SubscriptionStatus::Trial)
         ->and($tenant->trial_ends_at)->not->toBeNull()
         ->and($tenant->plan_id)->toBe($freePlan->id)

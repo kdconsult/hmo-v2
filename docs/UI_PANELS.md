@@ -37,7 +37,7 @@ The application implements two separate Filament panels for distinct user roles 
   - `Filament\Http\Middleware\Authenticate` (standard)
   - `App\Http\Middleware\EnsureActiveSubscription` (custom subscription validation)
 - Tenancy initialization via:
-  - `InitializeTenancyByDomain` (persistent middleware)
+  - `InitializeTenancyBySubdomain` (persistent middleware — extracts subdomain, looks up in domains table)
   - `PreventAccessFromCentralDomains` (blocks access from central domains)
 - Discovers resources from `app/Filament/Resources`
 
@@ -616,7 +616,7 @@ Each schema file contains a static `configure(Schema|Table $schema)` method call
 ### 7.2 Tenancy Integration
 
 - **Landlord Panel:** No tenancy middleware, operates on central database
-- **Admin Panel:** Fully tenant-scoped via `InitializeTenancyByDomain` middleware
+- **Admin Panel:** Fully tenant-scoped via `InitializeTenancyBySubdomain` middleware
 - **TenantUser Model:** Acts as tenant-specific user representation; linked to central User via `user_id` relationship
 
 ### 7.3 Soft Deletes

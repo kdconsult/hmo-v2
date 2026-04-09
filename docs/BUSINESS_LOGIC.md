@@ -533,7 +533,7 @@ Runs on `php artisan migrate:fresh --seed` or `php artisan db:seed`. Creates:
    - Currency: EUR (default)
    - Plan: Free
    - Subscription: Trial, expires 14 days from now
-   - Domain: `demo.{app_domain}` (e.g., `demo.hmo.localhost`)
+   - Domain: `demo` (subdomain only; full URL is `demo.{app_domain}`)
 
 5. **Tenant onboarding:**
    - Calls `TenantOnboardingService::onboard()` to seed tenant DB and create TenantUser.

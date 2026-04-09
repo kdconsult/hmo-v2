@@ -27,10 +27,8 @@ class CreateTenant extends CreateRecord
 
     protected function afterCreate(): void
     {
-        $appDomain = last(config('tenancy.central_domains'));
-
         $this->record->domains()->create([
-            'domain' => "{$this->record->slug}.{$appDomain}",
+            'domain' => $this->record->slug,
         ]);
 
         $ownerUserId = $this->form->getRawState()['owner_user_id'] ?? null;
