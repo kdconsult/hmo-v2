@@ -7,10 +7,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Stancl\Tenancy\Database\Concerns\CentralConnection;
 
 class Plan extends Model
 {
-    use HasFactory;
+    use CentralConnection, HasFactory;
 
     protected $guarded = [];
 
