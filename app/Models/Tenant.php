@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Cashier\Billable;
 use RuntimeException;
 use Stancl\Tenancy\Contracts\TenantWithDatabase;
 use Stancl\Tenancy\Database\Concerns\HasDatabase;
@@ -18,7 +19,7 @@ use Stancl\Tenancy\Database\Concerns\HasDomains;
 
 class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWithDatabase
 {
-    use HasDatabase, HasDomains, HasFactory;
+    use Billable, HasDatabase, HasDomains, HasFactory;
 
     protected $casts = [
         'status' => TenantStatus::class,
@@ -61,10 +62,24 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             'deletion_scheduled_for',
             'deactivation_reason',
             'deactivated_by',
+            'stripe_id',
+            'pm_type',
+            'pm_last_four',
         ];
     }
 
     // --- Static helpers ---
+
+    /**
+     * Returns the landlord's own tenant, or null when not configured.
+     * Requires HMO_LANDLORD_TENANT_ID to be set in .env.
+     */
+    public static function landlordTenant(): ?self
+    {
+        $id = config('hmo.landlord_tenant_id');
+
+        return $id ? static::find($id) : null;
+    }
 
     public static function generateUniqueSlug(): string
     {
@@ -98,6 +113,11 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     public function plan(): BelongsTo
     {
         return $this->belongsTo(Plan::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
     }
 
     public function deactivatedBy(): BelongsTo
@@ -151,6 +171,19 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     public function isSubscriptionAccessible(): bool
     {
         return $this->subscription_status?->isAccessible() ?? false;
+    }
+
+    // --- Landlord tenant helpers ---
+
+    /**
+     * Returns true when this tenant is the landlord's own company account.
+     * Returns false when HMO_LANDLORD_TENANT_ID is not configured.
+     */
+    public function isLandlordTenant(): bool
+    {
+        $id = config('hmo.landlord_tenant_id');
+
+        return $id !== null && $this->id === $id;
     }
 
     // --- Computed helpers ---
