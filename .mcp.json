@@ -7,6 +7,19 @@
                 "/home/bogui/projects/hmo/hmo_v2/artisan",
                 "boost:mcp"
             ]
+        },
+        "db_central": {
+            "type": "stdio",
+            "command": "npx",
+            "args": [
+                "-y",
+                "@bytebase/dbhub",
+                "--transport",
+                "stdio",
+                "--dsn",
+                "postgres://hmo:hmo_secret@127.0.0.1:5432/hmo_central"
+            ],
+            "env": {}
         }
     }
 }
