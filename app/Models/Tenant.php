@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Cashier\Billable;
 use RuntimeException;
@@ -35,6 +36,8 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             }
         });
     }
+
+    protected $hidden = ['stripe_id', 'pm_type', 'pm_last_four'];
 
     protected $casts = [
         'status' => TenantStatus::class,
@@ -98,7 +101,16 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             return null;
         }
 
-        return Cache::rememberForever("landlord_tenant:{$id}", fn () => static::find($id));
+        $cached = Cache::rememberForever("landlord_tenant:{$id}", fn () => static::find($id));
+
+        // Guard against stale/corrupt cache entries (e.g. after a deploy that changes model structure).
+        if (! $cached instanceof static) {
+            static::clearLandlordTenantCache();
+
+            return static::find($id);
+        }
+
+        return $cached;
     }
 
     public static function clearLandlordTenantCache(): void
@@ -256,11 +268,13 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     {
         $this->assertCanTransitionTo(TenantStatus::Suspended);
 
-        $this->status = TenantStatus::Suspended;
-        $this->deactivated_at = now();
-        $this->deactivated_by = $by->id;
-        $this->deactivation_reason = $reason;
-        $this->save();
+        DB::transaction(function () use ($by, $reason): void {
+            $this->status = TenantStatus::Suspended;
+            $this->deactivated_at = now();
+            $this->deactivated_by = $by->id;
+            $this->deactivation_reason = $reason;
+            $this->save();
+        });
 
         if ($this->email) {
             Mail::to($this->email)->queue(new TenantSuspendedMail($this));
@@ -274,9 +288,11 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     {
         $this->assertCanTransitionTo(TenantStatus::MarkedForDeletion);
 
-        $this->status = TenantStatus::MarkedForDeletion;
-        $this->marked_for_deletion_at = now();
-        $this->save();
+        DB::transaction(function (): void {
+            $this->status = TenantStatus::MarkedForDeletion;
+            $this->marked_for_deletion_at = now();
+            $this->save();
+        });
 
         if ($this->email) {
             Mail::to($this->email)->queue(new TenantMarkedForDeletionMail($this));
@@ -292,10 +308,12 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     {
         $this->assertCanTransitionTo(TenantStatus::ScheduledForDeletion);
 
-        $this->status = TenantStatus::ScheduledForDeletion;
-        $this->scheduled_for_deletion_at = now();
-        $this->deletion_scheduled_for = $deleteOn ?? now()->addDays(30);
-        $this->save();
+        DB::transaction(function () use ($deleteOn): void {
+            $this->status = TenantStatus::ScheduledForDeletion;
+            $this->scheduled_for_deletion_at = now();
+            $this->deletion_scheduled_for = $deleteOn ?? now()->addDays(30);
+            $this->save();
+        });
 
         if ($this->email) {
             Mail::to($this->email)->queue(new TenantScheduledForDeletionMail($this));
@@ -309,14 +327,16 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     {
         $this->assertCanTransitionTo(TenantStatus::Active);
 
-        $this->status = TenantStatus::Active;
-        $this->deactivated_at = null;
-        $this->deactivated_by = null;
-        $this->deactivation_reason = null;
-        $this->marked_for_deletion_at = null;
-        $this->scheduled_for_deletion_at = null;
-        $this->deletion_scheduled_for = null;
-        $this->save();
+        DB::transaction(function (): void {
+            $this->status = TenantStatus::Active;
+            $this->deactivated_at = null;
+            $this->deactivated_by = null;
+            $this->deactivation_reason = null;
+            $this->marked_for_deletion_at = null;
+            $this->scheduled_for_deletion_at = null;
+            $this->deletion_scheduled_for = null;
+            $this->save();
+        });
 
         if ($this->email) {
             Mail::to($this->email)->queue(new TenantReactivatedMail($this));

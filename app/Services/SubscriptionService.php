@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Tenant;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class SubscriptionService
 {
@@ -30,11 +31,13 @@ class SubscriptionService
      */
     public function recordPaymentAndActivate(Tenant $tenant, Plan $plan, Payment $payment): void
     {
-        $payment->status = PaymentStatus::Completed;
-        $payment->paid_at = now();
-        $payment->save();
+        DB::transaction(function () use ($tenant, $plan, $payment): void {
+            $payment->status = PaymentStatus::Completed;
+            $payment->paid_at = now();
+            $payment->save();
 
-        $this->activateSubscription($tenant, $plan, $this->calculateEndDate($plan));
+            $this->activateSubscription($tenant, $plan, $this->calculateEndDate($plan));
+        });
     }
 
     /**
@@ -42,6 +45,10 @@ class SubscriptionService
      */
     public function changePlan(Tenant $tenant, Plan $plan): void
     {
+        if (! $plan->is_active) {
+            throw new \InvalidArgumentException("Cannot switch to inactive plan [{$plan->id}].");
+        }
+
         $tenant->plan_id = $plan->id;
         $tenant->save();
     }
@@ -60,24 +67,26 @@ class SubscriptionService
      */
     public function handleStripePaymentSucceeded(Tenant $tenant, Plan $plan, string $paymentIntentId, float $amount): Payment
     {
-        $periodEnd = $this->calculateEndDate($plan);
+        return DB::transaction(function () use ($tenant, $plan, $paymentIntentId, $amount): Payment {
+            $periodEnd = $this->calculateEndDate($plan);
 
-        $payment = Payment::create([
-            'tenant_id' => $tenant->id,
-            'plan_id' => $plan->id,
-            'amount' => $amount,
-            'currency' => 'EUR',
-            'gateway' => PaymentGateway::Stripe,
-            'status' => PaymentStatus::Pending,
-            'stripe_payment_intent_id' => $paymentIntentId,
-            'paid_at' => now(),
-            'period_start' => now()->toDateString(),
-            'period_end' => $periodEnd?->toDateString(),
-        ]);
+            $payment = Payment::create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $plan->id,
+                'amount' => $amount,
+                'currency' => 'EUR',
+                'gateway' => PaymentGateway::Stripe,
+                'status' => PaymentStatus::Completed,
+                'stripe_payment_intent_id' => $paymentIntentId,
+                'paid_at' => now(),
+                'period_start' => now()->toDateString(),
+                'period_end' => $periodEnd?->toDateString(),
+            ]);
 
-        $this->recordPaymentAndActivate($tenant, $plan, $payment);
+            $this->activateSubscription($tenant, $plan, $periodEnd);
 
-        return $payment->fresh();
+            return $payment->fresh();
+        });
     }
 
     /**
@@ -86,12 +95,14 @@ class SubscriptionService
      */
     public function handleStripePaymentFailed(Tenant $tenant, string $paymentIntentId): void
     {
-        Payment::where('stripe_payment_intent_id', $paymentIntentId)
-            ->where('status', PaymentStatus::Pending)
-            ->update(['status' => PaymentStatus::Failed]);
+        DB::transaction(function () use ($tenant, $paymentIntentId): void {
+            Payment::where('stripe_payment_intent_id', $paymentIntentId)
+                ->where('status', PaymentStatus::Pending)
+                ->update(['status' => PaymentStatus::Failed]);
 
-        $tenant->subscription_status = SubscriptionStatus::PastDue;
-        $tenant->save();
+            $tenant->subscription_status = SubscriptionStatus::PastDue;
+            $tenant->save();
+        });
     }
 
     private function calculateEndDate(Plan $plan): ?Carbon
