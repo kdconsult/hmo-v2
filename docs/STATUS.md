@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.17 ✅ complete. 143/143 tests pass. Under active hardening.
+**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.17 ✅ complete + hardened. 171/171 tests pass.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
 
@@ -96,11 +96,13 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## Recent Changes (last session)
 
-- Lifecycle emails: created 5 blade views, wired dispatch into Tenant model methods + DeleteScheduledTenantsCommand
-- Fixed `view:` → `markdown:` on all lifecycle mailables (required for `<x-mail::message>` component)
-- Fixed missing `with:` data passing on all 5 lifecycle mailables
-- `TenantDeletedMail` now takes `string $tenantName` — prevents ModelNotFoundException (tenant deleted before queue processes)
-- `TenancyServiceProvider` `shouldBeQueued` now environment-aware (production=queued, else sync)
-- Fixed welcome page login route: `login` → `filament.landlord.auth.login`
-- Landlord tenant table actions redesigned: icon buttons + ActionGroup dropdown
-- 143/143 tests passing
+- **ProformaInvoice refactor** — eliminated all `HMO_BANK_*`/`HMO_COMPANY_*` env vars; all invoicing data (company name, EIK, VAT, IBAN, BIC, address) now read from `Tenant::landlordTenant()`
+- **Landlord tenant caching** — `landlordTenant()` uses `Cache::rememberForever`; auto-invalidated on model save; `clearLandlordTenantCache()` for manual reset; `formattedAddress()` helper
+- **TenantForm redesign** — 2-column desktop layout (Company Info left / Localization + Subscription stacked right); Bank Details only visible for the linked landlord tenant
+- **TenantInfolist redesign** — 7 structured sections; Bank Details only visible for landlord tenant
+- **ViewTenant page** — all lifecycle and billing header actions moved to view page header
+- **VIES EIK lookup action** — inline button below EIK field; calls EU VIES REST API; auto-fills `vat_number` and company `name`; handles Bulgarian subdivision EIKs (strips suffix to get 9-digit VAT base)
+- **EIK uniqueness** — unique DB constraint + form validation; migration pre-cleans duplicates
+- **EuCountries extended** — VAT number regex patterns for all 26 EU member states; `vatNumberRegex()`, `vatNumberExample()`, `extractMainVatNumber()` methods
+- **VAT number field** — live format validation per country + helper text showing expected format
+- **Tests** — 171/171 pass (added ProformaInvoiceTest × 4, ViewTenantPageTest × 10, expanded LandlordTenantTest × 21)

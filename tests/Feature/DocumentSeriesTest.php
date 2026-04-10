@@ -11,6 +11,7 @@ function createTestTenant(): Tenant
         'slug' => 'test-'.uniqid(),
         'email' => 'test@test.com',
         'country_code' => 'BG',
+        'eik' => fake()->unique()->numerify('#########'),
         'locale' => 'bg',
         'timezone' => 'Europe/Sofia',
         'default_currency_code' => 'BGN',

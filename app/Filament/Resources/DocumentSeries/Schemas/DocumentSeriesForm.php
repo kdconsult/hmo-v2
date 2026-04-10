@@ -27,7 +27,7 @@ class DocumentSeriesForm
                             ->maxLength(100),
                         TextInput::make('prefix')
                             ->maxLength(20)
-                            ->dehydrateStateUsing(fn(string|null $state): string|null => $state ? Str::upper($state) : null),
+                            ->dehydrateStateUsing(fn (?string $state): ?string => $state ? Str::upper($state) : null),
                         TextInput::make('separator')
                             ->default('-')
                             ->maxLength(5),

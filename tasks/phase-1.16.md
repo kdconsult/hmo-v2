@@ -31,7 +31,7 @@ Phase 1 (Tasks 1.1–1.15) complete. Tenant self-registration and trial flow wor
 **Goal:** Landlord knows when a new tenant signs up.
 
 **Create:**
-- `config/hmo.php` — landlord_email, bank_iban, bank_bic, bank_name, company_name, company_vat, company_eik, company_address (all from env)
+- `config/hmo.php` — landlord_email, company_name, company_vat, company_eik, company_address (all from env)
 - `app/Mail/NewTenantRegistered.php` — to `config('hmo.landlord_email')`. Contains: tenant name, slug, email, plan, timestamp, link
 - `resources/views/mail/tenant/new-tenant-registered.blade.php`
 - `app/Notifications/NewTenantRegisteredNotification.php` — Filament database notification

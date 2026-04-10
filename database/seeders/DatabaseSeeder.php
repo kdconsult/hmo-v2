@@ -74,14 +74,14 @@ class DatabaseSeeder extends Seeder
         $landlordTenant = Tenant::updateOrCreate(
             ['slug' => 'landlord'],
             [
-                'name' => config('hmo.company_name') ?: 'Landlord Company',
+                'name' => 'Landlord Company',
                 'email' => config('hmo.landlord_email', 'admin@hmo.localhost'),
                 'country_code' => 'BG',
                 'locale' => 'bg_BG',
                 'timezone' => 'Europe/Sofia',
                 'default_currency_code' => 'EUR',
-                'eik' => config('hmo.company_eik') ?: '',
-                'vat_number' => config('hmo.company_vat') ?: '',
+                'eik' => '',
+                'vat_number' => '',
                 'plan_id' => $professionalPlan->id,
                 'subscription_status' => SubscriptionStatus::Active,
                 'subscription_ends_at' => null,

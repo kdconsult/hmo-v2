@@ -91,6 +91,19 @@ test('step 2 requires company name', function () {
         ->assertHasNoErrors(['slug']);
 });
 
+test('step 2 requires eik', function () {
+    Livewire::test(RegisterTenant::class)
+        ->set('name', 'Test User')
+        ->set('email', 'user3@example.com')
+        ->set('password', 'password')
+        ->set('password_confirmation', 'password')
+        ->call('nextStep')
+        ->set('company_name', 'Test Co')
+        ->set('country_code', 'BG')
+        ->call('nextStep')
+        ->assertHasErrors(['eik' => 'required']);
+});
+
 test('updating country_code auto-fills currency and timezone', function () {
     Livewire::test(RegisterTenant::class)
         ->set('country_code', 'DE')
@@ -120,6 +133,7 @@ test('submit creates user, tenant, and domain', function () {
         ->call('nextStep')
         ->set('company_name', 'Acme Corp')
         ->set('country_code', 'BG')
+        ->set('eik', '111111111')
         ->call('nextStep')
         ->set('plan_id', $freePlan->id)
         ->call('submit');
@@ -150,6 +164,7 @@ test('submit sends welcome email', function () {
         ->call('nextStep')
         ->set('company_name', 'New Co')
         ->set('country_code', 'DE')
+        ->set('eik', '222222222')
         ->call('nextStep')
         ->set('plan_id', $freePlan->id)
         ->call('submit');
@@ -170,6 +185,7 @@ test('submit attaches user to tenant central pivot', function () {
         ->call('nextStep')
         ->set('company_name', 'My Company')
         ->set('country_code', 'BG')
+        ->set('eik', '333333333')
         ->call('nextStep')
         ->set('plan_id', $freePlan->id)
         ->call('submit');

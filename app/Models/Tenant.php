@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Laravel\Cashier\Billable;
 use RuntimeException;
@@ -25,6 +26,15 @@ use Stancl\Tenancy\Database\Concerns\HasDomains;
 class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWithDatabase
 {
     use Billable, HasDatabase, HasDomains, HasFactory;
+
+    protected static function booted(): void
+    {
+        static::saved(function (Tenant $tenant): void {
+            if ($tenant->isLandlordTenant()) {
+                static::clearLandlordTenantCache();
+            }
+        });
+    }
 
     protected $casts = [
         'status' => TenantStatus::class,
@@ -76,14 +86,28 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     // --- Static helpers ---
 
     /**
-     * Returns the landlord's own tenant, or null when not configured.
+     * Returns the landlord's own tenant, cached indefinitely.
      * Requires HMO_LANDLORD_TENANT_ID to be set in .env.
+     * Cache is invalidated automatically when the landlord tenant is saved.
      */
     public static function landlordTenant(): ?self
     {
         $id = config('hmo.landlord_tenant_id');
 
-        return $id ? static::find($id) : null;
+        if ($id === null) {
+            return null;
+        }
+
+        return Cache::rememberForever("landlord_tenant:{$id}", fn () => static::find($id));
+    }
+
+    public static function clearLandlordTenantCache(): void
+    {
+        $id = config('hmo.landlord_tenant_id');
+
+        if ($id !== null) {
+            Cache::forget("landlord_tenant:{$id}");
+        }
     }
 
     public static function generateUniqueSlug(): string
@@ -192,6 +216,18 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     }
 
     // --- Computed helpers ---
+
+    public function formattedAddress(): ?string
+    {
+        $parts = array_filter([
+            $this->address_line_1,
+            $this->city,
+            $this->postal_code,
+            $this->country_code,
+        ]);
+
+        return $parts ? implode(', ', $parts) : null;
+    }
 
     public function isActive(): bool
     {

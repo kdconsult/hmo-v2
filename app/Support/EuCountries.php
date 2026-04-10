@@ -8,9 +8,47 @@ namespace App\Support;
  * Static reference data for EU member states.
  *
  * @phpstan-type CountryData array{name: string, vat_prefix: string, currency_code: string, timezone: string, locale: string}
+ * @phpstan-type VatFormat array{regex: string, example: string}
  */
 class EuCountries
 {
+    /**
+     * VAT number formats keyed by ISO country code.
+     * `regex` matches the full VAT number (including country/VAT prefix).
+     * `example` is shown as helper text in the form.
+     *
+     * @var array<string, VatFormat>
+     */
+    private static array $vatFormats = [
+        'AT' => ['regex' => 'ATU\d{8}',                          'example' => 'ATU12345678'],
+        'BE' => ['regex' => 'BE\d{10}',                          'example' => 'BE1234567890'],
+        'BG' => ['regex' => 'BG\d{9,10}',                        'example' => 'BG123456789'],
+        'HR' => ['regex' => 'HR\d{11}',                          'example' => 'HR12345678901'],
+        'CY' => ['regex' => 'CY\d{8}[A-Z]',                     'example' => 'CY12345678A'],
+        'CZ' => ['regex' => 'CZ\d{8,10}',                        'example' => 'CZ12345678'],
+        'DK' => ['regex' => 'DK\d{8}',                           'example' => 'DK12345678'],
+        'EE' => ['regex' => 'EE\d{9}',                           'example' => 'EE123456789'],
+        'FI' => ['regex' => 'FI\d{8}',                           'example' => 'FI12345678'],
+        'FR' => ['regex' => 'FR[0-9A-HJ-NP-Z]{2}\d{9}',         'example' => 'FR12345678901'],
+        'DE' => ['regex' => 'DE\d{9}',                           'example' => 'DE123456789'],
+        'GR' => ['regex' => 'EL\d{9}',                           'example' => 'EL123456789'],   // VIES prefix: EL
+        'HU' => ['regex' => 'HU\d{8}',                           'example' => 'HU12345678'],
+        'IE' => ['regex' => 'IE\d[0-9A-Z+*]\d{5}[A-Z]{1,2}',   'example' => 'IE1234567X'],
+        'IT' => ['regex' => 'IT\d{11}',                          'example' => 'IT12345678901'],
+        'LV' => ['regex' => 'LV\d{11}',                          'example' => 'LV12345678901'],
+        'LT' => ['regex' => 'LT(\d{9}|\d{12})',                  'example' => 'LT123456789'],
+        'LU' => ['regex' => 'LU\d{8}',                           'example' => 'LU12345678'],
+        'MT' => ['regex' => 'MT\d{8}',                           'example' => 'MT12345678'],
+        'NL' => ['regex' => 'NL\d{9}B\d{2}',                    'example' => 'NL123456789B01'],
+        'PL' => ['regex' => 'PL\d{10}',                          'example' => 'PL1234567890'],
+        'PT' => ['regex' => 'PT\d{9}',                           'example' => 'PT123456789'],
+        'RO' => ['regex' => 'RO\d{2,10}',                        'example' => 'RO12345678'],
+        'SK' => ['regex' => 'SK\d{10}',                          'example' => 'SK1234567890'],
+        'SI' => ['regex' => 'SI\d{8}',                           'example' => 'SI12345678'],
+        'ES' => ['regex' => 'ES[A-Z0-9]\d{7}[A-Z0-9]',          'example' => 'ESX12345678'],
+        'SE' => ['regex' => 'SE\d{12}',                          'example' => 'SE123456789012'],
+    ];
+
     /** @var array<string, CountryData> */
     private static array $countries = [
         'AT' => ['name' => 'Austria', 'vat_prefix' => 'AT', 'currency_code' => 'EUR', 'timezone' => 'Europe/Vienna', 'locale' => 'de_AT'],
@@ -90,5 +128,40 @@ class EuCountries
     public static function vatPrefixForCountry(string $code): ?string
     {
         return self::get($code)['vat_prefix'] ?? null;
+    }
+
+    /**
+     * Full regex (with delimiters) matching a valid VAT number for the given country.
+     * Returns null for unknown country codes.
+     */
+    public static function vatNumberRegex(string $code): ?string
+    {
+        $format = self::$vatFormats[strtoupper($code)] ?? null;
+
+        return $format ? '/^'.$format['regex'].'$/i' : null;
+    }
+
+    /**
+     * An example VAT number for the given country, suitable for helper text.
+     */
+    public static function vatNumberExample(string $code): ?string
+    {
+        return self::$vatFormats[strtoupper($code)]['example'] ?? null;
+    }
+
+    /**
+     * Extracts the number to pass to the VIES API from a raw EIK.
+     *
+     * In Bulgaria, legal-entity EIKs are 9 digits and individuals are 10.
+     * Subdivisions/branches append 2 extra digits (→ 11 digits), but they share
+     * their parent's 9-digit VAT number. This method strips the subdivision suffix
+     * so the VIES lookup hits the correct parent registration.
+     */
+    public static function extractMainVatNumber(string $countryCode, string $eik): string
+    {
+        return match (strtoupper($countryCode)) {
+            'BG' => strlen($eik) > 10 ? substr($eik, 0, 9) : $eik,
+            default => $eik,
+        };
     }
 }

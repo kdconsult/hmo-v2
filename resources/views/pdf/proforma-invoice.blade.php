@@ -154,11 +154,11 @@
     {{-- Header --}}
     <div class="header">
         <div>
-            <div class="company-name">{{ config('hmo.company_name') ?: config('app.name') }}</div>
+            <div class="company-name">{{ $landlord?->name ?: config('app.name') }}</div>
             <div style="font-size:11px; color:#6b7280; margin-top:4px; line-height:1.6">
-                @if(config('hmo.company_address')){{ config('hmo.company_address') }}<br>@endif
-                @if(config('hmo.company_eik'))ЕИК: {{ config('hmo.company_eik') }}<br>@endif
-                @if(config('hmo.company_vat'))ДДС №: {{ config('hmo.company_vat') }}@endif
+                @if($landlord?->formattedAddress()){{ $landlord->formattedAddress() }}<br>@endif
+                @if($landlord?->eik)ЕИК: {{ $landlord->eik }}<br>@endif
+                @if($landlord?->vat_number)ДДС №: {{ $landlord->vat_number }}@endif
             </div>
         </div>
         <div>
@@ -173,11 +173,11 @@
     <div class="parties">
         <div class="party">
             <div class="party-label">From (Supplier)</div>
-            <div class="party-name">{{ config('hmo.company_name') ?: config('app.name') }}</div>
+            <div class="party-name">{{ $landlord?->name ?: config('app.name') }}</div>
             <div class="party-detail">
-                @if(config('hmo.company_address')){{ config('hmo.company_address') }}<br>@endif
-                @if(config('hmo.company_eik'))ЕИК: {{ config('hmo.company_eik') }}<br>@endif
-                @if(config('hmo.company_vat'))ДДС №: {{ config('hmo.company_vat') }}@endif
+                @if($landlord?->formattedAddress()){{ $landlord->formattedAddress() }}<br>@endif
+                @if($landlord?->eik)ЕИК: {{ $landlord->eik }}<br>@endif
+                @if($landlord?->vat_number)ДДС №: {{ $landlord->vat_number }}@endif
             </div>
         </div>
         <div class="party" style="text-align:right">
@@ -238,15 +238,15 @@
         <div class="payment-title">Payment Instructions / Платежни инструкции</div>
         <div class="payment-row">
             <span class="payment-label">Bank / Банка:</span>
-            <span class="payment-value">{{ config('hmo.bank_name') ?: '—' }}</span>
+            <span class="payment-value">{{ $landlord?->bank_name ?: '—' }}</span>
         </div>
         <div class="payment-row">
             <span class="payment-label">IBAN:</span>
-            <span class="payment-value">{{ config('hmo.bank_iban') ?: '—' }}</span>
+            <span class="payment-value">{{ $landlord?->iban ?: '—' }}</span>
         </div>
         <div class="payment-row">
             <span class="payment-label">BIC/SWIFT:</span>
-            <span class="payment-value">{{ config('hmo.bank_bic') ?: '—' }}</span>
+            <span class="payment-value">{{ $landlord?->bic ?: '—' }}</span>
         </div>
         <div class="payment-row">
             <span class="payment-label">Amount / Сума:</span>

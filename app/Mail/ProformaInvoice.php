@@ -21,12 +21,15 @@ class ProformaInvoice extends Mailable
 
     public readonly string $paymentReference;
 
+    public readonly ?Tenant $landlordTenant;
+
     public function __construct(
         public readonly Tenant $tenant,
         public readonly User $user,
         public readonly Plan $plan,
     ) {
         $this->paymentReference = "{$tenant->slug}-{$plan->slug}-".now()->format('Ym');
+        $this->landlordTenant = Tenant::landlordTenant();
     }
 
     public function envelope(): Envelope
@@ -47,9 +50,9 @@ class ProformaInvoice extends Mailable
                 'amount' => $this->plan->price,
                 'billingPeriod' => $this->plan->billing_period,
                 'paymentReference' => $this->paymentReference,
-                'bankIban' => config('hmo.bank_iban'),
-                'bankBic' => config('hmo.bank_bic'),
-                'bankName' => config('hmo.bank_name'),
+                'bankIban' => $this->landlordTenant?->iban,
+                'bankBic' => $this->landlordTenant?->bic,
+                'bankName' => $this->landlordTenant?->bank_name,
             ],
         );
     }
@@ -60,6 +63,7 @@ class ProformaInvoice extends Mailable
             'tenant' => $this->tenant,
             'plan' => $this->plan,
             'paymentReference' => $this->paymentReference,
+            'landlord' => $this->landlordTenant,
         ]);
 
         return [

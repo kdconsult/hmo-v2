@@ -8,21 +8,31 @@ use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\User;
 use App\Support\EuCountries;
+use Closure;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Icon;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\Http;
 
 class TenantForm
 {
     public static function configure(Schema $schema): Schema
     {
-        return $schema            
+        return $schema
             ->components([
+                // Left column: Company Info
                 Section::make('Company Info')
+                    ->columnSpan(1)
                     ->columns(2)
                     ->schema([
                         TextInput::make('name')
@@ -48,11 +58,35 @@ class TenantForm
 
                         TextInput::make('eik')
                             ->label('EIK / Company Number')
+                            ->required()
+                            ->unique(ignoreRecord: true)
+                            ->belowContent(Schema::end([
+                                Icon::make(Heroicon::InformationCircle),
+                                'Check against VIES and auto-fill VAT number',
+                                Action::make('fetch_eik_details')
+                                    ->label('Check VIES')
+                                    ->rateLimit(5)
+                                    ->action(self::checkVies(...)),
+                            ]))
                             ->maxLength(20),
 
                         TextInput::make('vat_number')
                             ->label('VAT Number')
-                            ->maxLength(20),
+                            ->maxLength(20)
+                            ->helperText(fn (Get $get): ?string => ($example = EuCountries::vatNumberExample($get('country_code') ?? 'BG'))
+                                ? "Format: {$example}"
+                                : null)
+                            ->rules(fn (Get $get): array => [
+                                static function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                    if (blank($value)) {
+                                        return;
+                                    }
+                                    $regex = EuCountries::vatNumberRegex($get('country_code') ?? 'BG');
+                                    if ($regex && ! preg_match($regex, strtoupper((string) $value))) {
+                                        $fail('Invalid VAT number format for the selected country.');
+                                    }
+                                },
+                            ]),
 
                         TextInput::make('mol')
                             ->label('Responsible Person (MOL)')
@@ -76,14 +110,9 @@ class TenantForm
                             ->searchable()
                             ->live()
                             ->afterStateUpdated(function (?string $state, Set $set) {
-                                if ($state === null) {
-                                    return;
-                                }
+                                $set('vat_number', null);
 
-                                $country = EuCountries::get($state);
-                                if ($country === null) {
-                                    return;
-                                }
+                                $country = $state ? EuCountries::get($state) : ['currency_code' => null, 'timezone' => null, 'locale' => null];
 
                                 $set('default_currency_code', $country['currency_code']);
                                 $set('timezone', $country['timezone']);
@@ -91,82 +120,88 @@ class TenantForm
                             }),
                     ]),
 
-                Section::make('Localization')
-                    ->columns(2)
+                // Right column: Localization + Subscription stacked
+                Grid::make(1)
+                    ->columnSpan(1)
                     ->schema([
-                        Select::make('locale')
-                            ->options(
-                                collect(EuCountries::all())
-                                    ->mapWithKeys(fn (array $c) => [$c['locale'] => $c['locale']])
-                                    ->sort()
-                                    ->all()
-                            )
-                            ->required()
-                            ->default('bg_BG')
-                            ->searchable(),
+                        Section::make('Localization')
+                            ->columns(3)
+                            ->schema([
+                                Select::make('locale')
+                                    ->options(
+                                        collect(EuCountries::all())
+                                            ->mapWithKeys(fn (array $c) => [$c['locale'] => $c['locale']])
+                                            ->sort()
+                                            ->all()
+                                    )
+                                    ->required()
+                                    ->default('bg_BG')
+                                    ->searchable(),
 
-                        Select::make('timezone')
-                            ->options(
-                                collect(EuCountries::timezones())
-                                    ->mapWithKeys(fn (string $tz) => [$tz => $tz])
-                                    ->sort()
-                                    ->all()
-                            )
-                            ->required()
-                            ->default('Europe/Sofia')
-                            ->searchable(),
+                                Select::make('timezone')
+                                    ->options(
+                                        collect(EuCountries::timezones())
+                                            ->mapWithKeys(fn (string $tz) => [$tz => $tz])
+                                            ->sort()
+                                            ->all()
+                                    )
+                                    ->required()
+                                    ->default('Europe/Sofia')
+                                    ->searchable(),
 
-                        Select::make('default_currency_code')
-                            ->label('Default Currency')
-                            ->options([
-                                'EUR' => 'Euro (EUR)',
-                                'CZK' => 'Czech Koruna (CZK)',
-                                'DKK' => 'Danish Krone (DKK)',
-                                'HUF' => 'Hungarian Forint (HUF)',
-                                'PLN' => 'Polish Zloty (PLN)',
-                                'RON' => 'Romanian Leu (RON)',
-                                'SEK' => 'Swedish Krona (SEK)',
-                                'GBP' => 'British Pound (GBP)',
-                                'USD' => 'US Dollar (USD)',
-                            ])
-                            ->required()
-                            ->default('EUR')
-                            ->searchable(),
+                                Select::make('default_currency_code')
+                                    ->label('Default Currency')
+                                    ->options([
+                                        'EUR' => 'Euro (EUR)',
+                                        'CZK' => 'Czech Koruna (CZK)',
+                                        'DKK' => 'Danish Krone (DKK)',
+                                        'HUF' => 'Hungarian Forint (HUF)',
+                                        'PLN' => 'Polish Zloty (PLN)',
+                                        'RON' => 'Romanian Leu (RON)',
+                                        'SEK' => 'Swedish Krona (SEK)',
+                                        'GBP' => 'British Pound (GBP)',
+                                        'USD' => 'US Dollar (USD)',
+                                    ])
+                                    ->required()
+                                    ->default('EUR')
+                                    ->searchable(),
+                            ]),
+
+                        Section::make('Subscription')
+                            ->columns(2)
+                            ->schema([
+                                Select::make('plan_id')
+                                    ->label('Plan')
+                                    ->relationship('plan', 'name')
+                                    ->options(
+                                        fn () => Plan::where('is_active', true)
+                                            ->orderBy('sort_order')
+                                            ->pluck('name', 'id')
+                                    )
+                                    ->required()
+                                    ->default(fn () => Plan::where('slug', 'free')->value('id'))
+                                    ->searchable(),
+
+                                Select::make('subscription_status')
+                                    ->options(SubscriptionStatus::class)
+                                    ->required()
+                                    ->default(SubscriptionStatus::Trial)
+                                    ->visibleOn('edit'),
+
+                                DateTimePicker::make('trial_ends_at')
+                                    ->label('Trial Ends At')
+                                    ->default(fn () => now()->addDays(14)),
+
+                                DateTimePicker::make('subscription_ends_at')
+                                    ->label('Paid Subscription Ends At')
+                                    ->visibleOn('edit'),
+                            ]),
                     ]),
 
-                Section::make('Subscription')
-                    ->columns(2)
-                    ->schema([
-                        Select::make('plan_id')
-                            ->label('Plan')
-                            ->relationship('plan', 'name')
-                            ->options(
-                                fn () => Plan::where('is_active', true)
-                                    ->orderBy('sort_order')
-                                    ->pluck('name', 'id')
-                            )
-                            ->required()
-                            ->default(fn () => Plan::where('slug', 'free')->value('id'))
-                            ->searchable(),
-
-                        Select::make('subscription_status')
-                            ->options(SubscriptionStatus::class)
-                            ->required()
-                            ->default(SubscriptionStatus::Trial)
-                            ->visibleOn('edit'),
-
-                        DateTimePicker::make('trial_ends_at')
-                            ->label('Trial Ends At')
-                            ->default(fn () => now()->addDays(14)),
-
-                        DateTimePicker::make('subscription_ends_at')
-                            ->label('Paid Subscription Ends At')
-                            ->visibleOn('edit'),
-                    ]),
-
+                // Full width: Owner (create only)
                 Section::make('Owner')
                     ->description('The user who will manage this tenant\'s account.')
-                    ->columns(1)
+                    ->columnSpanFull()
                     ->visibleOn('create')
                     ->schema([
                         Select::make('owner_user_id')
@@ -176,7 +211,9 @@ class TenantForm
                             ->helperText('Select an existing user or create a new one via Users resource first. Leave empty to create without an owner.'),
                     ]),
 
+                // Full-width: Lifecycle Status (edit only)
                 Section::make('Lifecycle Status')
+                    ->columnSpanFull()
                     ->columns(2)
                     ->visibleOn('edit')
                     ->schema([
@@ -209,5 +246,58 @@ class TenantForm
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    private static function checkVies(Get $get, Set $set): void
+    {
+        $eik = $get('eik');
+        $countryCode = $get('country_code') ?? 'BG';
+
+        if (blank($eik)) {
+            Notification::make()->warning()->title('Enter an EIK first')->send();
+
+            return;
+        }
+
+        $vatPrefix = EuCountries::vatPrefixForCountry($countryCode) ?? $countryCode;
+
+        // For countries like Bulgaria, branch/subdivision EIKs have extra suffix digits
+        // that are not part of the VAT number — extract only the main company identifier.
+        $vatNumber = EuCountries::extractMainVatNumber($countryCode, $eik);
+
+        $response = Http::timeout(10)
+            ->get("https://ec.europa.eu/taxation_customs/vies/rest-api/ms/{$vatPrefix}/vat/{$vatNumber}");
+
+        if ($response->failed()) {
+            Notification::make()->danger()->title('VIES service unavailable')->send();
+
+            return;
+        }
+
+        $data = $response->json();
+
+        if (! ($data['isValid'] ?? false)) {
+            $set('vat_number', null);
+            Notification::make()->warning()
+                ->title('No active VAT registration found')
+                ->body("Checked: {$vatPrefix}{$vatNumber}")
+                ->send();
+
+            return;
+        }
+
+        // VIES returns the canonical vatNumber in the response; prefer that over our derived value.
+        $confirmedVat = $vatPrefix.($data['vatNumber'] ?? $vatNumber);
+        $set('vat_number', $confirmedVat);
+
+        $name = $data['name'] ?? null;
+        if (filled($name) && $name !== '---') {
+            $set('name', $name);
+        }
+
+        Notification::make()->success()
+            ->title('VAT registration confirmed')
+            ->body($confirmedVat)
+            ->send();
     }
 }

@@ -102,7 +102,7 @@ class RegisterTenant extends Component
             'timezone' => $this->timezone,
             'default_currency_code' => $this->currency_code,
             'vat_number' => $this->vat_number ?: null,
-            'eik' => $this->eik ?: null,
+            'eik' => $this->eik,
             'plan_id' => $this->plan_id,
             'subscription_status' => SubscriptionStatus::Trial->value,
             'trial_ends_at' => now()->addDays(14),
@@ -137,6 +137,7 @@ class RegisterTenant extends Component
             2 => $this->validate([
                 'company_name' => ['required', 'string', 'max:255'],
                 'country_code' => ['required', 'string', 'size:2'],
+                'eik' => ['required', 'string', 'max:20', 'unique:tenants,eik'],
             ]),
             3 => $this->validate([
                 'plan_id' => ['required', 'exists:plans,id'],

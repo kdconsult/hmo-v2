@@ -160,3 +160,18 @@ See full spec: [tasks/phase-1.17.md](phase-1.17.md)
 - [x] TenantSlugGeneratorTest (Unit): format, valid DNS chars, variance
 - [x] TenantSlugTest (Feature): pattern, uniqueness, retry on collision
 - [x] RegisterTenantTest updated: removed slug-input tests, asserts auto-generated slug pattern
+
+## Phase 1 Hardening ✅
+
+Post-1.17 hardening and improvements applied across the board.
+
+- [x] **Landlord data from tenant record** — Removed all `HMO_BANK_*`/`HMO_COMPANY_*` env vars; `ProformaInvoice` mailable + PDF template now read from `Tenant::landlordTenant()`
+- [x] **Landlord tenant caching** — `Cache::rememberForever("landlord_tenant:{$id}")`, auto-invalidated on `saved` event; `clearLandlordTenantCache()` static helper; `formattedAddress()` on Tenant
+- [x] **TenantForm redesign** — 2-column desktop grid; Bank Details section only for the linked landlord tenant
+- [x] **TenantInfolist redesign** — 7 structured sections; Bank Details only for landlord tenant
+- [x] **ViewTenant page actions** — All lifecycle and billing management actions in the view page header
+- [x] **VIES EIK lookup** — Inline action below EIK field; calls `ec.europa.eu/taxation_customs/vies/rest-api`; auto-fills `vat_number` (and `name` if VIES returns one); handler extracted to private static `checkVies()`
+- [x] **EIK uniqueness** — Sparse unique DB constraint + `->unique(ignoreRecord: true)` in form
+- [x] **EuCountries extended** — VAT number regex patterns for all 26 EU member states; `vatNumberRegex()`, `vatNumberExample()`, `extractMainVatNumber()` (handles BG branch/subdivision EIKs)
+- [x] **VAT number validation** — Live per-country regex validation + format hint in TenantForm
+- [x] **Tests** — 171/171 pass; added `ProformaInvoiceTest` (4), `ViewTenantPageTest` (10), expanded `LandlordTenantTest` to 21 tests

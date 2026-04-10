@@ -35,6 +35,7 @@ test('landlord receives email when new tenant registers', function () {
         ->call('nextStep')
         ->set('company_name', 'New Co')
         ->set('country_code', 'BG')
+        ->set('eik', '444444444')
         ->call('nextStep')
         ->call('submit');
 
@@ -57,6 +58,7 @@ test('landlord users receive database notification when new tenant registers', f
         ->call('nextStep')
         ->set('company_name', 'Another Co')
         ->set('country_code', 'BG')
+        ->set('eik', '555555555')
         ->call('nextStep')
         ->call('submit');
 
