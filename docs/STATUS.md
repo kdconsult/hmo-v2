@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 ✅ complete. 204/204 tests pass.
+**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 ✅ complete. 211/211 tests pass.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
 
@@ -129,4 +129,6 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - **Tenant root route** — placeholder replaced with `redirect('/admin')` (no UUID leak)
 - **Stripe ID masking** — `stripe_payment_intent_id` masked as `pi_xxxxx...YYYY` in PaymentResource
 - **Tenant model $hidden** — `stripe_id`, `pm_type`, `pm_last_four` hidden from serialization
-- **Tests** — 204/204 pass (+33 new tests: TenantBillingPolicyTest × 12, UserPolicyTest × 9, LandlordTenantTest +7, TenantBillingActionsTest +1, TenantUrlTest × 6)
+- **Tests** — 211/211 pass (+40 new tests: TenantBillingPolicyTest × 16, UserPolicyTest × 9, LandlordTenantTest +7, TenantBillingActionsTest +1, TenantUrlTest × 6, TenantBankDetailsPolicyTest × 3)
+- **Bank Details in TenantForm + TenantInfolist** — `bank_name`, `iban`, `bic` fields visible only on the landlord tenant's edit/view pages; stored transparently in stancl `data` JSON column (no migration); `TenantPolicy::updateBankDetails()` guards the operation
+- **Free-plan billing guard** — `recordPayment` and `sendProformaInvoice` hidden and policy-denied when the tenant is on a €0 plan or has no plan assigned

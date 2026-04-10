@@ -10,7 +10,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.1 — Billing Policy Methods + Authorize Enforcement ⬜
+## Sub-task 1.18.1 — Billing Policy Methods + Authorize Enforcement ✅
 
 **Goal:** Add 4 billing policy methods and wire `->authorize()` to all 8 billing action instances.
 
@@ -26,7 +26,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.2 — Remove ForceDelete/Restore + Belt-and-Suspenders Policy ⬜
+## Sub-task 1.18.2 — Remove ForceDelete/Restore + Belt-and-Suspenders Policy ✅
 
 **Goal:** Remove dead-code actions that bypass the lifecycle state machine; add explicit false-returning policy methods.
 
@@ -40,7 +40,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.3 — UserPolicy + UserForm Hardening ⬜
+## Sub-task 1.18.3 — UserPolicy + UserForm Hardening ✅
 
 **Goal:** Create missing UserPolicy; fix password-on-edit bug; restrict is_landlord toggle; protect audit fields.
 
@@ -62,7 +62,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.4 — Scope Gate::before to Tenant Context ⬜
+## Sub-task 1.18.4 — Scope Gate::before to Tenant Context ✅
 
 **Goal:** Super-admin bypass only fires on the tenant admin panel, not the landlord panel.
 
@@ -75,7 +75,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.5 — DB Transactions for Lifecycle + Subscription ⬜
+## Sub-task 1.18.5 — DB Transactions for Lifecycle + Subscription ✅
 
 **Goal:** Wrap multi-step DB mutations in transactions to prevent race conditions and partial writes.
 
@@ -89,7 +89,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.6 — Input Validation Hardening ⬜
+## Sub-task 1.18.6 — Input Validation Hardening ✅
 
 **Goal:** Sanitize VIES URL; tighten registration validation; add field-length caps; validate plan is_active.
 
@@ -106,7 +106,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.7 — Deletion Guard + Command Safety ⬜
+## Sub-task 1.18.7 — Deletion Guard + Command Safety ✅
 
 **Goal:** Add landlord tenant + null-date guards to TenantDeletionGuard. Fix email ordering in delete command.
 
@@ -120,7 +120,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.8 — Visible Guard Consistency + RelationManager Authorization ⬜
+## Sub-task 1.18.8 — Visible Guard Consistency + RelationManager Authorization ✅
 
 **Goal:** Align `->visible()` closures with `->authorize()` policies; lock relation managers on landlord tenant.
 
@@ -136,7 +136,7 @@ A 4-agent security review of the landlord panel identified 25+ findings across a
 
 ---
 
-## Sub-task 1.18.9 — URL Scheme Helper + Cosmetic Fixes ⬜
+## Sub-task 1.18.9 — URL Scheme Helper + Cosmetic Fixes ✅
 
 **Goal:** Replace 9 hardcoded `http://` URLs; fix tenant root route; mask Stripe IDs; add `$hidden` to Tenant model.
 
@@ -166,23 +166,28 @@ Phase C (needs B):   1.18.8, 1.18.9
 
 ---
 
-## Verification
+## Verification ✅
 
-- [ ] `vendor/bin/pint --dirty --format agent` clean
-- [ ] `./vendor/bin/sail artisan test --compact` all green
-- [ ] Billing actions have `->authorize()` in ViewTenant + TenantsTable
-- [ ] ForceDeleteAction/RestoreAction removed from EditTenant
-- [ ] UserForm password optional on edit, dehydrated guard
-- [ ] is_landlord toggle disabled for self-edit
-- [ ] Gate::before guarded by `tenancy()->initialized`
-- [ ] Lifecycle methods wrapped in `DB::transaction()`
-- [ ] EIK sanitized before VIES URL
-- [ ] Registration rejects invalid country_code
-- [ ] TenantDeletionGuard rejects landlord tenant + null dates
-- [ ] Delete command sends email AFTER successful deletion
-- [ ] All URLs use scheme from `config('app.url')`
-- [ ] Tenant root route redirects to /admin
-- [ ] stripe_payment_intent_id masked in PaymentResource
+- [x] `vendor/bin/pint --dirty --format agent` clean
+- [x] `./vendor/bin/sail artisan test --compact` all green (211/211)
+- [x] Billing actions have `->authorize()` in ViewTenant + TenantsTable
+- [x] ForceDeleteAction/RestoreAction removed from EditTenant
+- [x] UserForm password optional on edit, dehydrated guard
+- [x] is_landlord toggle disabled for self-edit
+- [x] Gate::before guarded by `tenancy()->initialized`
+- [x] Lifecycle methods wrapped in `DB::transaction()`
+- [x] EIK sanitized before VIES URL
+- [x] Registration rejects invalid country_code
+- [x] TenantDeletionGuard rejects landlord tenant + null dates
+- [x] Delete command sends email AFTER successful deletion
+- [x] All URLs use scheme from `config('app.url')`
+- [x] Tenant root route redirects to /admin
+- [x] stripe_payment_intent_id masked in PaymentResource
+
+## Post-1.18 Additions
+
+- [x] **Bank Details in TenantForm/TenantInfolist** — `bank_name`, `iban`, `bic` fields visible only on the landlord tenant record; stored in `data` JSON column (no migration); `TenantPolicy::updateBankDetails()` method added; 3 policy tests in `TenantBankDetailsPolicyTest.php`
+- [x] **Free-plan billing action guard** — `recordPayment` and `sendProformaInvoice` hidden + unauthorized when tenant plan price is €0 or plan is null; `recordPayment`/`sendProformaInvoice` policy methods updated accordingly; 4 additional test cases added
 
 ## Accepted Risks (no code changes)
 
