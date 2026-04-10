@@ -13,10 +13,12 @@ use App\Models\User;
 use App\Notifications\NewTenantRegisteredNotification;
 use App\Services\TenantOnboardingService;
 use App\Support\EuCountries;
+use App\Support\TenantUrl;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
@@ -90,7 +92,6 @@ class RegisterTenant extends Component
             'password' => Hash::make($this->password),
         ]);
 
-        $appDomain = last(config('tenancy.central_domains'));
         $slug = Tenant::generateUniqueSlug();
 
         $tenant = Tenant::create([
@@ -123,7 +124,7 @@ class RegisterTenant extends Component
         $notification = new NewTenantRegisteredNotification($tenant);
         User::where('is_landlord', true)->each(fn (User $landlord) => $landlord->notify($notification));
 
-        $this->redirect("http://{$slug}.{$appDomain}/admin", navigate: false);
+        $this->redirect(TenantUrl::to($slug, 'admin'), navigate: false);
     }
 
     private function validateCurrentStep(): void
@@ -136,7 +137,7 @@ class RegisterTenant extends Component
             ]),
             2 => $this->validate([
                 'company_name' => ['required', 'string', 'max:255'],
-                'country_code' => ['required', 'string', 'size:2'],
+                'country_code' => ['required', 'string', 'size:2', Rule::in(EuCountries::codes())],
                 'eik' => ['required', 'string', 'max:20', 'unique:tenants,eik'],
             ]),
             3 => $this->validate([

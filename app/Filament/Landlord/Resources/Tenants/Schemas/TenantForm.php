@@ -259,11 +259,11 @@ class TenantForm
             return;
         }
 
-        $vatPrefix = EuCountries::vatPrefixForCountry($countryCode) ?? $countryCode;
+        $vatPrefix = preg_replace('/[^A-Za-z]/', '', EuCountries::vatPrefixForCountry($countryCode) ?? $countryCode);
 
         // For countries like Bulgaria, branch/subdivision EIKs have extra suffix digits
         // that are not part of the VAT number — extract only the main company identifier.
-        $vatNumber = EuCountries::extractMainVatNumber($countryCode, $eik);
+        $vatNumber = preg_replace('/[^A-Za-z0-9]/', '', EuCountries::extractMainVatNumber($countryCode, $eik));
 
         $response = Http::timeout(10)
             ->get("https://ec.europa.eu/taxation_customs/vies/rest-api/ms/{$vatPrefix}/vat/{$vatNumber}");
