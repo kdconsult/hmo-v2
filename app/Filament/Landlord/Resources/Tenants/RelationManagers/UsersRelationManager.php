@@ -42,11 +42,14 @@ class UsersRelationManager extends RelationManager
 
                 TextInput::make('password')
                     ->password()
-                    ->required()
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->dehydrated(fn ($state) => filled($state))
                     ->maxLength(255),
 
                 Toggle::make('is_landlord')
-                    ->default(false),
+                    ->default(false)
+                    ->disabled()
+                    ->helperText('Manage via Users resource.'),
             ]);
     }
 
@@ -80,12 +83,14 @@ class UsersRelationManager extends RelationManager
             ->filters([])
             ->headerActions([
                 CreateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant())
                     ->after(function ($record) {
                         /** @var Tenant $tenant */
                         $tenant = $this->getOwnerRecord();
                         app(TenantOnboardingService::class)->onboard($tenant, $record);
                     }),
                 AssociateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant())
                     ->after(function ($record) {
                         /** @var Tenant $tenant */
                         $tenant = $this->getOwnerRecord();
@@ -98,8 +103,10 @@ class UsersRelationManager extends RelationManager
             ])
             ->recordActions([
                 ViewAction::make(),
-                DissociateAction::make(),
-                DeleteAction::make(),
+                DissociateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
+                DeleteAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

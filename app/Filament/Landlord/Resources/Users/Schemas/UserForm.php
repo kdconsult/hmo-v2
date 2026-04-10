@@ -2,6 +2,7 @@
 
 namespace App\Filament\Landlord\Resources\Users\Schemas;
 
+use App\Models\User;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -19,15 +20,20 @@ class UserForm
                     ->label('Email address')
                     ->email()
                     ->required(),
-                DateTimePicker::make('email_verified_at'),
+                DateTimePicker::make('email_verified_at')
+                    ->disabled(fn (string $operation): bool => $operation === 'edit'),
                 TextInput::make('password')
                     ->password()
-                    ->required(),
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->dehydrated(fn ($state) => filled($state)),
                 TextInput::make('avatar_path'),
                 TextInput::make('locale'),
                 Toggle::make('is_landlord')
-                    ->required(),
-                DateTimePicker::make('last_login_at'),
+                    ->required()
+                    ->disabled(fn (?User $record): bool => $record?->id === auth()->id())
+                    ->helperText('Warning: grants full landlord panel access.'),
+                DateTimePicker::make('last_login_at')
+                    ->disabled(),
             ]);
     }
 }
