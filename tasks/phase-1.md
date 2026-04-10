@@ -161,6 +161,18 @@ See full spec: [tasks/phase-1.17.md](phase-1.17.md)
 - [x] TenantSlugTest (Feature): pattern, uniqueness, retry on collision
 - [x] RegisterTenantTest updated: removed slug-input tests, asserts auto-generated slug pattern
 
+## Task 1.18 — Landlord Panel Security Hardening ✅
+See full spec: [tasks/phase-1.18.md](phase-1.18.md)
+- [x] 1.18.1 — Billing policy methods + →authorize() enforcement
+- [x] 1.18.2 — Remove ForceDelete/Restore + belt-and-suspenders policy
+- [x] 1.18.3 — UserPolicy + UserForm hardening
+- [x] 1.18.4 — Scope Gate::before to tenant context
+- [x] 1.18.5 — DB transactions for lifecycle + subscription
+- [x] 1.18.6 — Input validation hardening
+- [x] 1.18.7 — Deletion guard + command safety
+- [x] 1.18.8 — Visible guard consistency + RelationManager authorization
+- [x] 1.18.9 — URL scheme helper + cosmetic fixes
+
 ## Phase 1 Hardening ✅
 
 Post-1.17 hardening and improvements applied across the board.

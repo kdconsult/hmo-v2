@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.17 ✅ complete + hardened. 171/171 tests pass.
+**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 ✅ complete. 204/204 tests pass.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
 
@@ -94,15 +94,39 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 | 1.17.7 — Future invoicing bridge documented | ✅ |
 | 1.17.8 — Tests | ✅ |
 
-## Recent Changes (last session)
+## Task 1.18 — Security Hardening ✅
 
-- **ProformaInvoice refactor** — eliminated all `HMO_BANK_*`/`HMO_COMPANY_*` env vars; all invoicing data (company name, EIK, VAT, IBAN, BIC, address) now read from `Tenant::landlordTenant()`
-- **Landlord tenant caching** — `landlordTenant()` uses `Cache::rememberForever`; auto-invalidated on model save; `clearLandlordTenantCache()` for manual reset; `formattedAddress()` helper
-- **TenantForm redesign** — 2-column desktop layout (Company Info left / Localization + Subscription stacked right); Bank Details only visible for the linked landlord tenant
-- **TenantInfolist redesign** — 7 structured sections; Bank Details only visible for landlord tenant
-- **ViewTenant page** — all lifecycle and billing header actions moved to view page header
-- **VIES EIK lookup action** — inline button below EIK field; calls EU VIES REST API; auto-fills `vat_number` and company `name`; handles Bulgarian subdivision EIKs (strips suffix to get 9-digit VAT base)
-- **EIK uniqueness** — unique DB constraint + form validation; migration pre-cleans duplicates
-- **EuCountries extended** — VAT number regex patterns for all 26 EU member states; `vatNumberRegex()`, `vatNumberExample()`, `extractMainVatNumber()` methods
-- **VAT number field** — live format validation per country + helper text showing expected format
-- **Tests** — 171/171 pass (added ProformaInvoiceTest × 4, ViewTenantPageTest × 10, expanded LandlordTenantTest × 21)
+| Sub-task | Status |
+|----------|--------|
+| 1.18.1 — Billing policy methods + →authorize() enforcement | ✅ |
+| 1.18.2 — Remove ForceDelete/Restore + belt-and-suspenders policy | ✅ |
+| 1.18.3 — UserPolicy + UserForm hardening | ✅ |
+| 1.18.4 — Scope Gate::before to tenant context | ✅ |
+| 1.18.5 — DB transactions for lifecycle + subscription | ✅ |
+| 1.18.6 — Input validation hardening | ✅ |
+| 1.18.7 — Deletion guard + command safety | ✅ |
+| 1.18.8 — Visible guard consistency + RelationManager authorization | ✅ |
+| 1.18.9 — URL scheme helper + cosmetic fixes | ✅ |
+
+## Recent Changes (Task 1.18)
+
+- **Billing action authorization** — `->hidden()` replaced with `->visible()` + `->authorize()` on all 4 billing actions in ViewTenant + TenantsTable; 4 billing policy methods added to TenantPolicy
+- **ForceDelete/Restore removed** — dead-code actions removed from EditTenant; `forceDelete/restore` policy methods return `false` as safety net
+- **UserPolicy created** — covers viewAny/view/create/update/delete; delete prevents self-deletion
+- **UserForm hardened** — password optional on edit with dehydrated guard; `is_landlord` toggle disabled for self-edit; `email_verified_at`/`last_login_at` read-only on edit
+- **Gate::before scoped** — super-admin bypass only fires when `tenancy()->initialized` (tenant panel), not on landlord panel
+- **DB transactions** — lifecycle methods (suspend/markForDeletion/scheduleForDeletion/reactivate) and SubscriptionService methods wrapped in `DB::transaction()`
+- **Stripe payment atomicity** — `handleStripePaymentSucceeded` creates Payment as Completed directly (no Pending→Completed two-step)
+- **VIES URL sanitization** — vatNumber/vatPrefix sanitized with `preg_replace` before URL insertion
+- **Country code allowlist** — Registration step 2 validates `country_code` via `Rule::in(EuCountries::codes())`
+- **Field length caps** — `bank_transfer_reference` max 255, `notes` max 1000 in RecordPayment form
+- **changePlan inactive guard** — `SubscriptionService::changePlan()` throws if plan is not active
+- **TenantDeletionGuard** — added landlord tenant check + explicit null `deletion_scheduled_for` check
+- **Delete command safety** — email sent AFTER successful deletion; landlord tenant excluded from query
+- **Visible guard consistency** — all 4 lifecycle visible closures include `!isLandlordTenant()` in both TenantsTable + ViewTenant
+- **RelationManager guards** — DomainsRelationManager and UsersRelationManager create/delete/dissociate hidden on landlord tenant; domain field has `->alphaDash()` validation
+- **TenantUrl helper** — `app/Support/TenantUrl.php` derives scheme from `config('app.url')`; all 9 hardcoded `http://` occurrences replaced
+- **Tenant root route** — placeholder replaced with `redirect('/admin')` (no UUID leak)
+- **Stripe ID masking** — `stripe_payment_intent_id` masked as `pi_xxxxx...YYYY` in PaymentResource
+- **Tenant model $hidden** — `stripe_id`, `pm_type`, `pm_last_four` hidden from serialization
+- **Tests** — 204/204 pass (+33 new tests: TenantBillingPolicyTest × 12, UserPolicyTest × 9, LandlordTenantTest +7, TenantBillingActionsTest +1, TenantUrlTest × 6)
