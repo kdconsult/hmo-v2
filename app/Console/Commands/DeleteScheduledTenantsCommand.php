@@ -16,7 +16,15 @@ class DeleteScheduledTenantsCommand extends Command
 
     public function handle(): int
     {
-        $tenants = Tenant::scheduledForDeletion()->dueForDeletion()->get();
+        $landlordTenantId = config('hmo.landlord_tenant_id');
+
+        $query = Tenant::scheduledForDeletion()->dueForDeletion();
+
+        if ($landlordTenantId) {
+            $query->where('id', '!=', $landlordTenantId);
+        }
+
+        $tenants = $query->get();
 
         if ($tenants->isEmpty()) {
             $this->info('No tenants due for deletion.');
@@ -28,14 +36,19 @@ class DeleteScheduledTenantsCommand extends Command
         $failed = 0;
 
         foreach ($tenants as $tenant) {
+            // Capture scalars before deletion so the mailable is not holding a deleted model
+            $email = $tenant->email;
+            $name = $tenant->name;
+
             try {
-                $this->line("Deleting tenant [{$tenant->id}] ({$tenant->name})...");
-                if ($tenant->email) {
-                    Mail::to($tenant->email)->queue(new TenantDeletedMail($tenant->name));
-                }
+                $this->line("Deleting tenant [{$tenant->id}] ({$name})...");
                 $tenant->delete();
                 $deleted++;
                 $this->info('  Deleted.');
+
+                if ($email) {
+                    Mail::to($email)->queue(new TenantDeletedMail($name));
+                }
             } catch (Throwable $e) {
                 $failed++;
                 $this->error("  Failed: {$e->getMessage()}");
