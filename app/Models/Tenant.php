@@ -4,6 +4,10 @@ namespace App\Models;
 
 use App\Enums\SubscriptionStatus;
 use App\Enums\TenantStatus;
+use App\Mail\TenantMarkedForDeletionMail;
+use App\Mail\TenantReactivatedMail;
+use App\Mail\TenantScheduledForDeletionMail;
+use App\Mail\TenantSuspendedMail;
 use App\Support\TenantSlugGenerator;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Mail;
 use Laravel\Cashier\Billable;
 use RuntimeException;
 use Stancl\Tenancy\Contracts\TenantWithDatabase;
@@ -220,6 +225,10 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
         $this->deactivated_by = $by->id;
         $this->deactivation_reason = $reason;
         $this->save();
+
+        if ($this->email) {
+            Mail::to($this->email)->queue(new TenantSuspendedMail($this));
+        }
     }
 
     /**
@@ -232,6 +241,10 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
         $this->status = TenantStatus::MarkedForDeletion;
         $this->marked_for_deletion_at = now();
         $this->save();
+
+        if ($this->email) {
+            Mail::to($this->email)->queue(new TenantMarkedForDeletionMail($this));
+        }
     }
 
     /**
@@ -247,6 +260,10 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
         $this->scheduled_for_deletion_at = now();
         $this->deletion_scheduled_for = $deleteOn ?? now()->addDays(30);
         $this->save();
+
+        if ($this->email) {
+            Mail::to($this->email)->queue(new TenantScheduledForDeletionMail($this));
+        }
     }
 
     /**
@@ -264,6 +281,10 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
         $this->scheduled_for_deletion_at = null;
         $this->deletion_scheduled_for = null;
         $this->save();
+
+        if ($this->email) {
+            Mail::to($this->email)->queue(new TenantReactivatedMail($this));
+        }
     }
 
     // --- Internal helper ---

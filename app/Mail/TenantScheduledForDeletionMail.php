@@ -25,7 +25,9 @@ class TenantScheduledForDeletionMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // TODO: create resources/views/mail/tenant/scheduled-for-deletion.blade.php
-        return new Content(view: 'mail.tenant.scheduled-for-deletion');
+        return new Content(
+            markdown: 'mail.tenant.scheduled-for-deletion',
+            with: ['tenant' => $this->tenant],
+        );
     }
 }

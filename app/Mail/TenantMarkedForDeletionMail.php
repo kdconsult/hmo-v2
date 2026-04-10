@@ -25,7 +25,9 @@ class TenantMarkedForDeletionMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // TODO: create resources/views/mail/tenant/marked-for-deletion.blade.php
-        return new Content(view: 'mail.tenant.marked-for-deletion');
+        return new Content(
+            markdown: 'mail.tenant.marked-for-deletion',
+            with: ['tenant' => $this->tenant],
+        );
     }
 }

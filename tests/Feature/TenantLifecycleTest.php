@@ -1,10 +1,18 @@
 <?php
 
 use App\Enums\TenantStatus;
+use App\Mail\TenantDeletedMail;
+use App\Mail\TenantMarkedForDeletionMail;
+use App\Mail\TenantReactivatedMail;
+use App\Mail\TenantScheduledForDeletionMail;
+use App\Mail\TenantSuspendedMail;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Policies\TenantPolicy;
 use App\Services\TenantDeletionGuard;
+use Illuminate\Support\Facades\Mail;
+
+beforeEach(fn () => Mail::fake());
 
 function makeLandlord(): User
 {
@@ -219,4 +227,60 @@ test('hmo:delete-scheduled-tenants does not process future-dated tenants', funct
     $this->artisan('hmo:delete-scheduled-tenants')
         ->expectsOutput('No tenants due for deletion.')
         ->assertSuccessful();
+});
+
+// --- Lifecycle email dispatch ---
+
+test('suspend sends TenantSuspendedMail', function () {
+    $landlord = makeLandlord();
+    $tenant = Tenant::factory()->create();
+
+    $tenant->suspend($landlord, 'non_payment');
+
+    Mail::assertQueued(TenantSuspendedMail::class, fn ($mail) => $mail->hasTo($tenant->email));
+});
+
+test('markForDeletion sends TenantMarkedForDeletionMail', function () {
+    $tenant = Tenant::factory()->suspended()->create();
+
+    $tenant->markForDeletion();
+
+    Mail::assertQueued(TenantMarkedForDeletionMail::class, fn ($mail) => $mail->hasTo($tenant->email));
+});
+
+test('scheduleForDeletion sends TenantScheduledForDeletionMail', function () {
+    $tenant = Tenant::factory()->markedForDeletion()->create();
+
+    $tenant->scheduleForDeletion();
+
+    Mail::assertQueued(TenantScheduledForDeletionMail::class, fn ($mail) => $mail->hasTo($tenant->email));
+});
+
+test('reactivate sends TenantReactivatedMail', function () {
+    $tenant = Tenant::factory()->suspended()->create();
+
+    $tenant->reactivate();
+
+    Mail::assertQueued(TenantReactivatedMail::class, fn ($mail) => $mail->hasTo($tenant->email));
+});
+
+test('hmo:delete-scheduled-tenants sends TenantDeletedMail before deleting', function () {
+    $tenant = Tenant::factory()->scheduledForDeletion()->create();
+    $tenant->deletion_scheduled_for = now()->subDay();
+    $tenant->save();
+
+    $this->artisan('hmo:delete-scheduled-tenants')->assertSuccessful();
+
+    Mail::assertQueued(TenantDeletedMail::class, fn ($mail) => $mail->hasTo($tenant->email));
+});
+
+test('lifecycle methods do not send mail when tenant has no email', function () {
+    $landlord = makeLandlord();
+    $tenant = Tenant::factory()->create();
+    $tenant->email = null;
+    $tenant->save();
+
+    $tenant->suspend($landlord, 'non_payment');
+
+    Mail::assertNothingQueued();
 });

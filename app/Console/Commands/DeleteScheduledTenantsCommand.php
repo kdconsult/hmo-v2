@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\TenantDeletedMail;
 use App\Models\Tenant;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class DeleteScheduledTenantsCommand extends Command
@@ -28,6 +30,9 @@ class DeleteScheduledTenantsCommand extends Command
         foreach ($tenants as $tenant) {
             try {
                 $this->line("Deleting tenant [{$tenant->id}] ({$tenant->name})...");
+                if ($tenant->email) {
+                    Mail::to($tenant->email)->queue(new TenantDeletedMail($tenant->name));
+                }
                 $tenant->delete();
                 $deleted++;
                 $this->info('  Deleted.');

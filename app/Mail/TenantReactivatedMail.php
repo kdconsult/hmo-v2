@@ -25,7 +25,9 @@ class TenantReactivatedMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // TODO: create resources/views/mail/tenant/reactivated.blade.php
-        return new Content(view: 'mail.tenant.reactivated');
+        return new Content(
+            markdown: 'mail.tenant.reactivated',
+            with: ['tenant' => $this->tenant],
+        );
     }
 }

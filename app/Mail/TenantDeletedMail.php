@@ -2,7 +2,6 @@
 
 namespace App\Mail;
 
-use App\Models\Tenant;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -14,7 +13,7 @@ class TenantDeletedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public readonly Tenant $tenant) {}
+    public function __construct(public readonly string $tenantName) {}
 
     public function envelope(): Envelope
     {
@@ -25,7 +24,9 @@ class TenantDeletedMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // TODO: create resources/views/mail/tenant/deleted.blade.php
-        return new Content(view: 'mail.tenant.deleted');
+        return new Content(
+            markdown: 'mail.tenant.deleted',
+            with: ['tenantName' => $this->tenantName],
+        );
     }
 }

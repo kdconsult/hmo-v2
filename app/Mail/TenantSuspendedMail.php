@@ -25,7 +25,9 @@ class TenantSuspendedMail extends Mailable implements ShouldQueue
 
     public function content(): Content
     {
-        // TODO: create resources/views/mail/tenant/suspended.blade.php
-        return new Content(view: 'mail.tenant.suspended');
+        return new Content(
+            markdown: 'mail.tenant.suspended',
+            with: ['tenant' => $this->tenant],
+        );
     }
 }
