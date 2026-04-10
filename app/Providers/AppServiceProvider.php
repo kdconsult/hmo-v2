@@ -24,9 +24,10 @@ class AppServiceProvider extends ServiceProvider
             // Phase 3+ models will be added here as implemented
         ]);
 
-        // Super-admin bypasses all gates
+        // Super-admin bypasses all gates — only on the tenant panel (tenancy initialized).
+        // On the landlord panel (central context), policies decide without bypass.
         Gate::before(function ($user, $ability) {
-            if (method_exists($user, 'hasRole') && $user->hasRole('super-admin')) {
+            if (tenancy()->initialized && method_exists($user, 'hasRole') && $user->hasRole('super-admin')) {
                 return true;
             }
         });
