@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use App\Models\Tenant;
+use App\Support\TenantUrl;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Bus\Queueable;
@@ -25,8 +26,7 @@ class NewTenantRegisteredNotification extends Notification
 
     public function toDatabase(object $notifiable): array
     {
-        $appDomain = last(config('tenancy.central_domains'));
-        $landlordUrl = "http://{$appDomain}/landlord/tenants/{$this->tenant->id}";
+        $landlordUrl = TenantUrl::central("landlord/tenants/{$this->tenant->id}");
 
         return FilamentNotification::make()
             ->title('New tenant registered')

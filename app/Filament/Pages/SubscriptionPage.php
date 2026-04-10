@@ -8,6 +8,7 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Services\PlanLimitService;
 use App\Services\SubscriptionService;
+use App\Support\TenantUrl;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -63,15 +64,14 @@ class SubscriptionPage extends Page
     {
         $tenant = tenancy()->tenant;
         $plan = Plan::findOrFail($planId);
-        $appDomain = config('app.domain');
 
         $checkout = $tenant->checkoutCharge(
             (int) ($plan->price * 100),
             config('app.name').' — '.$plan->name.' Plan',
             1,
             [
-                'success_url' => "http://{$tenant->slug}.{$appDomain}/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-                'cancel_url' => "http://{$tenant->slug}.{$appDomain}/admin/subscription",
+                'success_url' => TenantUrl::to($tenant->slug, 'checkout/success?session_id={CHECKOUT_SESSION_ID}'),
+                'cancel_url' => TenantUrl::to($tenant->slug, 'admin/subscription'),
                 'currency' => 'eur',
                 'metadata' => ['tenant_id' => $tenant->id, 'plan_id' => $plan->id],
             ]

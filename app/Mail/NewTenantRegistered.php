@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Models\Tenant;
+use App\Support\TenantUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -28,8 +29,7 @@ class NewTenantRegistered extends Mailable
 
     public function content(): Content
     {
-        $appDomain = last(config('tenancy.central_domains'));
-        $landlordUrl = "http://{$appDomain}/landlord";
+        $landlordUrl = TenantUrl::central('landlord');
 
         return new Content(
             markdown: 'mail.tenant.new-tenant-registered',

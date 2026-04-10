@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Filament\Pages;
 
 use App\Models\Plan;
+use App\Support\TenantUrl;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Panel;
@@ -43,15 +44,14 @@ class SubscriptionExpiredPage extends Page
     {
         $tenant = tenancy()->tenant;
         $plan = Plan::findOrFail($planId);
-        $appDomain = config('app.domain');
 
         $checkout = $tenant->checkoutCharge(
             (int) ($plan->price * 100),
             config('app.name').' — '.$plan->name.' Plan',
             1,
             [
-                'success_url' => "http://{$tenant->slug}.{$appDomain}/checkout/success?session_id={CHECKOUT_SESSION_ID}",
-                'cancel_url' => "http://{$tenant->slug}.{$appDomain}/admin/subscription-expired",
+                'success_url' => TenantUrl::to($tenant->slug, 'checkout/success?session_id={CHECKOUT_SESSION_ID}'),
+                'cancel_url' => TenantUrl::to($tenant->slug, 'admin/subscription-expired'),
                 'currency' => 'eur',
                 'metadata' => ['tenant_id' => $tenant->id, 'plan_id' => $plan->id],
             ]

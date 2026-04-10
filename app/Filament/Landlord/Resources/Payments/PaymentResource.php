@@ -34,7 +34,10 @@ class PaymentResource extends Resource
             TextEntry::make('gateway')->badge(),
             TextEntry::make('status')->badge(),
             TextEntry::make('bank_transfer_reference')->label('Bank Reference'),
-            TextEntry::make('stripe_payment_intent_id')->label('Stripe Payment Intent'),
+            TextEntry::make('stripe_payment_intent_id')
+                ->label('Stripe Payment Intent')
+                ->formatStateUsing(fn (?string $state): string => $state ? substr($state, 0, 7).'...'.substr($state, -4) : '-')
+                ->copyable(),
             TextEntry::make('notes')->columnSpanFull(),
             TextEntry::make('paid_at')->dateTime(),
             TextEntry::make('period_start')->date(),

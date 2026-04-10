@@ -6,6 +6,7 @@ namespace App\Mail;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\TenantUrl;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -30,8 +31,7 @@ class TrialExpiringSoon extends Mailable
 
     public function content(): Content
     {
-        $appDomain = last(config('tenancy.central_domains'));
-        $loginUrl = "http://{$this->tenant->slug}.{$appDomain}/admin";
+        $loginUrl = TenantUrl::to($this->tenant->slug, 'admin');
 
         return new Content(
             markdown: 'mail.tenant.trial-expiring',
