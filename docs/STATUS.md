@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.17 ✅ complete. 137/137 tests pass.
+**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.17 ✅ complete. 143/143 tests pass. Under active hardening.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
 
@@ -22,6 +22,9 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - Landlord notified (email + Filament DB notification) on every new tenant self-registration
 - Payment model (`payments` table) with `PaymentGateway` + `PaymentStatus` enums
 - Cashier v16 installed; `Tenant` has `Billable` trait + `stripe_id/pm_type/pm_last_four` columns
+- Tenant lifecycle emails fully wired: suspended/marked/scheduled/reactivated/deleted — queued via Redis, requires queue worker
+- Landlord tenant table: compact icon buttons + ActionGroup dropdown (View ▪ Edit ▪ ⋮)
+- `TenancyServiceProvider` JobPipeline: sync in testing/local, queued in production
 
 ## Task 1.16 Progress
 
@@ -93,5 +96,11 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## Recent Changes (last session)
 
-- Task 1.16 Phase A: SubscriptionExpiredPage, Payment model/enums/factory, PaymentGateway/PaymentStatus enums, config/hmo.php, NewTenantRegistered mail+notification, Cashier v16 + Billable on Tenant, stripe columns migration
-- Fixed `phpunit.xml` DB_HOST: `127.0.0.1` → `hmo-postgres` (tests now pass: 97/97)
+- Lifecycle emails: created 5 blade views, wired dispatch into Tenant model methods + DeleteScheduledTenantsCommand
+- Fixed `view:` → `markdown:` on all lifecycle mailables (required for `<x-mail::message>` component)
+- Fixed missing `with:` data passing on all 5 lifecycle mailables
+- `TenantDeletedMail` now takes `string $tenantName` — prevents ModelNotFoundException (tenant deleted before queue processes)
+- `TenancyServiceProvider` `shouldBeQueued` now environment-aware (production=queued, else sync)
+- Fixed welcome page login route: `login` → `filament.landlord.auth.login`
+- Landlord tenant table actions redesigned: icon buttons + ActionGroup dropdown
+- 143/143 tests passing
