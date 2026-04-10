@@ -104,4 +104,12 @@ class TenantPolicy
             && $tenant->plan !== null
             && ! $tenant->plan->isFree();
     }
+
+    /**
+     * Only the landlord tenant's own bank details may be viewed/edited.
+     */
+    public function updateBankDetails(User $user, Tenant $tenant): bool
+    {
+        return $user->is_landlord && $tenant->isLandlordTenant();
+    }
 }

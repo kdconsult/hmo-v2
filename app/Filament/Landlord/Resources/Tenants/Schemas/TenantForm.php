@@ -196,7 +196,25 @@ class TenantForm
                                     ->label('Paid Subscription Ends At')
                                     ->visibleOn('edit'),
                             ]),
-                    ]),
+                        
+                        Section::make('Bank Details')
+                            ->columnSpanFull()
+                            ->columns(3)
+                            ->visible(fn ($record): bool => $record?->isLandlordTenant() ?? false)
+                            ->schema([
+                                TextInput::make('bank_name')
+                                    ->label('Bank Name')
+                                    ->maxLength(255),
+
+                                TextInput::make('iban')
+                                    ->label('IBAN')
+                                    ->maxLength(34),
+
+                                TextInput::make('bic')
+                                    ->label('BIC / SWIFT')
+                                    ->maxLength(11),
+                            ]),
+                    ]),                
 
                 // Full width: Owner (create only)
                 Section::make('Owner')

@@ -113,6 +113,22 @@ class TenantInfolist
                             ->label('Default Currency'),
                     ]),
 
+                Section::make('Bank Details')
+                    ->icon('heroicon-o-building-library')
+                    ->columns(3)
+                    ->visible(fn (Tenant $record): bool => $record->isLandlordTenant())
+                    ->schema([
+                        TextEntry::make('bank_name')
+                            ->label('Bank Name')
+                            ->placeholder('—'),
+                        TextEntry::make('iban')
+                            ->label('IBAN')
+                            ->placeholder('—'),
+                        TextEntry::make('bic')
+                            ->label('BIC / SWIFT')
+                            ->placeholder('—'),
+                    ]),
+
                 Section::make('Deactivation History')
                     ->icon('heroicon-o-clock')
                     ->columns(2)
