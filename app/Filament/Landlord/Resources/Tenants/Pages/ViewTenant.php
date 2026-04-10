@@ -55,7 +55,7 @@ class ViewTenant extends ViewRecord
                     $this->record->suspend(auth()->user(), $data['reason']);
                     $this->refreshFormData(['status', 'deactivated_at', 'deactivated_by', 'deactivation_reason']);
                 })
-                ->visible(fn (): bool => $this->record->isActive())
+                ->visible(fn (): bool => $this->record->isActive() && ! $this->record->isLandlordTenant())
                 ->authorize(fn (): bool => auth()->user()->can('suspend', $this->record)),
 
             Action::make('markForDeletion')
@@ -134,7 +134,8 @@ class ViewTenant extends ViewRecord
                     Notification::make()->success()->title('Plan changed to '.$plan->name.'.')->send();
                     $this->refreshFormData(['plan_id', 'subscription_status']);
                 })
-                ->hidden(fn (): bool => $this->record->isLandlordTenant()),
+                ->visible(fn (): bool => ! $this->record->isLandlordTenant())
+                ->authorize(fn (): bool => auth()->user()->can('changePlan', $this->record)),
 
             Action::make('cancelSubscription')
                 ->label('Cancel Subscription')
@@ -148,8 +149,8 @@ class ViewTenant extends ViewRecord
                     Notification::make()->warning()->title('Subscription cancelled.')->send();
                     $this->refreshFormData(['subscription_status', 'subscription_ends_at']);
                 })
-                ->visible(fn (): bool => $this->record->subscription_status === SubscriptionStatus::Active)
-                ->hidden(fn (): bool => $this->record->isLandlordTenant()),
+                ->visible(fn (): bool => $this->record->subscription_status === SubscriptionStatus::Active && ! $this->record->isLandlordTenant())
+                ->authorize(fn (): bool => auth()->user()->can('cancelSubscription', $this->record)),
 
             Action::make('recordPayment')
                 ->label('Record Payment')
@@ -169,9 +170,11 @@ class ViewTenant extends ViewRecord
                         ->required(),
                     TextInput::make('bank_transfer_reference')
                         ->label('Bank Transfer Reference')
+                        ->maxLength(255)
                         ->required(),
                     Textarea::make('notes')
                         ->label('Notes')
+                        ->maxLength(1000)
                         ->rows(2),
                 ])
                 ->action(function (array $data): void {
@@ -199,7 +202,8 @@ class ViewTenant extends ViewRecord
                     Notification::make()->success()->title('Payment recorded and subscription activated.')->send();
                     $this->refreshFormData(['plan_id', 'subscription_status', 'subscription_ends_at']);
                 })
-                ->hidden(fn (): bool => $this->record->isLandlordTenant()),
+                ->visible(fn (): bool => ! $this->record->isLandlordTenant() && $this->record->plan !== null && ! $this->record->plan->isFree())
+                ->authorize(fn (): bool => auth()->user()->can('recordPayment', $this->record)),
 
             Action::make('sendProformaInvoice')
                 ->label('Send Proforma Invoice')
@@ -229,7 +233,8 @@ class ViewTenant extends ViewRecord
                     Mail::to($this->record->email)->send(new ProformaInvoice($this->record, $tenantUser, $plan));
                     Notification::make()->success()->title('Proforma invoice sent to '.$this->record->email.'.')->send();
                 })
-                ->hidden(fn (): bool => $this->record->isLandlordTenant()),
+                ->visible(fn (): bool => ! $this->record->isLandlordTenant() && $this->record->plan !== null && ! $this->record->plan->isFree())
+                ->authorize(fn (): bool => auth()->user()->can('sendProformaInvoice', $this->record)),
         ];
     }
 }

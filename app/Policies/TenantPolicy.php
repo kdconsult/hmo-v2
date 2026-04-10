@@ -41,6 +41,22 @@ class TenantPolicy
         return false;
     }
 
+    /**
+     * Force-deletion bypasses the lifecycle state machine — always denied.
+     */
+    public function forceDelete(User $user, Tenant $tenant): bool
+    {
+        return false;
+    }
+
+    /**
+     * Restore is not part of the lifecycle model — always denied.
+     */
+    public function restore(User $user, Tenant $tenant): bool
+    {
+        return false;
+    }
+
     public function suspend(User $user, Tenant $tenant): bool
     {
         return $user->is_landlord && $tenant->isActive() && ! $tenant->isLandlordTenant();
@@ -61,5 +77,31 @@ class TenantPolicy
     public function reactivate(User $user, Tenant $tenant): bool
     {
         return $user->is_landlord && ! $tenant->isActive() && ! $tenant->isLandlordTenant();
+    }
+
+    public function changePlan(User $user, Tenant $tenant): bool
+    {
+        return $user->is_landlord && ! $tenant->isLandlordTenant();
+    }
+
+    public function cancelSubscription(User $user, Tenant $tenant): bool
+    {
+        return $user->is_landlord && ! $tenant->isLandlordTenant();
+    }
+
+    public function recordPayment(User $user, Tenant $tenant): bool
+    {
+        return $user->is_landlord
+            && ! $tenant->isLandlordTenant()
+            && $tenant->plan !== null
+            && ! $tenant->plan->isFree();
+    }
+
+    public function sendProformaInvoice(User $user, Tenant $tenant): bool
+    {
+        return $user->is_landlord
+            && ! $tenant->isLandlordTenant()
+            && $tenant->plan !== null
+            && ! $tenant->plan->isFree();
     }
 }

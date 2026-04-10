@@ -113,7 +113,7 @@ class TenantsTable
                         ->action(function (Tenant $record, array $data): void {
                             $record->suspend(auth()->user(), $data['reason']);
                         })
-                        ->visible(fn (Tenant $record): bool => $record->isActive())
+                        ->visible(fn (Tenant $record): bool => $record->isActive() && ! $record->isLandlordTenant())
                         ->authorize(fn (Tenant $record): bool => auth()->user()->can('suspend', $record)),
                     Action::make('markForDeletion')
                         ->label('Mark for Deletion')
@@ -125,7 +125,7 @@ class TenantsTable
                         ->action(function (Tenant $record): void {
                             $record->markForDeletion();
                         })
-                        ->visible(fn (Tenant $record): bool => $record->isSuspended())
+                        ->visible(fn (Tenant $record): bool => $record->isSuspended() && ! $record->isLandlordTenant())
                         ->authorize(fn (Tenant $record): bool => auth()->user()->can('markForDeletion', $record)),
                     Action::make('scheduleForDeletion')
                         ->label('Schedule for Deletion')
@@ -144,7 +144,7 @@ class TenantsTable
                         ->action(function (Tenant $record, array $data): void {
                             $record->scheduleForDeletion(Carbon::parse($data['deletion_scheduled_for']));
                         })
-                        ->visible(fn (Tenant $record): bool => $record->status === TenantStatus::MarkedForDeletion)
+                        ->visible(fn (Tenant $record): bool => $record->status === TenantStatus::MarkedForDeletion && ! $record->isLandlordTenant())
                         ->authorize(fn (Tenant $record): bool => auth()->user()->can('scheduleForDeletion', $record)),
                     Action::make('reactivate')
                         ->label('Reactivate')
@@ -156,7 +156,7 @@ class TenantsTable
                         ->action(function (Tenant $record): void {
                             $record->reactivate();
                         })
-                        ->visible(fn (Tenant $record): bool => ! $record->isActive())
+                        ->visible(fn (Tenant $record): bool => ! $record->isActive() && ! $record->isLandlordTenant())
                         ->authorize(fn (Tenant $record): bool => auth()->user()->can('reactivate', $record)),
                     // --- Billing ---
                     Action::make('changePlan')
@@ -176,7 +176,8 @@ class TenantsTable
                             app(SubscriptionService::class)->changePlan($record, $plan);
                             Notification::make()->success()->title('Plan changed to '.$plan->name.'.')->send();
                         })
-                        ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+                        ->visible(fn (Tenant $record): bool => ! $record->isLandlordTenant())
+                        ->authorize(fn (Tenant $record): bool => auth()->user()->can('changePlan', $record)),
                     Action::make('cancelSubscription')
                         ->label('Cancel Subscription')
                         ->icon('heroicon-o-x-mark')
@@ -188,8 +189,8 @@ class TenantsTable
                             app(SubscriptionService::class)->cancelSubscription($record);
                             Notification::make()->warning()->title('Subscription cancelled.')->send();
                         })
-                        ->visible(fn (Tenant $record): bool => $record->subscription_status === SubscriptionStatus::Active)
-                        ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+                        ->visible(fn (Tenant $record): bool => $record->subscription_status === SubscriptionStatus::Active && ! $record->isLandlordTenant())
+                        ->authorize(fn (Tenant $record): bool => auth()->user()->can('cancelSubscription', $record)),
                     Action::make('recordPayment')
                         ->label('Record Payment')
                         ->icon('heroicon-o-banknotes')
@@ -208,9 +209,11 @@ class TenantsTable
                                 ->required(),
                             TextInput::make('bank_transfer_reference')
                                 ->label('Bank Transfer Reference')
+                                ->maxLength(255)
                                 ->required(),
                             Textarea::make('notes')
                                 ->label('Notes')
+                                ->maxLength(1000)
                                 ->rows(2),
                         ])
                         ->action(function (Tenant $record, array $data): void {
@@ -238,7 +241,8 @@ class TenantsTable
 
                             Notification::make()->success()->title('Payment recorded and subscription activated.')->send();
                         })
-                        ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+                        ->visible(fn (Tenant $record): bool => ! $record->isLandlordTenant() && $record->plan !== null && ! $record->plan->isFree())
+                        ->authorize(fn (Tenant $record): bool => auth()->user()->can('recordPayment', $record)),
                     Action::make('sendProformaInvoice')
                         ->label('Send Proforma Invoice')
                         ->icon('heroicon-o-document-text')
@@ -266,7 +270,8 @@ class TenantsTable
 
                             Notification::make()->success()->title('Proforma invoice sent to '.$record->email)->send();
                         })
-                        ->hidden(fn (Tenant $record): bool => $record->isLandlordTenant()),
+                        ->visible(fn (Tenant $record): bool => ! $record->isLandlordTenant() && $record->plan !== null && ! $record->plan->isFree())
+                        ->authorize(fn (Tenant $record): bool => auth()->user()->can('sendProformaInvoice', $record)),
                 ]),
             ])
             ->toolbarActions([

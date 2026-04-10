@@ -28,6 +28,7 @@ class DomainsRelationManager extends RelationManager
                     ->label('Subdomain')
                     ->required()
                     ->maxLength(63)
+                    ->alphaDash()
                     ->helperText('Enter only the subdomain (e.g. "acme"), not the full domain.'),
             ]);
     }
@@ -46,13 +47,17 @@ class DomainsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                CreateAction::make(),
-                AssociateAction::make(),
+                CreateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
+                AssociateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
             ])
             ->recordActions([
                 EditAction::make(),
-                DissociateAction::make(),
-                DeleteAction::make(),
+                DissociateAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
+                DeleteAction::make()
+                    ->visible(fn (): bool => ! $this->getOwnerRecord()->isLandlordTenant()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

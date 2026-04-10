@@ -148,3 +148,21 @@ test('TenantPolicy markForDeletion returns false for landlord tenant', function 
 
     expect($policy->markForDeletion($landlordUser, $tenant))->toBeFalse();
 });
+
+// --- changePlan rejects inactive plan (1.18.6) ---
+
+test('changePlan throws InvalidArgumentException for inactive plan', function () {
+    $oldPlan = billingPlan();
+    $inactivePlan = Plan::create([
+        'name' => 'Inactive Plan',
+        'slug' => 'inactive-'.uniqid(),
+        'price' => 9.00,
+        'billing_period' => 'monthly',
+        'is_active' => false,
+        'sort_order' => 99,
+    ]);
+    $tenant = billingTenant($oldPlan);
+
+    expect(fn () => app(SubscriptionService::class)->changePlan($tenant, $inactivePlan))
+        ->toThrow(InvalidArgumentException::class);
+});

@@ -3,12 +3,17 @@
 declare(strict_types=1);
 
 use App\Enums\SubscriptionStatus;
+use App\Enums\TenantStatus;
 use App\Models\Plan;
 use App\Models\Tenant;
+use App\Models\User;
+use App\Policies\TenantPolicy;
+use App\Services\TenantDeletionGuard;
 use App\Support\EuCountries;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 // --- isLandlordTenant() ---
 
@@ -197,4 +202,53 @@ test('landlord tenant with null subscription_ends_at is skipped by CheckSubscrip
     $this->artisan('app:check-subscription-expirations');
 
     expect($tenant->fresh()->subscription_status)->toBe(SubscriptionStatus::Active);
+});
+
+// --- TenantPolicy forceDelete / restore (1.18.2) ---
+
+test('TenantPolicy forceDelete always returns false', function () {
+    $landlord = User::factory()->create(['is_landlord' => true]);
+    $tenant = Tenant::factory()->create();
+
+    expect((new TenantPolicy)->forceDelete($landlord, $tenant))->toBeFalse();
+});
+
+test('TenantPolicy restore always returns false', function () {
+    $landlord = User::factory()->create(['is_landlord' => true]);
+    $tenant = Tenant::factory()->create();
+
+    expect((new TenantPolicy)->restore($landlord, $tenant))->toBeFalse();
+});
+
+// --- Gate::before scoped to tenant context (1.18.4) ---
+
+test('Gate::before does not grant super-admin bypass when tenancy is not initialized', function () {
+    // tenancy() is never initialized in this (central) test context
+    $landlord = User::factory()->create(['is_landlord' => true]);
+
+    // forceDelete always returns false in policy — super-admin bypass must not override it
+    expect(Gate::forUser($landlord)->allows('forceDelete', Tenant::factory()->create()))->toBeFalse();
+});
+
+// --- TenantDeletionGuard hardening (1.18.7) ---
+
+test('TenantDeletionGuard rejects the landlord tenant', function () {
+    $tenant = Tenant::factory()->create([
+        'status' => TenantStatus::ScheduledForDeletion,
+        'deletion_scheduled_for' => now()->subDay(),
+    ]);
+    config(['hmo.landlord_tenant_id' => $tenant->id]);
+
+    expect(fn () => TenantDeletionGuard::check($tenant))
+        ->toThrow(RuntimeException::class, 'landlord tenant');
+});
+
+test('TenantDeletionGuard rejects null deletion_scheduled_for', function () {
+    $tenant = Tenant::factory()->create([
+        'status' => TenantStatus::ScheduledForDeletion,
+        'deletion_scheduled_for' => null,
+    ]);
+
+    expect(fn () => TenantDeletionGuard::check($tenant))
+        ->toThrow(RuntimeException::class, 'deletion_scheduled_for is not set');
 });
