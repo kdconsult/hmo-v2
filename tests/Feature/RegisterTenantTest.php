@@ -9,6 +9,7 @@ use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -170,6 +171,34 @@ test('submit sends welcome email', function () {
         ->call('submit');
 
     Mail::assertSent(WelcomeTenant::class, fn ($mail) => $mail->hasTo('jane@newco.com'));
+});
+
+// --- S-4: Rate limiting ---
+
+test('submit is blocked after 5 attempts from the same IP', function () {
+    Mail::fake();
+    $freePlan = Plan::where('slug', 'free')->first();
+
+    // Exhaust the 5-attempt limit
+    for ($i = 0; $i < 5; $i++) {
+        RateLimiter::hit('tenant-registration:127.0.0.1', 60);
+    }
+
+    Livewire::test(RegisterTenant::class)
+        ->set('name', 'Rate Test')
+        ->set('email', 'ratetest@example.com')
+        ->set('password', 'password')
+        ->set('password_confirmation', 'password')
+        ->call('nextStep')
+        ->set('company_name', 'Rate Co')
+        ->set('country_code', 'BG')
+        ->set('eik', '444444444')
+        ->call('nextStep')
+        ->set('plan_id', $freePlan->id)
+        ->call('submit')
+        ->assertHasErrors(['email']);
+
+    expect(User::where('email', 'ratetest@example.com')->exists())->toBeFalse();
 });
 
 test('submit attaches user to tenant central pivot', function () {

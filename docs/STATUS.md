@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 ✅ complete. 211/211 tests pass.
+**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 + post-release hardening audit ✅ complete. 232/232 tests pass.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
 
@@ -55,12 +55,18 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 | Auth | Filament-native per panel | Landlord: `is_landlord` flag. Tenant: TenantUser in tenant DB |
 | Permissions | spatie/laravel-permission | Per-tenant roles (super-admin, admin, accountant, viewer...) |
 
+## What's Next
+
+**Phase 2 — Warehouse/WMS + Nomenclature/Catalog**
+
+See `tasks/phase-2.md` for the full spec. Work is tenant-side only. Landlord panel is feature-complete; bugs and minor additions only.
+
 ## File Map for New Sessions
 
 | What to check | Where |
 |---------------|-------|
-| Task progress | `tasks/phase-1.md` |
-| Current task spec | `tasks/phase-1.16.md` |
+| Phase 1 history | `tasks/phase-1.md` |
+| Phase 2 tasks | `tasks/phase-2.md` |
 | Architecture | `docs/ARCHITECTURE.md` |
 | Business logic | `docs/BUSINESS_LOGIC.md` |
 | Filament panels | `docs/UI_PANELS.md` |
@@ -69,7 +75,7 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 | Central routes | `routes/web.php` |
 | Enums | `app/Enums/` |
 | Services | `app/Services/` |
-| Landlord panel | `app/Filament/Landlord/` |
+| Landlord panel | `app/Filament/Landlord/` (feature-complete) |
 | Tenant panel | `app/Filament/` (non-Landlord) |
 | Tenant models | `app/Models/` (central connection ones extend stancl base) |
 
@@ -81,54 +87,25 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - `APP_DOMAIN=hmo.localhost` — central domain
 - Artisan must be run inside Docker or via Sail: `./vendor/bin/sail artisan ...`
 
-## Task 1.17 — Complete
+## Post-Release Hardening Audit (2026-04-11) ✅
 
-| Sub-task | Status |
-|----------|--------|
-| 1.17.1 — Landlord tenant config + Tenant model helpers | ✅ |
-| 1.17.2 — DatabaseSeeder: landlord tenant | ✅ |
-| 1.17.3 — Change Plan action | ✅ |
-| 1.17.4 — Cancel Subscription action | ✅ |
-| 1.17.5 — Landlord tenant protection | ✅ |
-| 1.17.6 — Fix Record Payment period_end | ✅ |
-| 1.17.7 — Future invoicing bridge documented | ✅ |
-| 1.17.8 — Tests | ✅ |
+Security/correctness pass on top of 1.18. 232/232 tests pass (+21 new tests). Full detail in `tasks/phase-1.md`.
 
-## Task 1.18 — Security Hardening ✅
+### Security
+- **S-1** `is_landlord` removed from `#[Fillable]` — mass-assignment privilege escalation blocked
+- **S-2** Explicit `Event::listen(WebhookReceived::class, StripeWebhookListener::class)` in `AppServiceProvider::boot()`
+- **S-3** Webhook idempotency — replay of `checkout.session.completed` no longer creates duplicate Payment
+- **S-4** `RateLimiter` in `RegisterTenant::submit()` — Livewire bypasses route-level throttle
 
-| Sub-task | Status |
-|----------|--------|
-| 1.18.1 — Billing policy methods + →authorize() enforcement | ✅ |
-| 1.18.2 — Remove ForceDelete/Restore + belt-and-suspenders policy | ✅ |
-| 1.18.3 — UserPolicy + UserForm hardening | ✅ |
-| 1.18.4 — Scope Gate::before to tenant context | ✅ |
-| 1.18.5 — DB transactions for lifecycle + subscription | ✅ |
-| 1.18.6 — Input validation hardening | ✅ |
-| 1.18.7 — Deletion guard + command safety | ✅ |
-| 1.18.8 — Visible guard consistency + RelationManager authorization | ✅ |
-| 1.18.9 — URL scheme helper + cosmetic fixes | ✅ |
+### Bugs
+- **B-1** `TenantReactivatedMail` URL fixed — was missing dot separator, hardcoded `https://`; now uses `TenantUrl::to()`
+- **B-2** `CheckTrialExpirations` — `TrialExpired` mail changed from `send()` to `queue()`
 
-## Recent Changes (Task 1.18)
+### Authorization
+- **G-1** `ExchangeRatePolicy` created (was missing entirely)
+- **G-3** `CompanySettingsPage` — `canAccess()` + `authorize()` in `save()`
+- **G-4** `SubscriptionPage::cancelSubscription()` — role guard added
 
-- **Billing action authorization** — `->hidden()` replaced with `->visible()` + `->authorize()` on all 4 billing actions in ViewTenant + TenantsTable; 4 billing policy methods added to TenantPolicy
-- **ForceDelete/Restore removed** — dead-code actions removed from EditTenant; `forceDelete/restore` policy methods return `false` as safety net
-- **UserPolicy created** — covers viewAny/view/create/update/delete; delete prevents self-deletion
-- **UserForm hardened** — password optional on edit with dehydrated guard; `is_landlord` toggle disabled for self-edit; `email_verified_at`/`last_login_at` read-only on edit
-- **Gate::before scoped** — super-admin bypass only fires when `tenancy()->initialized` (tenant panel), not on landlord panel
-- **DB transactions** — lifecycle methods (suspend/markForDeletion/scheduleForDeletion/reactivate) and SubscriptionService methods wrapped in `DB::transaction()`
-- **Stripe payment atomicity** — `handleStripePaymentSucceeded` creates Payment as Completed directly (no Pending→Completed two-step)
-- **VIES URL sanitization** — vatNumber/vatPrefix sanitized with `preg_replace` before URL insertion
-- **Country code allowlist** — Registration step 2 validates `country_code` via `Rule::in(EuCountries::codes())`
-- **Field length caps** — `bank_transfer_reference` max 255, `notes` max 1000 in RecordPayment form
-- **changePlan inactive guard** — `SubscriptionService::changePlan()` throws if plan is not active
-- **TenantDeletionGuard** — added landlord tenant check + explicit null `deletion_scheduled_for` check
-- **Delete command safety** — email sent AFTER successful deletion; landlord tenant excluded from query
-- **Visible guard consistency** — all 4 lifecycle visible closures include `!isLandlordTenant()` in both TenantsTable + ViewTenant
-- **RelationManager guards** — DomainsRelationManager and UsersRelationManager create/delete/dissociate hidden on landlord tenant; domain field has `->alphaDash()` validation
-- **TenantUrl helper** — `app/Support/TenantUrl.php` derives scheme from `config('app.url')`; all 9 hardcoded `http://` occurrences replaced
-- **Tenant root route** — placeholder replaced with `redirect('/admin')` (no UUID leak)
-- **Stripe ID masking** — `stripe_payment_intent_id` masked as `pi_xxxxx...YYYY` in PaymentResource
-- **Tenant model $hidden** — `stripe_id`, `pm_type`, `pm_last_four` hidden from serialization
-- **Tests** — 211/211 pass (+40 new tests: TenantBillingPolicyTest × 16, UserPolicyTest × 9, LandlordTenantTest +7, TenantBillingActionsTest +1, TenantUrlTest × 6, TenantBankDetailsPolicyTest × 3)
-- **Bank Details in TenantForm + TenantInfolist** — `bank_name`, `iban`, `bic` fields visible only on the landlord tenant's edit/view pages; stored transparently in stancl `data` JSON column (no migration); `TenantPolicy::updateBankDetails()` guards the operation
-- **Free-plan billing guard** — `recordPayment` and `sendProformaInvoice` hidden and policy-denied when the tenant is on a €0 plan or has no plan assigned
+### Infrastructure
+- **O-1/O-3** `->domain()` on both Filament panels + `Route::domain()` on web routes
+- **O-4** DB indexes on `subscription_status`, `trial_ends_at`, `subscription_ends_at`

@@ -274,6 +274,31 @@ test('hmo:delete-scheduled-tenants sends TenantDeletedMail before deleting', fun
     Mail::assertQueued(TenantDeletedMail::class, fn ($mail) => $mail->hasTo($tenant->email));
 });
 
+// --- B-1: TenantReactivatedMail URL correctness ---
+
+test('reactivated email URL uses TenantUrl helper (no hardcoded https)', function () {
+    $tenant = Tenant::factory()->suspended()->create([
+        'slug' => 'test-reactivate',
+    ]);
+    $tenant->domains()->create(['domain' => 'test-reactivate']);
+
+    $tenant->reactivate();
+
+    Mail::assertQueued(TenantReactivatedMail::class, function ($mail) {
+        $rendered = $mail->render();
+
+        // Must include the tenant slug in the URL
+        expect($rendered)->toContain('test-reactivate');
+
+        // Must NOT contain a hardcoded https:// without the slug+domain separator
+        // (the old bug was 'https://' . $tenant->domains->first()?->domain . config('app.domain')
+        // which produced e.g. https://test-reactivatehmo.localhost — no dot)
+        expect($rendered)->not->toContain('test-reactivate'.config('app.domain'));
+
+        return true;
+    });
+});
+
 test('lifecycle methods do not send mail when tenant has no email', function () {
     $landlord = makeLandlord();
     $tenant = Tenant::factory()->create();

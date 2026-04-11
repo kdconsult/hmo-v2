@@ -188,3 +188,20 @@ Post-1.17 hardening and improvements applied across the board.
 - [x] **VAT number validation** — Live per-country regex validation + format hint in TenantForm
 - [x] **Free-plan billing guard** — `recordPayment` + `sendProformaInvoice` hidden + policy-denied for €0 plans or no plan
 - [x] **Tests** — 211/211 pass
+
+## Post-Release Hardening Audit (2026-04-11) ✅
+
+Full security, authorization, and correctness audit. 232/232 tests pass (+21 new tests).
+
+- [x] **S-1** `is_landlord` removed from `#[Fillable]` — mass-assignment privilege escalation blocked; `UserPolicyTest` +2 tests
+- [x] **S-2** Explicit `Event::listen(WebhookReceived::class, StripeWebhookListener::class)` in `AppServiceProvider::boot()`
+- [x] **S-3** Webhook idempotency — `handleCheckoutCompleted()` checks `Payment::where('stripe_payment_intent_id', ...)` before creating; replay test added
+- [x] **S-4** `RateLimiter` in `RegisterTenant::submit()` — Livewire bypasses route-level throttle; 5 attempts/IP/min; test added
+- [x] **B-1** `TenantReactivatedMail` URL — was missing dot separator + hardcoded `https://`; now uses `TenantUrl::to($slug, 'admin')`; URL correctness test added
+- [x] **B-2** `CheckTrialExpirations` — `TrialExpired` mail changed from `send()` to `queue()`; test updated to `assertQueued`
+- [x] **G-1** `ExchangeRatePolicy` created — was missing entirely; `ExchangeRatePolicyTest` (11 tests)
+- [x] **G-3** `CompanySettingsPage` — `canAccess()` + `$this->authorize('update', ...)` in `save()`
+- [x] **G-4** `SubscriptionPage::cancelSubscription()` — role guard (`super-admin`/`admin`) added
+- [x] **O-1/O-3** `->domain()` on both Filament panels + `Route::domain()` on web routes (defense-in-depth)
+- [x] **O-4** DB indexes on `subscription_status`, `trial_ends_at`, `subscription_ends_at` (migration: `2026_04_11_103906_add_subscription_indexes_to_tenants_table`)
+- [x] **New test files** — `ExchangeRatePolicyTest.php` (11), `TenantPanelAuthorizationTest.php` (4); additions to `UserPolicyTest`, `StripeWebhookTest`, `RegisterTenantTest`, `SubscriptionCommandsTest`, `TenantLifecycleTest`

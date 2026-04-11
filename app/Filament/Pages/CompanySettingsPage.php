@@ -31,6 +31,11 @@ class CompanySettingsPage extends Page implements HasForms
 
     protected static ?int $navigationSort = 1;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->can('viewAny', CompanySettings::class) ?? false;
+    }
+
     public array $general = [];
 
     public array $invoicing = [];
@@ -107,6 +112,8 @@ class CompanySettingsPage extends Page implements HasForms
 
     public function save(): void
     {
+        $this->authorize('update', CompanySettings::class);
+
         $data = $this->form->getState();
 
         foreach ($data as $group => $settings) {

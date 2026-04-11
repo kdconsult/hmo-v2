@@ -62,3 +62,29 @@ test('delete returns true when landlord deletes another user', function () {
 
     expect((new UserPolicy)->delete($user, $model))->toBeTrue();
 });
+
+// --- Mass-assignment protection ---
+
+test('is_landlord cannot be mass-assigned via User::create()', function () {
+    $user = User::create([
+        'name' => 'Attacker',
+        'email' => 'attacker@example.com',
+        'password' => bcrypt('password'),
+        'is_landlord' => true,
+    ]);
+
+    expect($user->fresh()->is_landlord)->toBeFalse();
+});
+
+test('is_landlord can still be set via explicit assignment', function () {
+    $user = User::create([
+        'name' => 'Admin',
+        'email' => 'admin@example.com',
+        'password' => bcrypt('password'),
+    ]);
+
+    $user->is_landlord = true;
+    $user->save();
+
+    expect($user->fresh()->is_landlord)->toBeTrue();
+});

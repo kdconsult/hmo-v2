@@ -42,7 +42,7 @@ test('check-trial-expirations sends TrialExpired mail for each expired tenant', 
 
     $this->artisan('app:check-trial-expirations')->assertSuccessful();
 
-    Mail::assertSent(TrialExpired::class, fn ($mail) => $mail->hasTo($owner->email));
+    Mail::assertQueued(TrialExpired::class, fn ($mail) => $mail->hasTo($owner->email));
 });
 
 test('check-trial-expirations does not affect non-trial tenants', function () {

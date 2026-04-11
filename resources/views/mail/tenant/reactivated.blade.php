@@ -5,7 +5,7 @@ Great news! Your account for **{{ $tenant->name }}** has been reactivated.
 
 You can now log in and continue using {{ config('app.name') }}.
 
-<x-mail::button :url="'https://'.$tenant->domains->first()?->domain.config('app.domain')">
+<x-mail::button :url="\App\Support\TenantUrl::to($tenant->slug, 'admin')">
 Open {{ $tenant->name }}
 </x-mail::button>
 

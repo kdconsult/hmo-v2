@@ -43,6 +43,12 @@ class StripeWebhookListener
         }
 
         $paymentIntentId = $session['payment_intent'] ?? null;
+
+        // Idempotency: skip if this payment intent was already processed
+        if ($paymentIntentId && Payment::where('stripe_payment_intent_id', $paymentIntentId)->exists()) {
+            return;
+        }
+
         $amount = ($session['amount_total'] ?? 0) / 100;
 
         $this->subscriptionService->handleStripePaymentSucceeded($tenant, $plan, $paymentIntentId, (float) $amount);

@@ -82,6 +82,16 @@ class SubscriptionPage extends Page
 
     public function cancelSubscription(): void
     {
+        if (! auth()->user()?->hasRole(['super-admin', 'admin'])) {
+            Notification::make()
+                ->danger()
+                ->title('Unauthorized')
+                ->body('Only administrators can cancel the subscription.')
+                ->send();
+
+            return;
+        }
+
         $tenant = tenancy()->tenant;
 
         app(SubscriptionService::class)->cancelSubscription($tenant);

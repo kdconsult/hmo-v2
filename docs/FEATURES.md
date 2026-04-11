@@ -335,7 +335,9 @@ Bulgaria's `currency_code` is set to `EUR` (Bulgaria adopted the Euro on January
 | `SubscriptionCommandsTest.php` | Feature | 8 | Trial/subscription expiration commands, plan limit checks (users & documents) |
 | `DocumentSeriesTest.php` | Feature | 2 | Document number generation, sequential incrementing |
 | `ExampleTest.php` | Feature | 1 | Placeholder |
-| **TOTAL** | | **87 tests** | |
+| **TOTAL (Phase 1 baseline)** | | **87 tests** | |
+
+> Phase 1 complete test count: **232 tests** (includes 1.16–1.18 + post-release hardening audit). See `tasks/phase-1.md` for full breakdown.
 
 ### Key Test Scenarios
 

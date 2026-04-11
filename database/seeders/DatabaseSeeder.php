@@ -26,9 +26,13 @@ class DatabaseSeeder extends Seeder
             [
                 'name' => 'HMO Landlord',
                 'password' => bcrypt('password'),
-                'is_landlord' => true,
             ]
         );
+        // is_landlord is not mass-assignable; set explicitly
+        if (! $landlord->is_landlord) {
+            $landlord->is_landlord = true;
+            $landlord->save();
+        }
 
         // 3. Create tenant admin user (central DB)
         $tenantAdmin = User::updateOrCreate(

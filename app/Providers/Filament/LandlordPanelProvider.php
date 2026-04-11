@@ -26,6 +26,7 @@ class LandlordPanelProvider extends PanelProvider
         return $panel
             ->id('landlord')
             ->path('landlord')
+            ->domain(config('app.domain'))
             ->login()
             ->colors([
                 'primary' => Color::Slate,

@@ -9,6 +9,7 @@ use App\Listeners\StripeWebhookListener;
 use App\Models\Payment;
 use App\Models\Plan;
 use App\Models\Tenant;
+use Illuminate\Contracts\Events\Dispatcher;
 use Laravel\Cashier\Events\WebhookReceived;
 
 function webhookPlan(): Plan
@@ -115,4 +116,40 @@ test('unknown event types are silently ignored', function () {
         'type' => 'some.unknown.event',
         'data' => ['object' => []],
     ])))->not->toThrow(Throwable::class);
+});
+
+// --- S-2: Listener registration ---
+
+test('StripeWebhookListener is registered for WebhookReceived event', function () {
+    expect(app()->make(Dispatcher::class)->hasListeners(WebhookReceived::class))->toBeTrue();
+});
+
+// --- S-3: Webhook idempotency ---
+
+test('replaying a checkout.session.completed webhook does not create duplicate Payment', function () {
+    $plan = webhookPlan();
+    $tenant = webhookTenant($plan);
+    $intentId = 'pi_test_'.uniqid();
+
+    $payload = [
+        'type' => 'checkout.session.completed',
+        'data' => [
+            'object' => [
+                'payment_intent' => $intentId,
+                'amount_total' => 4900,
+                'payment_status' => 'paid',
+                'metadata' => [
+                    'tenant_id' => $tenant->id,
+                    'plan_id' => $plan->id,
+                ],
+            ],
+        ],
+    ];
+
+    $listener = app(StripeWebhookListener::class);
+    $listener->handle(new WebhookReceived($payload));
+    $listener->handle(new WebhookReceived($payload)); // replay
+
+    expect(Payment::where('stripe_payment_intent_id', $intentId)->count())->toBe(1)
+        ->and($tenant->fresh()->subscription_status)->toBe(SubscriptionStatus::Active);
 });

@@ -14,7 +14,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Stancl\Tenancy\Database\Concerns\CentralConnection;
 
-#[Fillable(['name', 'email', 'password', 'avatar_path', 'locale', 'is_landlord', 'last_login_at'])]
+#[Fillable(['name', 'email', 'password', 'avatar_path', 'locale', 'last_login_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, MustVerifyEmail
 {

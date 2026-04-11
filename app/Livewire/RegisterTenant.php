@@ -18,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Computed;
@@ -86,14 +87,26 @@ class RegisterTenant extends Component
     {
         $this->validateCurrentStep();
 
+        // Rate-limit submit actions (Livewire posts bypass route-level throttle)
+        $throttleKey = 'tenant-registration:'.request()->ip();
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $this->addError('email', 'Too many registration attempts. Please try again in a minute.');
+
+            return;
+        }
+
+        RateLimiter::hit($throttleKey, 60);
+
+        $slug = Tenant::generateUniqueSlug();
+
         $user = User::create([
             'name' => $this->name,
             'email' => $this->email,
             'password' => Hash::make($this->password),
         ]);
 
-        $slug = Tenant::generateUniqueSlug();
-
+        // Tenant::create() triggers CREATE DATABASE in PostgreSQL, which cannot
+        // run inside a transaction block — writes are not wrapped here.
         $tenant = Tenant::create([
             'name' => $this->company_name,
             'slug' => $slug,
@@ -109,12 +122,10 @@ class RegisterTenant extends Component
             'trial_ends_at' => now()->addDays(14),
         ]);
 
-        $tenant->domains()->create([
-            'domain' => $slug,
-        ]);
-
+        $tenant->domains()->create(['domain' => $slug]);
         $tenant->users()->attach($user->id);
 
+        // Tenant-DB onboarding and mail
         app(TenantOnboardingService::class)->onboard($tenant, $user);
 
         Mail::to($user->email)->send(new WelcomeTenant($tenant, $user));

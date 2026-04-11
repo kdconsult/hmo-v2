@@ -25,7 +25,7 @@ class CheckTrialExpirations extends Command
             ->each(function (Tenant $tenant) {
                 $owner = $tenant->users()->first();
                 if ($owner) {
-                    Mail::to($owner->email)->send(new TrialExpiringSoon($tenant, $owner));
+                    Mail::to($owner->email)->queue(new TrialExpiringSoon($tenant, $owner));
                 }
                 $this->line("Warned: {$tenant->name}");
             });
@@ -40,7 +40,7 @@ class CheckTrialExpirations extends Command
 
             $owner = $tenant->users()->first();
             if ($owner) {
-                Mail::to($owner->email)->send(new TrialExpired($tenant, $owner));
+                Mail::to($owner->email)->queue(new TrialExpired($tenant, $owner));
             }
 
             $this->line("Expired: {$tenant->name}");
