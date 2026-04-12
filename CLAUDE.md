@@ -324,3 +324,43 @@ that an implementing agent can write code without making decisions.
 required sections, and what to clarify with the user before planning.
 
 </laravel-boost-guidelines>
+
+# HMO Project Instructions
+
+## What This Project Is
+
+HMO v2 is a **multi-tenant SaaS ERP-light** targeting the entire EU market. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Built on Laravel 13 + Filament v5 + stancl/tenancy (database-per-tenant).
+
+## Start Every Session By
+
+1. Reading `docs/STATUS.md` — it tells you the current phase, what's done, and what's next
+2. Checking `tasks/backlog.md` for any `⚡ DO THIS PHASE` items
+3. Checking the active phase task file (e.g. `tasks/phase-2.5.md`) for open checkboxes
+
+## Critical Rules
+
+- **Stock mutations ONLY through `StockService`** (`app/Services/StockService.php`) — never write directly to `stock_items` or `stock_movements` tables
+- **Multi-tenancy**: all business data lives in the tenant DB. Never access tenant data from central context without `$tenant->run()`
+- **Immutable movements**: `StockMovement` rows throw `RuntimeException` on update/delete — this is intentional
+- **Always-variant pattern**: stock is tracked at `ProductVariant` level, not `Product`. Every Product auto-creates a default hidden variant on `created` event
+- **Decimal precision**: `decimal(15,4)` for catalog prices and stock quantities; `decimal(15,2)` for document totals
+- **Tests**: run with `./vendor/bin/sail artisan test --compact`. DB host is `hmo-postgres` (Docker only)
+- **Pint**: run `vendor/bin/pint --dirty --format agent` after every PHP change
+
+## Task File Conventions
+
+| File | Purpose |
+|------|---------|
+| `tasks/phase-N.md` | Phase master checklist — tasks with `[x]`/`[ ]` checkboxes |
+| `tasks/phase-N-plan.md` | Detailed implementation plan (optional, for complex phases) |
+| `tasks/backlog.md` | Unscheduled items — `⚡ DO THIS PHASE` marks urgent items |
+
+**Phase lifecycle:** Brainstorm → `backlog.md` → Schedule into `phase-N.md` → Implement → Close → Update `docs/STATUS.md`
+
+## End of Session Protocol
+
+1. Update task checkboxes in the active `tasks/phase-N.md`
+2. Update `docs/STATUS.md` "Current State" line if phase status changed
+3. Run `vendor/bin/pint --dirty --format agent`
+4. Run `./vendor/bin/sail artisan test --compact` and note test count
+5. Commit if requested by user
