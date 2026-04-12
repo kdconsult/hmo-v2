@@ -13,8 +13,7 @@ enum MovementType: string implements HasColor, HasLabel
     case TransferIn = 'transfer_in';
     case Adjustment = 'adjustment';
     case Return = 'return';
-    case InternalConsumption = 'internal_consumption';
-    case Production = 'production';
+    case Opening = 'opening';
     case InitialStock = 'initial_stock';
 
     public function getLabel(): string
@@ -26,8 +25,7 @@ enum MovementType: string implements HasColor, HasLabel
             self::TransferIn => __('Transfer In'),
             self::Adjustment => __('Adjustment'),
             self::Return => __('Return'),
-            self::InternalConsumption => __('Internal Consumption'),
-            self::Production => __('Production'),
+            self::Opening => __('Opening'),
             self::InitialStock => __('Initial Stock'),
         };
     }
@@ -35,9 +33,9 @@ enum MovementType: string implements HasColor, HasLabel
     public function getColor(): string|array|null
     {
         return match ($this) {
-            self::Purchase, self::TransferIn, self::Return, self::InitialStock => 'success',
-            self::Sale, self::TransferOut, self::InternalConsumption => 'danger',
-            self::Adjustment, self::Production => 'warning',
+            self::Purchase, self::TransferIn, self::Return, self::InitialStock, self::Opening => 'success',
+            self::Sale, self::TransferOut => 'danger',
+            self::Adjustment => 'warning',
         };
     }
 }
