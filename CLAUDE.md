@@ -344,7 +344,7 @@ HMO v2 is a **multi-tenant SaaS ERP-light** targeting the entire EU market. Curr
 - **Immutable movements**: `StockMovement` rows throw `RuntimeException` on update/delete — this is intentional
 - **Always-variant pattern**: stock is tracked at `ProductVariant` level, not `Product`. Every Product auto-creates a default hidden variant on `created` event
 - **Decimal precision**: `decimal(15,4)` for catalog prices and stock quantities; `decimal(15,2)` for document totals
-- **Tests**: run with `./vendor/bin/sail artisan test --compact`. DB host is `hmo-postgres` (Docker only)
+- **Tests**: run with `./vendor/bin/sail artisan test --parallel --compact`. DB host is `hmo-postgres` (Docker only). Parallel cuts runtime from ~250s to ~86s (12 workers)
 - **Pint**: run `vendor/bin/pint --dirty --format agent` after every PHP change
 
 ## Task File Conventions
@@ -362,5 +362,5 @@ HMO v2 is a **multi-tenant SaaS ERP-light** targeting the entire EU market. Curr
 1. Update task checkboxes in the active `tasks/phase-N.md`
 2. Update `docs/STATUS.md` "Current State" line if phase status changed
 3. Run `vendor/bin/pint --dirty --format agent`
-4. Run `./vendor/bin/sail artisan test --compact` and note test count
+4. Run `./vendor/bin/sail artisan test --parallel --compact` and note test count
 5. Commit if requested by user

@@ -124,7 +124,7 @@ See `tasks/phase-3.md` when it exists. Key components:
 - DB migrations: `database/migrations/` (central), `database/migrations/tenant/` (per-tenant)
 - `APP_DOMAIN=hmo.localhost` — central domain
 - Artisan must be run inside Docker or via Sail: `./vendor/bin/sail artisan ...`
-- Tests: `./vendor/bin/sail artisan test --compact`
+- Tests: `./vendor/bin/sail artisan test --parallel --compact` (~86s with 12 workers)
 
 ---
 
