@@ -2,8 +2,8 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\NavigationGroup;
 use App\Models\CompanySettings;
-use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -12,10 +12,10 @@ use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 
 class CompanySettingsPage extends Page implements HasForms
 {
@@ -23,9 +23,7 @@ class CompanySettingsPage extends Page implements HasForms
 
     protected string $view = 'filament.pages.company-settings-page';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCog6Tooth;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Settings;
 
     protected static ?string $navigationLabel = 'Company Settings';
 
@@ -36,6 +34,8 @@ class CompanySettingsPage extends Page implements HasForms
         return auth()->user()?->can('viewAny', CompanySettings::class) ?? false;
     }
 
+    public array $data = [];
+
     public array $general = [];
 
     public array $invoicing = [];
@@ -44,10 +44,20 @@ class CompanySettingsPage extends Page implements HasForms
 
     public function mount(): void
     {
+        $localizationGroup = CompanySettings::getGroup('localization');
+
+        foreach (['en', 'bg', 'de', 'fr', 'es', 'ro', 'tr', 'el', 'sr'] as $code) {
+            $key = "locale_{$code}";
+            $localizationGroup[$key] = array_key_exists($key, $localizationGroup)
+                ? ! empty($localizationGroup[$key])
+                : $code === 'en';
+        }
+
         $this->form->fill([
             'general' => CompanySettings::getGroup('general'),
             'invoicing' => CompanySettings::getGroup('invoicing'),
             'fiscal' => CompanySettings::getGroup('fiscal'),
+            'localization' => $localizationGroup,
         ]);
     }
 
@@ -106,6 +116,22 @@ class CompanySettingsPage extends Page implements HasForms
                                 Toggle::make('fiscal.fiscal_enabled')
                                     ->label('Fiscal Printing Enabled'),
                             ]),
+
+                        Tab::make('Localization')
+                            ->schema([
+                                Grid::make(3)
+                                    ->schema([
+                                        Toggle::make('localization.locale_en')->label('English')->inline(false),
+                                        Toggle::make('localization.locale_bg')->label('Български')->inline(false),
+                                        Toggle::make('localization.locale_de')->label('Deutsch')->inline(false),
+                                        Toggle::make('localization.locale_fr')->label('Français')->inline(false),
+                                        Toggle::make('localization.locale_es')->label('Español')->inline(false),
+                                        Toggle::make('localization.locale_ro')->label('Română')->inline(false),
+                                        Toggle::make('localization.locale_tr')->label('Türkçe')->inline(false),
+                                        Toggle::make('localization.locale_el')->label('Ελληνικά')->inline(false),
+                                        Toggle::make('localization.locale_sr')->label('Српски')->inline(false),
+                                    ]),
+                            ]),
                     ]),
             ]);
     }
@@ -114,12 +140,10 @@ class CompanySettingsPage extends Page implements HasForms
     {
         $this->authorize('update', CompanySettings::class);
 
-        $data = $this->form->getState();
-
-        foreach ($data as $group => $settings) {
+        foreach ($this->data as $group => $settings) {
             if (is_array($settings)) {
                 foreach ($settings as $key => $value) {
-                    CompanySettings::set($group, $key, $value ?? '');
+                    CompanySettings::set($group, $key, is_array($value) ? json_encode($value) : ($value ?? ''));
                 }
             }
         }

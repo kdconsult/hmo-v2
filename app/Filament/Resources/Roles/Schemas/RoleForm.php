@@ -12,15 +12,13 @@ class RoleForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $permissions = Permission::orderBy('name')->pluck('name', 'name')->toArray();
-
-        // Group permissions by model
+        // Group permissions by model, keying options by ID so loaded state matches
         $grouped = [];
-        foreach ($permissions as $permission) {
-            $parts = explode('_', $permission, 2);
-            $model = $parts[1] ?? $permission;
-            $grouped[$model][] = $permission;
-        }
+        Permission::orderBy('name')->get()->each(function ($permission) use (&$grouped) {
+            $parts = explode('_', $permission->name, 2);
+            $model = $parts[1] ?? $permission->name;
+            $grouped[$model][$permission->id] = $permission->name;
+        });
 
         $sections = [
             TextInput::make('name')
@@ -29,13 +27,13 @@ class RoleForm
                 ->maxLength(100),
         ];
 
-        foreach ($grouped as $model => $modelPermissions) {
+        foreach ($grouped as $model => $options) {
             $sections[] = Section::make(ucwords(str_replace('_', ' ', $model)))
                 ->collapsed()
                 ->schema([
                     CheckboxList::make('permissions')
                         ->relationship('permissions', 'name')
-                        ->options(array_combine($modelPermissions, $modelPermissions))
+                        ->options($options)
                         ->columns(3),
                 ]);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\TenantUsers;
 
+use App\Enums\NavigationGroup;
 use App\Filament\Resources\TenantUsers\Pages\CreateTenantUser;
 use App\Filament\Resources\TenantUsers\Pages\EditTenantUser;
 use App\Filament\Resources\TenantUsers\Pages\ListTenantUsers;
@@ -10,10 +11,8 @@ use App\Filament\Resources\TenantUsers\Schemas\TenantUserForm;
 use App\Filament\Resources\TenantUsers\Schemas\TenantUserInfolist;
 use App\Filament\Resources\TenantUsers\Tables\TenantUsersTable;
 use App\Models\TenantUser;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -22,9 +21,7 @@ class TenantUserResource extends Resource
 {
     protected static ?string $model = TenantUser::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Settings;
 
     protected static ?string $recordTitleAttribute = 'user_id';
 

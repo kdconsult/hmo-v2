@@ -5,6 +5,10 @@ namespace App\Providers;
 use App\Listeners\StripeWebhookListener;
 use App\Models\Contract;
 use App\Models\Partner;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\StockMovement;
+use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -24,7 +28,10 @@ class AppServiceProvider extends ServiceProvider
         Relation::morphMap([
             'partner' => Partner::class,
             'contract' => Contract::class,
-            // Phase 3+ models will be added here as implemented
+            'product' => Product::class,
+            'product_variant' => ProductVariant::class,
+            'warehouse' => Warehouse::class,
+            'stock_movement' => StockMovement::class,
         ]);
 
         // Explicit Stripe webhook listener registration — ensures the listener is bound

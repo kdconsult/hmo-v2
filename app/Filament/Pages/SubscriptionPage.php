@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace App\Filament\Pages;
 
+use App\Enums\NavigationGroup;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Services\PlanLimitService;
 use App\Services\SubscriptionService;
 use App\Support\TenantUrl;
-use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Panel;
-use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Computed;
 
@@ -21,9 +20,7 @@ class SubscriptionPage extends Page
 {
     protected string $view = 'filament.pages.subscription-page';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCreditCard;
-
-    protected static string|\UnitEnum|null $navigationGroup = 'Settings';
+    protected static string|\UnitEnum|null $navigationGroup = NavigationGroup::Settings;
 
     protected static ?string $navigationLabel = 'Subscription';
 

@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Resources\Partners\Widgets\PartnerOverview;
 use App\Http\Middleware\EnsureActiveSubscription;
+use App\Http\Middleware\SetSubdomainUrlDefault;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
+use LaraZeus\SpatieTranslatable\SpatieTranslatablePlugin;
 use Stancl\Tenancy\Middleware\InitializeTenancyBySubdomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
 
@@ -36,6 +38,11 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Amber,
             ])
+            ->plugin(
+                SpatieTranslatablePlugin::make()
+                    ->defaultLocales(['en'])
+                    ->persist(),
+            )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -61,10 +68,12 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->middleware([
                 InitializeTenancyBySubdomain::class,
+                SetSubdomainUrlDefault::class,
             ], isPersistent: true)
             ->authMiddleware([
                 Authenticate::class,
                 EnsureActiveSubscription::class,
-            ]);
+            ])
+            ->spa();
     }
 }

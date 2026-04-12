@@ -6,7 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class CompanySettings extends Model
 {
-    protected $fillable = ['group', 'key', 'value'];
+    // protected $fillable = ['group', 'key', 'value'];
+    protected $guarded = [];
 
     public static function get(string $group, string $key, mixed $default = null): mixed
     {
