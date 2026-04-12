@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Enums\ProductStatus;
 use App\Enums\ProductType;
 use App\Models\Category;
 use App\Models\Unit;
@@ -9,7 +10,6 @@ use App\Models\VatRate;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
@@ -79,8 +79,10 @@ class ProductForm
                         Toggle::make('is_stockable')
                             ->default(true)
                             ->reactive(),
-                        Toggle::make('is_active')
-                            ->default(true),
+                        Select::make('status')
+                            ->options(ProductStatus::class)
+                            ->default(ProductStatus::Active)
+                            ->required(),
                         TextInput::make('barcode')
                             ->maxLength(128)
                             ->nullable(),

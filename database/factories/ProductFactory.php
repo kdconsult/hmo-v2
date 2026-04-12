@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\ProductStatus;
 use App\Enums\ProductType;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -25,7 +26,7 @@ class ProductFactory extends Factory
             'purchase_price' => fake()->randomFloat(4, 1, 100),
             'sale_price' => fake()->randomFloat(4, 1, 200),
             'vat_rate_id' => null,
-            'is_active' => true,
+            'status' => ProductStatus::Active,
             'is_stockable' => true,
             'barcode' => null,
             'attributes' => null,
@@ -49,6 +50,11 @@ class ProductFactory extends Factory
 
     public function inactive(): static
     {
-        return $this->state(fn () => ['is_active' => false]);
+        return $this->state(fn () => ['status' => ProductStatus::Discontinued]);
+    }
+
+    public function draft(): static
+    {
+        return $this->state(fn () => ['status' => ProductStatus::Draft]);
     }
 }

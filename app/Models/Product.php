@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ProductStatus;
 use App\Enums\ProductType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,7 +33,7 @@ class Product extends Model
         'purchase_price',
         'sale_price',
         'vat_rate_id',
-        'is_active',
+        'status',
         'is_stockable',
         'barcode',
         'attributes',
@@ -42,9 +43,9 @@ class Product extends Model
     {
         return [
             'type' => ProductType::class,
+            'status' => ProductStatus::class,
             'purchase_price' => 'decimal:4',
             'sale_price' => 'decimal:4',
-            'is_active' => 'boolean',
             'is_stockable' => 'boolean',
             'attributes' => 'array',
         ];
@@ -53,7 +54,7 @@ class Product extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'type', 'is_active', 'sale_price'])
+            ->logOnly(['name', 'code', 'type', 'status', 'sale_price'])
             ->logOnlyDirty();
     }
 
@@ -64,6 +65,10 @@ class Product extends Model
         static::creating(function (Product $model) {
             if (! $model->isDirty('is_stockable')) {
                 $model->is_stockable = $model->type !== ProductType::Service;
+            }
+
+            if (! $model->isDirty('status')) {
+                $model->status = ProductStatus::Active;
             }
         });
 
@@ -106,7 +111,7 @@ class Product extends Model
 
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('status', ProductStatus::Active);
     }
 
     public function hasVariants(): bool

@@ -14,7 +14,6 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
@@ -50,8 +49,8 @@ class ProductsTable
                     ))
                     ->badge()
                     ->color(fn (string $state): string => (float) $state > 0 ? 'success' : 'gray'),
-                IconColumn::make('is_active')
-                    ->boolean()
+                TextColumn::make('status')
+                    ->badge()
                     ->sortable(),
             ])
             ->filters([
