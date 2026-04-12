@@ -6,7 +6,7 @@
 
 **Phase 2 — Warehouse/WMS + Nomenclature/Catalog** — All tasks complete except Task 2.7 (barcode scanning UI, explicitly deferred). **293/293 tests pass.**
 
-The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs. Landlord is the SaaS operator.
+The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
 ---
 
