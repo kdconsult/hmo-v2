@@ -2,18 +2,20 @@
 
 namespace App\Models;
 
-use App\Enums\DocumentType;
+use App\Enums\SeriesType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
-class DocumentSeries extends Model
+class NumberSeries extends Model
 {
     use HasFactory, SoftDeletes;
 
+    protected $table = 'number_series';
+
     protected $fillable = [
-        'document_type',
+        'series_type',
         'name',
         'prefix',
         'separator',
@@ -29,7 +31,7 @@ class DocumentSeries extends Model
     protected function casts(): array
     {
         return [
-            'document_type' => DocumentType::class,
+            'series_type' => SeriesType::class,
             'include_year' => 'boolean',
             'reset_yearly' => 'boolean',
             'is_default' => 'boolean',
@@ -40,7 +42,7 @@ class DocumentSeries extends Model
     }
 
     /**
-     * Generate the next document number atomically.
+     * Generate the next number atomically.
      * Uses a DB-level lock to prevent race conditions.
      */
     public function generateNumber(): string
@@ -73,9 +75,9 @@ class DocumentSeries extends Model
         return implode($series->separator, $parts);
     }
 
-    public static function getDefault(DocumentType $type): ?self
+    public static function getDefault(SeriesType $type): ?self
     {
-        return static::where('document_type', $type->value)
+        return static::where('series_type', $type->value)
             ->where('is_default', true)
             ->where('is_active', true)
             ->first();

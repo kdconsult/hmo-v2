@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Filament\Resources\DocumentSeries\Schemas;
+namespace App\Filament\Resources\NumberSeries\Schemas;
 
-use App\Enums\DocumentType;
+use App\Enums\SeriesType;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -10,7 +10,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 
-class DocumentSeriesForm
+class NumberSeriesForm
 {
     public static function configure(Schema $schema): Schema
     {
@@ -19,8 +19,8 @@ class DocumentSeriesForm
                 Section::make('Series Settings')
                     ->columns(2)
                     ->schema([
-                        Select::make('document_type')
-                            ->options(DocumentType::class)
+                        Select::make('series_type')
+                            ->options(SeriesType::class)
                             ->required(),
                         TextInput::make('name')
                             ->required()

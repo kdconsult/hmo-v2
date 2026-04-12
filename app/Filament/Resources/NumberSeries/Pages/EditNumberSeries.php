@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Filament\Resources\DocumentSeries\Pages;
+namespace App\Filament\Resources\NumberSeries\Pages;
 
-use App\Filament\Resources\DocumentSeries\DocumentSeriesResource;
+use App\Filament\Resources\NumberSeries\NumberSeriesResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditDocumentSeries extends EditRecord
+class EditNumberSeries extends EditRecord
 {
-    protected static string $resource = DocumentSeriesResource::class;
+    protected static string $resource = NumberSeriesResource::class;
 
     protected function getHeaderActions(): array
     {

@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\DocumentSeries\Tables;
+namespace App\Filament\Resources\NumberSeries\Tables;
 
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -13,7 +13,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
-class DocumentSeriesTable
+class NumberSeriesTable
 {
     public static function configure(Table $table): Table
     {
@@ -22,7 +22,7 @@ class DocumentSeriesTable
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('document_type')
+                TextColumn::make('series_type')
                     ->badge()
                     ->sortable(),
                 TextColumn::make('prefix')

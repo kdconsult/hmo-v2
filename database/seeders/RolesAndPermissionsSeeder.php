@@ -16,7 +16,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'currency',
         'exchange_rate',
         'vat_rate',
-        'document_series',
+        'number_series',
         'tenant_user',
         'tag',
         'company_settings',
@@ -86,7 +86,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_currency', 'view_currency', 'create_currency', 'update_currency', 'delete_currency',
             'view_any_exchange_rate', 'view_exchange_rate', 'create_exchange_rate', 'update_exchange_rate', 'delete_exchange_rate',
             'view_any_vat_rate', 'view_vat_rate', 'create_vat_rate', 'update_vat_rate', 'delete_vat_rate',
-            'view_any_document_series', 'view_document_series',
+            'view_any_number_series', 'view_number_series',
         ]);
 
         // viewer — view all Phase 1 models

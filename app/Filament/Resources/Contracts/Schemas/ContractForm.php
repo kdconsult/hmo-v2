@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\Contracts\Schemas;
 
 use App\Enums\ContractStatus;
-use App\Enums\DocumentType;
-use App\Models\DocumentSeries;
+use App\Enums\SeriesType;
+use App\Models\NumberSeries;
 use App\Models\Partner;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -37,10 +37,10 @@ class ContractForm
                             ->searchable()
                             ->required(),
                         Select::make('document_series_id')
-                            ->label('Document Series')
+                            ->label('Number Series')
                             ->options(
-                                DocumentSeries::where('is_active', true)
-                                    ->where('document_type', DocumentType::Invoice->value)
+                                NumberSeries::where('is_active', true)
+                                    ->where('series_type', SeriesType::Invoice->value)
                                     ->pluck('name', 'id')
                             )
                             ->searchable(),
@@ -53,7 +53,7 @@ class ContractForm
                             ->required(),
                         TextInput::make('currency_code')
                             ->label('Currency')
-                            ->default('BGN')
+                            ->default('EUR')
                             ->maxLength(3),
                     ]),
 
@@ -67,7 +67,7 @@ class ContractForm
                             ->label('Auto-renew'),
                         TextInput::make('monthly_fee')
                             ->numeric()
-                            ->prefix('BGN'),
+                            ->prefix('€'),
                         TextInput::make('included_hours')
                             ->numeric()
                             ->suffix('h'),

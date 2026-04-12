@@ -4,7 +4,7 @@ namespace App\Enums;
 
 use Filament\Support\Contracts\HasLabel;
 
-enum DocumentType: string implements HasLabel
+enum SeriesType: string implements HasLabel
 {
     case Quote = 'quote';
     case SalesOrder = 'sales_order';
@@ -18,6 +18,8 @@ enum DocumentType: string implements HasLabel
     case SupplierCreditNote = 'supplier_credit_note';
     case GoodsReceivedNote = 'goods_received_note';
     case InternalConsumptionNote = 'internal_consumption_note';
+    case Product = 'product';
+    case Partner = 'partner';
 
     public function getLabel(): string
     {
@@ -34,6 +36,8 @@ enum DocumentType: string implements HasLabel
             self::SupplierCreditNote => __('Supplier Credit Note'),
             self::GoodsReceivedNote => __('Goods Received Note'),
             self::InternalConsumptionNote => __('Internal Consumption Note'),
+            self::Product => __('Product Code'),
+            self::Partner => __('Partner Code'),
         };
     }
 }

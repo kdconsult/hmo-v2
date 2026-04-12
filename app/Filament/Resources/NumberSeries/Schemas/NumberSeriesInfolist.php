@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\DocumentSeries\Schemas;
+namespace App\Filament\Resources\NumberSeries\Schemas;
 
 use Filament\Schemas\Schema;
 
-class DocumentSeriesInfolist
+class NumberSeriesInfolist
 {
     public static function configure(Schema $schema): Schema
     {

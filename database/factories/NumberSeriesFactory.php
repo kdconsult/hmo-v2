@@ -2,21 +2,21 @@
 
 namespace Database\Factories;
 
-use App\Enums\DocumentType;
-use App\Models\DocumentSeries;
+use App\Enums\SeriesType;
+use App\Models\NumberSeries;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<DocumentSeries>
+ * @extends Factory<NumberSeries>
  */
-class DocumentSeriesFactory extends Factory
+class NumberSeriesFactory extends Factory
 {
-    protected $model = DocumentSeries::class;
+    protected $model = NumberSeries::class;
 
     public function definition(): array
     {
         return [
-            'document_type' => fake()->randomElement(DocumentType::cases())->value,
+            'series_type' => fake()->randomElement(SeriesType::cases())->value,
             'name' => 'Default Series',
             'prefix' => strtoupper(fake()->lexify('???')),
             'separator' => '-',
@@ -30,10 +30,10 @@ class DocumentSeriesFactory extends Factory
         ];
     }
 
-    public function forType(DocumentType $type): static
+    public function forType(SeriesType $type): static
     {
         return $this->state(fn () => [
-            'document_type' => $type->value,
+            'series_type' => $type->value,
         ]);
     }
 }

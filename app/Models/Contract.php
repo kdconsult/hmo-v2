@@ -63,6 +63,6 @@ class Contract extends Model
 
     public function documentSeries(): BelongsTo
     {
-        return $this->belongsTo(DocumentSeries::class);
+        return $this->belongsTo(NumberSeries::class);
     }
 }

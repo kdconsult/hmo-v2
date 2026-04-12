@@ -1,7 +1,7 @@
 <?php
 
-use App\Enums\DocumentType;
-use App\Models\DocumentSeries;
+use App\Enums\SeriesType;
+use App\Models\NumberSeries;
 use App\Models\Tenant;
 
 function createTestTenant(): Tenant
@@ -14,16 +14,16 @@ function createTestTenant(): Tenant
         'eik' => fake()->unique()->numerify('#########'),
         'locale' => 'bg',
         'timezone' => 'Europe/Sofia',
-        'default_currency_code' => 'BGN',
+        'default_currency_code' => 'EUR',
     ]);
 }
 
-test('document series generates unique sequential numbers', function () {
+test('number series generates unique sequential numbers', function () {
     $tenant = createTestTenant();
     tenancy()->initialize($tenant);
 
-    $series = DocumentSeries::create([
-        'document_type' => DocumentType::Invoice->value,
+    $series = NumberSeries::create([
+        'series_type' => SeriesType::Invoice->value,
         'name' => 'Test Series',
         'prefix' => 'INV',
         'separator' => '-',
@@ -51,12 +51,12 @@ test('document series generates unique sequential numbers', function () {
     tenancy()->end();
 });
 
-test('document series increments next_number after generation', function () {
+test('number series increments next_number after generation', function () {
     $tenant = createTestTenant();
     tenancy()->initialize($tenant);
 
-    $series = DocumentSeries::create([
-        'document_type' => DocumentType::Invoice->value,
+    $series = NumberSeries::create([
+        'series_type' => SeriesType::Invoice->value,
         'name' => 'Increment Test',
         'prefix' => 'TEST',
         'separator' => '-',
