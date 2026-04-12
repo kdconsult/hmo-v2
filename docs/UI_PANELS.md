@@ -314,26 +314,27 @@ All Settings group resources use the string literal `'Settings'` for `$navigatio
 
 ---
 
-### 3.3 DocumentSeriesResource
+### 3.3 NumberSeriesResource
 
-**Model:** `App\Models\DocumentSeries`
+**Model:** `App\Models\NumberSeries`
 **Navigation Icon:** `Heroicon::OutlinedDocumentText`
-**Navigation Group:** `'Settings'`
+**Navigation Group:** `NavigationGroup::Settings`
+**Navigation Label:** `'Number Series'`
 **Record Title Attribute:** `name`
 **Special:** Excludes SoftDeletingScope in route binding
 
 **Pages:**
-- `ListDocumentSeries` (index)
-- `CreateDocumentSeries` (create)
-- `ViewDocumentSeries` (view)
-- `EditDocumentSeries` (edit)
+- `ListNumberSeries` (index)
+- `CreateNumberSeries` (create)
+- `ViewNumberSeries` (view)
+- `EditNumberSeries` (edit)
 
 **Relation Managers:** None
 
-#### Form Schema (DocumentSeriesForm)
+#### Form Schema (NumberSeriesForm)
 
 **Series Settings Section:**
-- `document_type` — Select from DocumentType enum, required
+- `series_type` — Select from SeriesType enum (Invoice, CreditNote, PurchaseOrder, Product, Partner, …), required
 - `name` — Required, max 100 chars
 - `prefix` — Required, max 20 chars, upperCase
 - `separator` — Default '-', max 5 chars
@@ -539,17 +540,29 @@ Navigation groups are used to organize resources in the left sidebar menu.
 
 ### 5.2 Admin Panel
 
-**Settings Group** (`$navigationGroup = 'Settings'`):
+**Settings Group** (`NavigationGroup::Settings`):
 - CurrencyResource
 - VatRateResource
-- DocumentSeriesResource
+- NumberSeriesResource
 - TenantUserResource
 - RoleResource
 
-**CRM Group** (`$navigationGroup = 'CRM'`):
+**CRM Group** (`NavigationGroup::Crm`):
 - PartnerResource
 - ContractResource
 - TagResource
+
+**Catalog Group** (`NavigationGroup::Catalog`):
+- CategoryResource (with subcategory relation manager)
+- UnitResource (simple ManageRecords page)
+- ProductResource (with ProductVariantsRelationManager)
+
+**Warehouse Group** (`NavigationGroup::Warehouse`):
+- WarehouseResource (with StockLocationsRelationManager)
+- StockItemResource (read-only)
+- StockMovementResource (read-only, shows `moved_by` as "By" column)
+
+> Note: `StockAdjustmentPage` was removed in Phase 2.5 (WAREHOUSE-1). Stock adjustments require a formal inventory audit process (WAREHOUSE-2, future).
 
 ---
 
@@ -621,7 +634,7 @@ Each schema file contains a static `configure(Schema|Table $schema)` method call
 
 ### 7.3 Soft Deletes
 
-Resources with soft-delete support (Partner, Contract, VatRate, DocumentSeries, TenantUser) override `getRecordRouteBindingEloquentQuery()` to exclude SoftDeletingScope, allowing them to query soft-deleted records in edit/view pages. Tables include TrashedFilter and bulk restore/force-delete actions.
+Resources with soft-delete support (Partner, Contract, VatRate, NumberSeries, TenantUser) override `getRecordRouteBindingEloquentQuery()` to exclude SoftDeletingScope, allowing them to query soft-deleted records in edit/view pages. Tables include TrashedFilter and bulk restore/force-delete actions.
 
 ### 7.4 Lifecycle Management
 

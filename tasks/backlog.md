@@ -85,7 +85,7 @@ An explicit bulk-update action on a Category record that pushes selected attribu
 
 ---
 
-### CATALOG-7: Product status enum refactor ⚡ DO THIS PHASE
+### CATALOG-7: Product status enum refactor → Moved to Phase 2.5 (Task 2.5.1)
 Replace `is_active` boolean on `Product` with a `ProductStatus` enum: `Draft`, `Active`, `Discontinued`.
 
 **What changes:**
@@ -113,7 +113,7 @@ Allow a unit to define conversion ratios to other units (e.g. 1 pallet = 120 pie
 
 ## Warehouse
 
-### WAREHOUSE-1: Remove StockAdjustmentPage ⚡ DO THIS PHASE
+### WAREHOUSE-1: Remove StockAdjustmentPage → Moved to Phase 2.5 (Task 2.5.2)
 The current `StockAdjustmentPage` allows unrestricted stock quantity manipulation with no authorization, no approval flow, and no audit document. This is incorrect for a legally compliant ERP.
 
 **Remove:**
@@ -132,7 +132,7 @@ A formal inventory audit (инвентаризация) process with authorizati
 
 ---
 
-### WAREHOUSE-5: Add `created_by` to StockMovement ⚡ DO THIS PHASE
+### WAREHOUSE-5: Display `moved_by` in StockMovements → Moved to Phase 2.5 (Task 2.5.3)
 `StockMovement` records who caused a stock change at the type/reference level but not at the user level.
 
 **Changes:**
@@ -254,7 +254,7 @@ A legally compliant stocktake process required by Bulgarian and EU accounting la
 
 ## Core / Infrastructure
 
-### CORE-1: Generalize DocumentSeries → NumberSeries
+### CORE-1: Generalize DocumentSeries → NumberSeries → Moved to Phase 2.5 (Task 2.5.4)
 `DocumentSeries` is currently a placeholder (no invoices/orders yet). Generalize it before Phase 3 bakes in document-specific assumptions.
 
 **Changes:**
