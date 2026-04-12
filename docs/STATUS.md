@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 2.5 — Hardening (Pre-Phase 3 Cleanup)** — In progress. Phase 2 is complete. 293/293 tests pass.
+**Phase 3.1 — Purchases + UX wiring (Task 3.1.10)** — Complete. 335/335 tests pass.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -52,6 +52,45 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - Morph map registered in `AppServiceProvider`: `product`, `product_variant`, `warehouse`, `stock_movement`.
 - `UnitSeeder` runs at tenant onboarding. Default `MAIN` warehouse created at onboarding.
 
+### Phase 3.1 Purchases (complete)
+
+**Purchases (NavigationGroup::Purchases):**
+- `PurchaseOrder` — orders sent to suppliers. Status pipeline: Draft → Sent → Confirmed → PartiallyReceived → Received (with Cancelled exit). `PurchaseOrderResource` with `PurchaseOrderItemsRelationManager`. Cross-document actions create GRN and SupplierInvoice. Soft deletes. ActivityLog.
+- `GoodsReceivedNote` — records physical receipt of goods into a warehouse. Confirming a GRN calls `StockService::receive()` for each line (stock goes up), sets morph reference `goods_received_note` on `StockMovement`, and auto-updates linked PO status (PartiallyReceived/Received). `GoodsReceivedNoteResource` with confirm action (irreversible). Soft deletes. ActivityLog.
+- `SupplierInvoice` — supplier's billing document. `internal_number` auto-generated from NumberSeries. Composite unique on `(partner_id, supplier_invoice_number)`. `SupplierInvoiceResource` with `SupplierInvoiceItemsRelationManager` (supports free-text lines without variant). "Create Credit Note" action. Soft deletes. ActivityLog.
+- `SupplierCreditNote` — partial or full credit against a confirmed supplier invoice. `SupplierCreditNoteItemsRelationManager` validates quantity against `remainingCreditableQuantity()` with `lockForUpdate()` for race safety. Soft deletes. ActivityLog.
+
+**Services:**
+- `PurchaseOrderService` — item total calculation (via `VatCalculationService`), document total aggregation, status transition guard, `updateReceivedQuantities()` called from GoodsReceiptService.
+- `GoodsReceiptService` — `confirm()` in DB transaction: validates Draft state + has items, calls `StockService::receive()` per line, updates PO if linked; `cancel()` for Draft only.
+- `SupplierInvoiceService` — per-item VAT/discount/line-total calculation (mirrors PO service), document total aggregation with amount_due update.
+- `SupplierCreditNoteService` — per-item VAT/line-total calculation, document total aggregation.
+
+**Task 3.1.10 UX wiring (added after initial build):**
+- `po_number`, `grn_number`, `credit_note_number` auto-generated from NumberSeries (were blocked by `required()` validation — now `disabled()->dehydrated()->placeholder()`).
+- `currency_code` is now a `Select` backed by the `Currency` model (was free-text `TextInput`).
+- `mount()` on Create pages now eagerly loads parent document and fills all cascaded fields (partner, warehouse, currency, exchange_rate, pricing_mode) in a single `fill()` call, not relying on `afterStateUpdated`.
+- SI `afterStateUpdated` on PO selector now also cascades `exchange_rate` and `pricing_mode`.
+- SCN form now includes `partner_id` (hidden/dehydrated), `exchange_rate`, and `pricing_mode` fields; `mutateFormDataBeforeCreate` has safety-net partner_id fallback.
+- GRN items RM now has "Import from PO" header action — bulk-creates items with `purchase_order_item_id` set, enabling `updateReceivedQuantities()` to actually work.
+- GRN items RM manual form now has a PO line item selector (when GRN is linked to a PO) that auto-fills variant/qty/cost and sets `purchase_order_item_id`.
+- SI/SCN items RMs now call `SupplierInvoiceService`/`SupplierCreditNoteService` in after hooks (previously called only model-level `recalculateTotals()` which summed zeroes).
+- `SupplierInvoiceItem::creditedQuantity()` now excludes items from cancelled CNs.
+- `lockForUpdate()` in SCN quantity validation now wrapped in `DB::transaction()`.
+- PO items RM `isReadOnly()` now correctly checks `isEditable()` (was hardcoded `return false`).
+- `Currency::scopeActive()` added for consistent query patterns.
+
+**RBAC (Phase 3.1 additions):**
+- 8 new models → 40 new permissions per tenant (now ~130 total).
+- `purchasing-manager` role: full CRUD on all purchase documents + view catalog/warehouse/partners.
+- `accountant` role updated: view POs/GRNs + full CRUD supplier invoices/credit notes.
+- `warehouse-manager` role updated: full CRUD on GRNs + view POs.
+
+**Infrastructure:**
+- Morph map extended: `purchase_order`, `goods_received_note`, `supplier_invoice`, `supplier_credit_note`.
+- `StockService::receive()` now uses `$reference->getMorphClass()` (morph alias, not full class name).
+- `supplier_invoices.due_date` is nullable (date not always known at creation).
+
 ---
 
 ## Deferred / Not Done
@@ -79,14 +118,12 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## What's Next
 
-**Phase 3 — Sales/Invoicing + Purchases + SUPTO/Fiscal**
+**Phase 3.2 — Sales/Invoicing (not yet planned)**
 
-See `tasks/phase-3.md` when it exists. Key components:
-- Sales module: Quote → SalesOrder → Invoice → CreditNote
-- Purchases module: PurchaseOrder → GoodsReceivedNote → SupplierInvoice
-- SUPTO/fiscal: ErpNet.FP REST API for Bulgarian fiscal printer compliance
+See `tasks/phase-3.md` for the sub-phase breakdown:
+- Sales module: Quote → SalesOrder → Invoice → CreditNote (Phase 3.2)
+- SUPTO/fiscal: ErpNet.FP REST API for Bulgarian fiscal printer compliance (Phase 3.3)
 - Document generation: Blade + DomPDF, NumberSeries for sequential numbering
-- Stock integration: Sales issues stock, Purchases receives stock (via StockService)
 
 ---
 
@@ -110,9 +147,11 @@ See `tasks/phase-3.md` when it exists. Key components:
 | Tenant panel | `app/Filament/` (non-Landlord) |
 | Catalog resources | `app/Filament/Resources/{Categories,Units,Products}/` |
 | Warehouse resources | `app/Filament/Resources/{Warehouses,StockItems,StockMovements}/` |
+| Purchases resources | `app/Filament/Resources/{PurchaseOrders,GoodsReceivedNotes,SupplierInvoices,SupplierCreditNotes}/` |
 | Settings resources | `app/Filament/Resources/{Currencies,VatRates,NumberSeries,TenantUsers,Roles}/` |
 | Phase 2 models | `app/Models/{Category,Unit,Product,ProductVariant,Warehouse,StockLocation,StockItem,StockMovement}.php` |
-| Policies | `app/Policies/` (18 total: 9 Phase 1 + 8 Phase 2 + 1 landlord) |
+| Phase 3.1 models | `app/Models/{PurchaseOrder,PurchaseOrderItem,GoodsReceivedNote,GoodsReceivedNoteItem,SupplierInvoice,SupplierInvoiceItem,SupplierCreditNote,SupplierCreditNoteItem}.php` |
+| Policies | `app/Policies/` (22 total: 9 Phase 1 + 8 Phase 2 + 4 Phase 3.1 + 1 landlord) |
 | Migrations (tenant) | `database/migrations/tenant/` |
 
 ---
@@ -136,4 +175,5 @@ See `tasks/phase-3.md` when it exists. Key components:
 | Phase 1 complete (1.1–1.18) | 211 |
 | Post-release hardening audit | 232 |
 | Phase 2 complete | 293 |
-| Phase 2.5 in-progress | **293** |
+| Phase 2.5 complete | 293 |
+| Phase 3.1 complete | **326** |

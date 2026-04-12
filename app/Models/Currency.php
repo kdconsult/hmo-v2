@@ -28,6 +28,11 @@ class Currency extends Model
         ];
     }
 
+    public function scopeActive($query): mixed
+    {
+        return $query->where('is_active', true);
+    }
+
     public function exchangeRates(): HasMany
     {
         return $this->hasMany(ExchangeRate::class);
