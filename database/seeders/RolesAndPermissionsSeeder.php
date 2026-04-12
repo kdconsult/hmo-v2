@@ -21,6 +21,16 @@ class RolesAndPermissionsSeeder extends Seeder
         'tag',
         'company_settings',
         'role',
+        // Phase 2 — Catalog
+        'category',
+        'unit',
+        'product',
+        'product_variant',
+        // Phase 2 — Warehouse
+        'warehouse',
+        'stock_location',
+        'stock_item',
+        'stock_movement',
     ];
 
     /** @var string[] */
@@ -46,12 +56,18 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions($allPermissions);
 
-        // sales-manager — CRUD partners, view contracts
+        // sales-manager — CRUD partners, view contracts, view catalog + stock
         $salesManager = Role::firstOrCreate(['name' => 'sales-manager']);
         $salesManager->syncPermissions([
             'view_any_partner', 'view_partner', 'create_partner', 'update_partner', 'delete_partner',
             'view_any_contract', 'view_contract',
             'view_any_tag', 'view_tag', 'create_tag', 'update_tag', 'delete_tag',
+            // Phase 2 catalog view
+            'view_any_product', 'view_product',
+            'view_any_product_variant', 'view_product_variant',
+            'view_any_category', 'view_category',
+            'view_any_unit', 'view_unit',
+            'view_any_stock_item', 'view_stock_item',
         ]);
 
         // sales-agent — CRUD partners, view contracts
@@ -79,8 +95,20 @@ class RolesAndPermissionsSeeder extends Seeder
             collect($allPermissions)->filter(fn ($p) => str_starts_with($p, 'view_'))->values()->all()
         );
 
-        // warehouse-manager — minimal Phase 1 access (expanded in later phases)
-        Role::firstOrCreate(['name' => 'warehouse-manager']);
+        // warehouse-manager — full warehouse management + view catalog
+        $warehouseManager = Role::firstOrCreate(['name' => 'warehouse-manager']);
+        $warehouseManager->syncPermissions([
+            // Full CRUD on warehouse entities
+            'view_any_warehouse', 'view_warehouse', 'create_warehouse', 'update_warehouse', 'delete_warehouse',
+            'view_any_stock_location', 'view_stock_location', 'create_stock_location', 'update_stock_location', 'delete_stock_location',
+            'view_any_stock_item', 'view_stock_item', 'create_stock_item', 'update_stock_item',
+            'view_any_stock_movement', 'view_stock_movement', 'create_stock_movement',
+            // View-only on catalog
+            'view_any_product', 'view_product',
+            'view_any_product_variant', 'view_product_variant',
+            'view_any_category', 'view_category',
+            'view_any_unit', 'view_unit',
+        ]);
 
         // field-technician — minimal Phase 1 access (expanded in later phases)
         Role::firstOrCreate(['name' => 'field-technician']);
