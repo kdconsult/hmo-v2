@@ -199,9 +199,11 @@ Sets up a newly created tenant's database and owner user record.
 
 - `onboard(Tenant $tenant, User $ownerUser): void`
   - Runs inside the tenant's database context.
-  - Executes seeders in order: `RolesAndPermissionsSeeder`, `CurrencySeeder`, `VatRateSeeder`.
+  - Executes seeders in order: `RolesAndPermissionsSeeder`, `CurrencySeeder`, `VatRateSeeder`, **`UnitSeeder`** (Phase 2).
   - Creates or retrieves a `TenantUser` record linking the owner.
   - Assigns the `admin` role to the owner if not already assigned.
+  - **Creates default `MAIN` warehouse** (is_default=true) if not already present (Phase 2).
+  - **Sets `locale_en = '1'`** in CompanySettings `localization` group (Phase 2).
 
 ---
 
@@ -638,10 +640,136 @@ Location: `/app/Console/Commands/SyncEuVatRatesCommand.php`
 
 ---
 
-## Related Files
+## Related Files (Phase 1)
 
 - **Models:** `/app/Models/Tenant.php`, `/app/Models/Plan.php`, `/app/Models/User.php`
 - **Enums:** `/app/Enums/TenantStatus.php`, `/app/Enums/SubscriptionStatus.php`, `/app/Enums/PricingMode.php`
-- **Mail Views:** `/resources/views/mail/tenant/*.blade.php` (stubs exist for lifecycle, markdown for subscriptions)
-- **Configuration:** `/config/tenancy.php` (multi-tenancy setup)
-- **Tests:** `/tests/Feature/` and `/tests/Unit/` (RBAC, lifecycle, subscription tests)
+- **Mail Views:** `/resources/views/mail/tenant/*.blade.php`
+- **Configuration:** `/config/tenancy.php`
+- **Tests:** `/tests/Feature/` and `/tests/Unit/`
+
+---
+
+---
+
+# Phase 2 Business Logic: Catalog + Warehouse/WMS
+
+---
+
+## 4. Phase 2 RBAC Extensions
+
+### 8 New Models → 40 New Permissions
+
+Added to `RolesAndPermissionsSeeder` in Phase 2:
+
+```php
+'category', 'unit', 'product', 'product_variant',
+'warehouse', 'stock_location', 'stock_item', 'stock_movement'
+```
+
+Total tenant permissions: **90** (50 Phase 1 + 40 Phase 2). Actions per model: `view_any`, `view`, `create`, `update`, `delete`.
+
+### Role Permission Updates
+
+| Role | Phase 2 Additions |
+|------|------------------|
+| `admin` | Full access to all 8 new models (automatic via `$allPermissions`) |
+| `warehouse-manager` | Full CRUD: warehouse, stock_location, stock_movement; create+update stock_item; view_any+view: product, product_variant, category, unit |
+| `sales-manager` | view_any+view: product, product_variant, category, unit, stock_item |
+| `viewer` | view_any+view on all Phase 2 models (automatic via filter) |
+| `finance-manager` | view_any+view on all Phase 2 models (automatic via filter) |
+
+### Special Policy Rules (Phase 2)
+
+| Policy | Special Rule |
+|--------|-------------|
+| `StockItemPolicy` | `delete`, `forceDelete`, `restore` always return `false` — stock items cannot be deleted |
+| `StockMovementPolicy` | `update`, `delete`, `forceDelete`, `restore` always return `false` — movements are immutable |
+
+---
+
+## 5. StockService
+
+Location: `app/Services/StockService.php`
+
+The **single entry point** for all stock mutations. Never update `StockItem` directly.
+
+All methods:
+- Wrapped in `DB::transaction()`
+- Use `bcmath` for decimal arithmetic (4dp precision — no floating-point errors)
+- Accept an optional `StockLocation` for bin-level tracking
+- Accept an optional `Model $reference` (for future Invoice/PO linking via `StockMovement.reference` morph)
+
+### Methods
+
+**`receive(ProductVariant, Warehouse, string $qty, ?StockLocation, ?Model $reference, MovementType $type = Purchase): StockItem`**
+- Finds or creates a `StockItem` for the variant/warehouse/location combination
+- Increments `quantity` by `$qty`
+- Creates a `StockMovement` with positive `$qty`
+- Default type: `Purchase` (can override for `Return`, `Opening`, `InitialStock`)
+
+**`issue(ProductVariant, Warehouse, string $qty, ?StockLocation, ?Model $reference, MovementType $type = Sale): StockItem`**
+- Checks `available_quantity >= $qty` via `bccomp`
+- Throws `InsufficientStockException` if insufficient (carries structured data: variant, warehouse, requested, available)
+- Decrements `quantity`, creates `StockMovement` with negative `$qty`
+- Default type: `Sale`
+
+**`adjust(ProductVariant, Warehouse, string $qty (signed), string $reason, ?StockLocation): StockItem`**
+- Adds signed `$qty` to `quantity` (positive = add stock, negative = remove)
+- Creates `StockMovement(Adjustment, $qty, notes=$reason)`
+- Used by `StockAdjustmentPage`
+
+**`transfer(ProductVariant, Warehouse $from, Warehouse $to, string $qty, ?StockLocation $fromLoc, ?StockLocation $toLoc): array`**
+- Checks source `available_quantity` (throws `InsufficientStockException` if insufficient)
+- Calls `issue()` on source → `StockMovement(TransferOut, negative)`
+- Calls `receive()` on destination → `StockMovement(TransferIn, positive)`
+- Returns `[fromStockItem, toStockItem]`
+
+### InsufficientStockException
+
+Location: `app/Exceptions/InsufficientStockException.php`
+
+```php
+public function __construct(
+    public readonly ProductVariant $productVariant,
+    public readonly Warehouse $warehouse,
+    public readonly string $requestedQuantity,
+    public readonly string $availableQuantity,
+)
+```
+
+Message format: `'Insufficient stock for "{name}" (SKU: {sku}) in warehouse "{name}". Requested: {qty}, Available: {qty}.'`
+
+---
+
+## 6. TranslatableLocales Support
+
+Location: `app/Support/TranslatableLocales.php`
+
+Reads tenant locale configuration from `CompanySettings` group `localization`. Keys: `locale_en`, `locale_bg`, `locale_de`, etc. (9 supported languages). Returns `['en']` as fallback when tenancy is not initialized or no locale is enabled.
+
+**Used by:** Filament resources with translatable fields — `getTranslatableLocales()` calls `TranslatableLocales::forTenant()` to provide the tenant's configured locale list to the `LocaleSwitcher` header action.
+
+**Models with translatable fields:** `Product` (name, description), `ProductVariant` (name), `Category` (name, description), `Unit` (name).
+
+---
+
+## Phase 2 File Reference
+
+| Component | Path | Purpose |
+|-----------|------|---------|
+| **StockService** | `/app/Services/StockService.php` | All stock mutations |
+| **InsufficientStockException** | `/app/Exceptions/InsufficientStockException.php` | Thrown on insufficient stock |
+| **TranslatableLocales** | `/app/Support/TranslatableLocales.php` | Tenant locale configuration |
+| **UnitSeeder** | `/database/seeders/UnitSeeder.php` | Seeds 13 standard units |
+| **8 Phase 2 Policies** | `/app/Policies/{Category,Unit,Product,ProductVariant,Warehouse,StockLocation,StockItem,StockMovement}Policy.php` | Resource authorization |
+| **StockAdjustmentPage** | `/app/Filament/Pages/StockAdjustmentPage.php` | Standalone stock adjustment form |
+| **CategoryResource** | `/app/Filament/Resources/Categories/` | CRUD for product categories |
+| **UnitResource** | `/app/Filament/Resources/Units/` | CRUD for units of measure |
+| **ProductResource** | `/app/Filament/Resources/Products/` | CRUD for products + variants relation manager |
+| **WarehouseResource** | `/app/Filament/Resources/Warehouses/` | CRUD for warehouses + locations relation manager |
+| **StockItemResource** | `/app/Filament/Resources/StockItems/` | Read-only stock levels view |
+| **StockMovementResource** | `/app/Filament/Resources/StockMovements/` | Read-only movement audit log |
+| **Phase 2 Models** | `/app/Models/{Category,Unit,Product,ProductVariant,Warehouse,StockLocation,StockItem,StockMovement}.php` | |
+| **Phase 2 Factories** | `/database/factories/` | CategoryFactory, UnitFactory, ProductFactory, ProductVariantFactory, WarehouseFactory, StockLocationFactory, StockItemFactory, StockMovementFactory |
+| **Phase 2 Tests** | `/tests/Feature/` | CategoryTest, ProductCatalogTest, StockServiceTest, StockMovementTest, WarehouseTest, CatalogPolicyTest, WarehousePolicyTest, TenantOnboardingServicePhase2Test |

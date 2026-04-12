@@ -100,9 +100,10 @@ Runs within tenant context via `$tenant->run()` callback to ensure all database 
 
 ### Seeds Applied (in order)
 
-1. **RolesAndPermissionsSeeder** – Creates roles (admin, sales-manager, viewer) and permissions
+1. **RolesAndPermissionsSeeder** – Creates roles and permissions (90 permissions per tenant as of Phase 2)
 2. **CurrencySeeder** – Seeds currencies; EUR is marked as default (`is_default = true`)
 3. **VatRateSeeder** – Seeds VAT rates for the country
+4. **UnitSeeder** *(Phase 2)* – Seeds 13 standard units of measure (pcs, kg, g, t, l, ml, m, cm, mm, m², h, day, month)
 
 ### TenantUser & Role Assignment
 
@@ -116,11 +117,17 @@ Runs within tenant context via `$tenant->run()` callback to ensure all database 
 
 - Assigns `admin` role to the owner TenantUser (checks if not already assigned to avoid duplicates)
 
+### Additional Setup (Phase 2)
+
+- Creates default `MAIN` warehouse (`is_default=true`) via `Warehouse::firstOrCreate(['code' => 'MAIN'], [...])`
+- Sets `locale_en = '1'` in `CompanySettings` group `localization` (enables English as the default tenant locale)
+
 ### Idempotency
 
 The service is idempotent when called multiple times:
 - `firstOrCreate` ensures only one TenantUser per owner
 - Role assignment includes a `hasRole()` check before assigning
+- `firstOrCreate` on warehouse prevents duplicates
 
 ### Integration Points
 
@@ -338,6 +345,20 @@ Bulgaria's `currency_code` is set to `EUR` (Bulgaria adopted the Euro on January
 | **TOTAL (Phase 1 baseline)** | | **87 tests** | |
 
 > Phase 1 complete test count: **232 tests** (includes 1.16–1.18 + post-release hardening audit). See `tasks/phase-1.md` for full breakdown.
+> Phase 2 complete test count: **293 tests** (+61 new tests). See `tasks/phase-2.md` for breakdown.
+
+### Phase 2 Test Files
+
+| Test File | Type | Focus |
+|-----------|------|-------|
+| `CategoryTest.php` | Feature | Depth enforcement, slug, scopes, soft delete |
+| `ProductCatalogTest.php` | Feature | Product/variant CRUD, auto-variant, prices, VAT, barcode, soft delete |
+| `StockServiceTest.php` | Feature | receive, issue, adjust, transfer — success + InsufficientStockException |
+| `StockMovementTest.php` | Feature | Immutability, reference morph |
+| `WarehouseTest.php` | Feature | Warehouse CRUD, single-default, locations |
+| `CatalogPolicyTest.php` | Feature | Category/Unit/Product/ProductVariant permissions |
+| `WarehousePolicyTest.php` | Feature | Warehouse/StockLocation/StockItem/StockMovement permissions |
+| `TenantOnboardingServicePhase2Test.php` | Feature | Unit seeding, default warehouse, idempotency, locales |
 
 ### Key Test Scenarios
 

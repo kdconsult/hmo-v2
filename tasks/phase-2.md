@@ -191,17 +191,30 @@ Browser-based scanning via the **BarcodeDetector API** (Chrome/Edge/Android WebV
 
 | Task | Status |
 |------|--------|
-| 2.1 — Category, Unit, Product models + resources | ⬜ |
-| 2.1b — Product Variants | ⬜ |
-| 2.2 — Warehouse + Stock Locations | ⬜ |
-| 2.3 — Stock / Inventory (StockItem, StockMovement, StockService) | ⬜ |
-| 2.4 — RBAC Extensions | ⬜ |
-| 2.5 — Seeders & Factories | ⬜ |
-| 2.6 — Tests | ⬜ |
-| 2.7 — Barcode Scanning | ⬜ |
+| 2.1 — Category, Unit, Product models + resources | ✅ |
+| 2.1b — Product Variants | ✅ |
+| 2.2 — Warehouse + Stock Locations | ✅ |
+| 2.3 — Stock / Inventory (StockItem, StockMovement, StockService) | ✅ |
+| 2.4 — RBAC Extensions | ✅ |
+| 2.5 — Seeders & Factories | ✅ |
+| 2.6 — Tests | ✅ (293 tests total) |
+| 2.7 — Barcode Scanning | ⬜ Deferred — barcode varchar field exists, camera UI not built |
 
 ---
 
+## Design Deviations from Original Spec
+
+These were decided **during implementation** (see `tasks/phase-2-plan.md` for full rationale):
+
+| Spec said | What was built | Why |
+|-----------|---------------|-----|
+| Polymorphic `stockable_type/stockable_id` on StockItem/StockMovement | Direct FK `product_variant_id` | Always-variant pattern — every Product auto-creates a default hidden variant; stock always at variant level; simpler queries |
+| `ProductType::Good` | `ProductType::Stock` | More descriptive for the SME context |
+| `decimal(19,4)` for prices | `decimal(15,4)` | Consistent with existing columns; 15-digit width is sufficient |
+| `Receipt / Issue` in MovementType | `Purchase / Sale` | Business-context naming is more meaningful in audit trails |
+| Generic spec MovementType | `Purchase, Sale, TransferOut, TransferIn, Adjustment, Return, Opening, InitialStock` | Removed `InternalConsumption` and `Production` (deferred to later phases) |
+
 ## Deferred / Open
 
-- **Opening balances** — to be discussed. Options: (a) bulk CSV import, (b) manual StockAdjustment with type=Opening, (c) dedicated Opening Balance wizard. Defer until after 2.3 is built.
+- **Opening balances** — Currently possible via `StockAdjustmentPage` using `Adjustment` movement type with reason "Opening balance". A dedicated `Opening` movement type exists. Formal Opening Balance wizard is a future task.
+- **Barcode scanning UI** — Task 2.7. Barcode varchar field is on Product and ProductVariant. The `BarcodeDetector` API + Alpine.js component not built. Deferred to a separate task.

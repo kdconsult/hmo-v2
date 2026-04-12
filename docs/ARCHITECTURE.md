@@ -733,25 +733,38 @@ Fiscal printer receipt state.
 
 ### Inventory & Warehouse Enums
 
-#### NomenclatureType (HasColor, HasLabel)
-Item classification.
+#### ProductType (HasColor, HasLabel)
+Product classification. Replaces `NomenclatureType` (removed in Phase 2).
 
 **Cases:**
-- `Stock` (primary) – Physical inventory
-- `Service` (success) – Non-stocked service
-- `Virtual` (info) – Digital/abstract
-- `Bundle` (secondary) – Kit of items
+- `Stock` (primary) — Physical inventory item
+- `Service` (success) — Non-stocked service; defaults `is_stockable = false`
+- `Bundle` (warning) — Kit of multiple items
+
+---
+
+#### UnitType (HasLabel)
+Unit of measure classification.
+
+**Cases:**
+- `Mass`, `Volume`, `Length`, `Area`, `Time`, `Piece`, `Other`
 
 ---
 
 #### MovementType (HasColor, HasLabel)
-Inventory transaction reason.
+Inventory transaction reason. Business-context naming (not generic Receipt/Issue).
 
 **Cases:**
-- `Purchase`, `Sale`, `TransferOut`, `TransferIn`, `Adjustment`
-- `Return`, `InternalConsumption`, `Production`, `InitialStock`
+- `Purchase` — Inbound from supplier (default for `receive()`)
+- `Sale` — Outbound to customer (default for `issue()`)
+- `TransferOut` — Source side of a warehouse transfer
+- `TransferIn` — Destination side of a warehouse transfer
+- `Adjustment` — Manual correction (used by StockAdjustmentPage)
+- `Return` — Goods returned
+- `Opening` — Opening balance entry
+- `InitialStock` — Initial stock load
 
-**Design:** Allows tracking all inbound/outbound flows.
+**Design:** Business-context names produce readable audit trails. `InternalConsumption` and `Production` deferred to later phases.
 
 ---
 
@@ -1004,7 +1017,146 @@ POS terminal shift state.
 
 ---
 
-## 6. Summary Table
+---
+
+## 6. Phase 2 Tenant Database Schema (Catalog + Warehouse)
+
+All models below live in the tenant database. No `tenant_id` column — tenancy is via database-level isolation.
+
+### Category Model (`App\Models\Category`)
+Hierarchical product categories, max 3 levels deep.
+
+**Columns:** `id`, `name` (JSON, translatable), `slug` (unique), `parent_id` (self-referential FK, nullable), `description` (JSON, translatable), `is_active`, `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, HasTranslations, SoftDeletes
+
+**Key behavior:**
+- `boot()` saving event: auto-generates slug from name; throws `InvalidArgumentException` if depth > 2 (0=root, 1=child, 2=grandchild)
+- Scopes: `roots()` (whereNull parent_id), `active()`, `withChildren()` (with eager-loaded children)
+- Helper: `depthLevel(): int`
+
+---
+
+### Unit Model (`App\Models\Unit`)
+Units of measure. Seeded at onboarding (13 standard units).
+
+**Columns:** `id`, `name` (JSON, translatable), `symbol`, `type` (UnitType enum), `is_active`, `created_at`, `updated_at`
+
+**No SoftDeletes** (reference data).
+
+---
+
+### Product Model (`App\Models\Product`)
+Goods and services offered by the tenant.
+
+**Columns:** `id`, `code` (unique), `name` (JSON, translatable), `description` (JSON, translatable), `type` (ProductType), `category_id` (nullable FK), `unit_id` (nullable FK), `purchase_price` (decimal 15,4), `sale_price` (decimal 15,4), `vat_rate_id` (nullable FK), `is_active`, `is_stockable`, `barcode` (varchar 128, nullable), `attributes` (JSON), `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, HasTranslations, SoftDeletes, LogsActivity (logs: name, code, type, is_active, sale_price)
+
+**Key behavior:**
+- `boot()` creating: sets `is_stockable` from type (Service → false, Stock/Bundle → true)
+- `boot()` created: auto-creates a default hidden `ProductVariant` with `is_default=true`, `sku = product.code`
+- Helper: `hasVariants(): bool` — true when non-default active variant exists
+- Relationships: `variants()`, `defaultVariant()` (where is_default=true)
+
+---
+
+### ProductVariant Model (`App\Models\ProductVariant`)
+Named variants of a product (size/color/material etc.). Every product has at least one (the hidden default).
+
+**Columns:** `id`, `product_id` (FK), `name` (JSON, translatable), `sku` (unique), `purchase_price` (decimal 15,4, nullable), `sale_price` (decimal 15,4, nullable), `barcode` (varchar 128, nullable), `is_default`, `is_active`, `attributes` (JSON), `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, HasTranslations, SoftDeletes
+
+**Key behavior:**
+- Prices fall back to parent product if null: `effectivePurchasePrice()`, `effectiveSalePrice()`
+- Default variant is hidden in UI (`ProductVariantsRelationManager` filters out `is_default=true`)
+- `stockItems()`: HasMany → StockItem; `stockMovements()`: HasMany → StockMovement
+
+---
+
+### Warehouse Model (`App\Models\Warehouse`)
+Physical warehouse locations.
+
+**Columns:** `id`, `name`, `code` (unique), `address` (JSON: street/city/postal_code/country), `is_active`, `is_default`, `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, SoftDeletes
+
+**Key behavior:**
+- `boot()` saving: ensures only one `is_default = true` at a time (clears others when setting new default)
+- Created at onboarding: `MAIN` warehouse (`is_default=true`, name="Main Warehouse")
+
+---
+
+### StockLocation Model (`App\Models\StockLocation`)
+Bin/shelf/zone within a warehouse.
+
+**Columns:** `id`, `warehouse_id` (FK), `name`, `code`, `is_active`, `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, SoftDeletes
+
+**Unique constraint:** `(warehouse_id, code)`
+
+---
+
+### StockItem Model (`App\Models\StockItem`)
+Current stock level per variant per warehouse (+ optional location). The "ledger balance."
+
+**Columns:** `id`, `product_variant_id` (FK), `warehouse_id` (FK), `stock_location_id` (nullable FK), `quantity` (decimal 15,4), `reserved_quantity` (decimal 15,4), `created_at`, `updated_at`
+
+**Traits:** HasFactory (**no SoftDeletes, no delete**)
+
+**Key behavior:**
+- Computed accessor: `available_quantity = quantity - reserved_quantity`
+- Unique index: PostgreSQL partial unique `(product_variant_id, warehouse_id, COALESCE(stock_location_id, 0))` — handles nullable location
+
+**Never update directly.** Always go through `StockService`.
+
+---
+
+### StockMovement Model (`App\Models\StockMovement`)
+Immutable audit log of every stock change.
+
+**Columns:** `id`, `product_variant_id` (FK, RESTRICT on delete), `warehouse_id` (FK, RESTRICT), `stock_location_id` (nullable FK), `type` (MovementType), `quantity` (decimal 15,4, signed: positive=in, negative=out), `reference_type` + `reference_id` (nullable morphs — for future Invoice/PO links), `notes`, `moved_at` (default: now), `moved_by` (user_id, no FK — cross-DB), `created_at`, `updated_at`
+
+**Traits:** HasFactory (**no SoftDeletes**)
+
+**Key behavior:**
+- `boot()`: throws `RuntimeException` on update or delete ("Stock movements are immutable.")
+- `reference()`: MorphTo — links to Invoice, PO, etc. in future phases (nullable now)
+
+---
+
+### StockService (`App\Services\StockService`)
+Single entry point for all stock mutations. Stateless. All methods wrapped in `DB::transaction()`. Uses `bcmath` for decimal arithmetic.
+
+```
+receive(variant, warehouse, qty, ?location, ?reference, type=Purchase)
+  → findOrCreate StockItem, increment quantity, create StockMovement(positive qty)
+  → returns StockItem
+
+issue(variant, warehouse, qty, ?location, ?reference, type=Sale)
+  → check available_quantity >= qty (throws InsufficientStockException if not)
+  → decrement quantity, create StockMovement(negative qty)
+  → returns StockItem
+
+adjust(variant, warehouse, qty (signed), reason, ?location)
+  → increment or decrement based on sign
+  → create StockMovement(Adjustment, signed qty, notes=reason)
+  → returns StockItem
+
+transfer(variant, fromWarehouse, toWarehouse, qty, ?fromLocation, ?toLocation)
+  → check source available_quantity (throws InsufficientStockException if insufficient)
+  → issue from source → create StockMovement(TransferOut, negative)
+  → receive at destination → create StockMovement(TransferIn, positive)
+  → returns [fromStockItem, toStockItem]
+```
+
+**Exception:** `App\Exceptions\InsufficientStockException` — carries `productVariant`, `warehouse`, `requestedQuantity`, `availableQuantity`.
+
+---
+
+## 7. Summary Table
 
 | Entity | Scope | Purpose | Key Trait |
 |--------|-------|---------|-----------|
@@ -1020,14 +1172,56 @@ POS terminal shift state.
 | Partner | Tenant | Customers/Suppliers | LogsActivity, SoftDeletes |
 | Contract | Tenant | Service agreements | LogsActivity, SoftDeletes |
 | Tag | Tenant | Labeling system | – |
+| **Category** | **Tenant** | **Product categories (max 3 deep)** | **HasTranslations, SoftDeletes** |
+| **Unit** | **Tenant** | **Units of measure** | **HasTranslations** |
+| **Product** | **Tenant** | **Catalog items** | **HasTranslations, LogsActivity, SoftDeletes** |
+| **ProductVariant** | **Tenant** | **Product variants (always-variant pattern)** | **HasTranslations, SoftDeletes** |
+| **Warehouse** | **Tenant** | **Physical stock locations** | **SoftDeletes** |
+| **StockLocation** | **Tenant** | **Bin/shelf within warehouse** | **SoftDeletes** |
+| **StockItem** | **Tenant** | **Current stock level (ledger balance)** | **– (no delete)** |
+| **StockMovement** | **Tenant** | **Immutable stock audit log** | **– (immutable)** |
 
 ---
 
-## 7. Next Phases (Out of Scope)
+## 8. Phase 2 Design Decisions
 
-**Phase 2:** Inventory, Warehouse, CRM advanced features
-**Phase 3:** Sales orders, Purchasing, Financial modules
-**Phase 4:** Fiscal compliance, Reporting
-**Phase 5:** Field Service, Time tracking
+### 8.1 Always-Variant Pattern (No Polymorphic Stockable)
 
-This foundation supports all planned phases via extensible enum, model, and schema patterns.
+**Why:** Simplicity over flexibility.
+
+Every `Product` auto-creates a hidden default `ProductVariant` on creation. Stock is always tracked at the `ProductVariant` level via a simple `product_variant_id` FK. There is no polymorphic `stockable_type/stockable_id` column.
+
+**Trade-off:** If a future model needs to be stockable (e.g., raw materials that aren't products), it must be represented as a Product. This is acceptable for the SME target market.
+
+---
+
+### 8.2 decimal(15,4) for Catalog Prices and Stock Quantities
+
+Consistent with existing schema conventions. 4 decimal places handle unit-cost precision (e.g., 1 screw = 0.0500 BGN). Invoice totals use `decimal(15,2)` (Phase 3).
+
+---
+
+### 8.3 Immutable StockMovements
+
+Stock movements are append-only. Updates and deletes throw `RuntimeException`. This enforces audit trail integrity — to correct a mistake, create a new adjustment movement (never edit the old one).
+
+---
+
+### 8.4 Translatable Fields via JSON Columns
+
+Document-facing fields (`Product.name`, `Product.description`, `Category.name`, `Category.description`, `Unit.name`, `ProductVariant.name`) are stored as JSON (`{"en": "...", "bg": "..."}`) using `spatie/laravel-translatable`.
+
+**Tenant locales:** Each tenant configures which locales they use via `CompanySettings` group `localization` keys (`locale_en`, `locale_bg`, etc.). `TranslatableLocales::forTenant()` reads these and returns the active locale list. Filament resources use this for the `LocaleSwitcher` header action.
+
+---
+
+## 9. Next Phase
+
+**Phase 3 — Sales/Invoicing + Purchases + SUPTO/Fiscal**
+
+Key integration points from Phase 2:
+- Sales invoices will call `StockService::issue()` to decrement stock
+- Purchase orders will call `StockService::receive()` to increment stock
+- `StockMovement.reference` morph is already wired for Invoice/PO links (nullable now)
+- `DocumentSeries` (Phase 1) will generate Invoice and PO numbers
+- ErpNet.FP REST API for fiscal printer compliance

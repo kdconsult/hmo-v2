@@ -4,80 +4,116 @@
 
 ## Current State
 
-**Phase 1 — Foundation & Core SaaS** — Tasks 1.1–1.18 + post-release hardening audit ✅ complete. 232/232 tests pass.
+**Phase 2 — Warehouse/WMS + Nomenclature/Catalog** — All tasks complete except Task 2.7 (barcode scanning UI, explicitly deferred). **293/293 tests pass.**
 
-The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs (HMO companies). Landlord is the SaaS operator.
+The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Tenants are Bulgarian SMEs. Landlord is the SaaS operator.
+
+---
 
 ## What Works Today
 
+### Phase 1 Foundation (complete)
 - Multi-tenant architecture: central DB (landlord) + per-tenant PostgreSQL databases
 - Subdomain routing: `hmo.localhost` = landlord, `{slug}.hmo.localhost` = tenant
 - Self-registration: 3-step wizard (account → company → plan), 14-day trial auto-started
-- Tenant admin panel (`/admin`) with: CRM (partners, contracts, tags), Settings (currencies, VAT rates, document series, users, roles), company settings
-- Landlord panel (`/landlord`) with: tenant management, plan management, lifecycle actions (suspend/mark/schedule delete)
+- Tenant admin panel (`/admin`): CRM (partners, contracts, tags), Settings (currencies, VAT rates, document series, users, roles), company settings
+- Landlord panel (`/landlord`): tenant management, plan management, lifecycle actions
 - Tenant lifecycle: Active → Suspended → MarkedForDeletion → ScheduledForDeletion → auto-deleted
 - Plan management: Free/Starter/Professional with limits (max_users, max_documents)
-- Trial expiration: daily command marks expired trials as PastDue, sends emails
-- Access control: `EnsureActiveSubscription` middleware redirects to `SubscriptionExpiredPage` for PastDue/Suspended tenants
-- Landlord notified (email + Filament DB notification) on every new tenant self-registration
-- Payment model (`payments` table) with `PaymentGateway` + `PaymentStatus` enums
-- Cashier v16 installed; `Tenant` has `Billable` trait + `stripe_id/pm_type/pm_last_four` columns
-- Tenant lifecycle emails fully wired: suspended/marked/scheduled/reactivated/deleted — queued via Redis, requires queue worker
-- Landlord tenant table: compact icon buttons + ActionGroup dropdown (View ▪ Edit ▪ ⋮)
-- `TenancyServiceProvider` JobPipeline: sync in testing/local, queued in production
+- Stripe Checkout + bank transfer billing; `Cashier v16` on `Tenant`
+- Tenant lifecycle emails (suspended/marked/scheduled/reactivated/deleted) — queued via Redis
+- Role-based access control via spatie/laravel-permission (10 roles, 50 permissions per tenant)
 
-## Task 1.16 Progress
+### Phase 2 Catalog + Warehouse (complete)
 
-**Task 1.16 ✅ COMPLETE** — All 11 sub-tasks done. 123/123 tests pass.
+**Catalog (NavigationGroup::Catalog):**
+- `Category` — hierarchical product categories, max 3 levels deep (enforced in model boot). Translatable name/description. Soft deletes. `CategoryResource` with full CRUD.
+- `Unit` — units of measure (Mass/Volume/Length/Area/Time/Piece/Other). Translatable name. Seeded with 13 standard units (pcs, kg, g, t, l, ml, m, cm, mm, m², h, day, month). `UnitResource` (simple ManageRecords page).
+- `Product` — goods and services. Translatable name/description. Types: Stock/Service/Bundle. Auto-creates default `ProductVariant` on creation. `ProductResource` with `ProductVariantsRelationManager`. Soft deletes. ActivityLog on key fields.
+- `ProductVariant` — named variants (size/color/material etc.). Each variant tracks own SKU, prices (falls back to product), barcode. Default variant is hidden in UI. Translatable name. Soft deletes.
 
-| Sub-task | Status |
-|----------|--------|
-| 1.16.1 — Subscription expired page + route fix | ✅ |
-| 1.16.2 — Landlord notification on self-registration + config/hmo.php | ✅ |
-| 1.16.3 — Payment model + PaymentGateway/PaymentStatus enums | ✅ |
-| 1.16.4 — SubscriptionService | ✅ |
-| 1.16.5 — laravel/cashier v16 + Billable on Tenant | ✅ |
-| 1.16.6 — Stripe Checkout flow | ✅ |
-| 1.16.7 — Stripe webhook handler | ✅ |
-| 1.16.8 — Manual bank transfer flow (landlord panel) | ✅ |
-| 1.16.9 — Tenant subscription management page | 🚧 next |
-| 1.16.10 — Proforma invoice enhancements (PDF) | ✅ |
-| 1.16.11 — Tests | ⬜ |
+**Warehouse (NavigationGroup::Warehouse):**
+- `Warehouse` — physical locations. Single `is_default` enforced via model boot. JSON address. `WarehouseResource` with `StockLocationsRelationManager`. Soft deletes.
+- `StockLocation` — bins/shelves within a warehouse. Soft deletes.
+- `StockItem` — current stock level per variant per warehouse (+ optional location). Computed `available_quantity = quantity - reserved_quantity`. Read-only in `StockItemResource`.
+- `StockMovement` — immutable audit log of every stock change. Signed quantity (positive = in, negative = out). Polymorphic `reference` morph for future Invoice/PO linking. `StockMovementResource` (read-only, filterable).
+- `StockAdjustmentPage` — standalone Filament page for stock adjustments. Requires `create_stock_movement` permission.
+
+**Services:**
+- `StockService` — single entry point for all stock mutations: `receive()`, `issue()`, `adjust()`, `transfer()`. All wrapped in DB transactions. Uses bcmath for decimal precision. Throws `InsufficientStockException` when stock is insufficient.
+
+**RBAC:**
+- 8 new models added: `category`, `unit`, `product`, `product_variant`, `warehouse`, `stock_location`, `stock_item`, `stock_movement` → 40 new permissions per tenant (now 90 total).
+- `warehouse-manager` role: full CRUD on warehouses/locations/movements, create/update stock items, view catalog.
+- `sales-manager` role: view catalog + stock levels.
+
+**Infrastructure:**
+- `NavigationGroup` enum adopted across all resources (Catalog, Warehouse, Crm, Settings).
+- Translatable fields via `lara-zeus/spatie-translatable` v2.0. Tenant-configured locales via `TranslatableLocales::forTenant()`.
+- Morph map registered in `AppServiceProvider`: `product`, `product_variant`, `warehouse`, `stock_movement`.
+- `UnitSeeder` runs at tenant onboarding. Default `MAIN` warehouse created at onboarding.
+
+---
+
+## Deferred / Not Done
+
+| Item | Status |
+|------|--------|
+| Task 2.7 — Barcode scanning UI (BarcodeDetector API + Alpine.js) | Deferred — barcode `varchar` field present on Product/ProductVariant, scanning UI not built |
+| Opening balances wizard | Deferred — can be done via StockAdjustmentPage with `Adjustment` movement type for now |
+
+---
 
 ## Key Technical Decisions
 
 | Decision | Choice | Why |
 |----------|--------|-----|
 | Tenancy | stancl/tenancy (separate DBs) | True data isolation per tenant |
-| Subdomain identification | `InitializeTenancyBySubdomain` | Stores subdomain-only in `domains` table (not full hostname) |
-| Billing | Stripe Checkout (payment mode) + bank transfer | App owns subscription state; Bulgarian market prefers bank transfer |
-| Subscription state | App-owned (`Tenant.subscription_status`) | Not Stripe/Cashier subscription model |
-| Auth | Filament-native per panel | Landlord: `is_landlord` flag. Tenant: TenantUser in tenant DB |
-| Permissions | spatie/laravel-permission | Per-tenant roles (super-admin, admin, accountant, viewer...) |
+| Billing | Stripe Checkout + bank transfer | App owns subscription state; Bulgarian market prefers bank transfer |
+| Stock tracking | Always at variant level via FK (not polymorphic) | Every Product has a default hidden variant; simpler queries, simpler StockService |
+| Decimal precision | `decimal(15,4)` for catalog prices + stock qty | 4dp for unit cost precision; 15-digit width consistent across columns |
+| MovementType enum | Business-context names (Purchase/Sale/TransferOut/TransferIn) | More descriptive audit trail vs generic Receipt/Issue |
+| Translatable fields | JSON columns + spatie/laravel-translatable | Document-facing fields (name, description) support per-tenant locales |
+| Navigation | NavigationGroup enum (not plain strings) | Type safety, icon+label support, consistent across all resources |
+
+---
 
 ## What's Next
 
-**Phase 2 — Warehouse/WMS + Nomenclature/Catalog**
+**Phase 3 — Sales/Invoicing + Purchases + SUPTO/Fiscal**
 
-See `tasks/phase-2.md` for the full spec. Work is tenant-side only. Landlord panel is feature-complete; bugs and minor additions only.
+See `tasks/phase-3.md` when it exists. Key components:
+- Sales module: Quote → SalesOrder → Invoice → CreditNote
+- Purchases module: PurchaseOrder → GoodsReceivedNote → SupplierInvoice
+- SUPTO/fiscal: ErpNet.FP REST API for Bulgarian fiscal printer compliance
+- Document generation: Blade + DomPDF, DocumentSeries for sequential numbering
+- Stock integration: Sales issues stock, Purchases receives stock (via StockService)
+
+---
 
 ## File Map for New Sessions
 
 | What to check | Where |
 |---------------|-------|
 | Phase 1 history | `tasks/phase-1.md` |
-| Phase 2 tasks | `tasks/phase-2.md` |
-| Architecture | `docs/ARCHITECTURE.md` |
-| Business logic | `docs/BUSINESS_LOGIC.md` |
-| Filament panels | `docs/UI_PANELS.md` |
-| Features list | `docs/FEATURES.md` |
+| Phase 2 tasks + decisions | `tasks/phase-2.md`, `tasks/phase-2-plan.md` |
+| Architecture & models | `docs/ARCHITECTURE.md` |
+| Business logic & services | `docs/BUSINESS_LOGIC.md` |
+| Filament panels & resources | `docs/UI_PANELS.md` |
+| Features & test coverage | `docs/FEATURES.md` |
 | Tenant routes | `routes/tenant.php` |
 | Central routes | `routes/web.php` |
 | Enums | `app/Enums/` |
-| Services | `app/Services/` |
+| Services | `app/Services/` (StockService, VatCalculationService, TenantOnboardingService, ...) |
 | Landlord panel | `app/Filament/Landlord/` (feature-complete) |
 | Tenant panel | `app/Filament/` (non-Landlord) |
-| Tenant models | `app/Models/` (central connection ones extend stancl base) |
+| Catalog resources | `app/Filament/Resources/{Categories,Units,Products}/` |
+| Warehouse resources | `app/Filament/Resources/{Warehouses,StockItems,StockMovements}/` + `app/Filament/Pages/StockAdjustmentPage.php` |
+| Phase 2 models | `app/Models/{Category,Unit,Product,ProductVariant,Warehouse,StockLocation,StockItem,StockMovement}.php` |
+| Policies | `app/Policies/` (18 total: 9 Phase 1 + 8 Phase 2 + 1 landlord) |
+| Migrations (tenant) | `database/migrations/tenant/` |
+
+---
 
 ## Environment
 
@@ -86,26 +122,15 @@ See `tasks/phase-2.md` for the full spec. Work is tenant-side only. Landlord pan
 - DB migrations: `database/migrations/` (central), `database/migrations/tenant/` (per-tenant)
 - `APP_DOMAIN=hmo.localhost` — central domain
 - Artisan must be run inside Docker or via Sail: `./vendor/bin/sail artisan ...`
+- Tests: `./vendor/bin/sail artisan test --compact`
 
-## Post-Release Hardening Audit (2026-04-11) ✅
+---
 
-Security/correctness pass on top of 1.18. 232/232 tests pass (+21 new tests). Full detail in `tasks/phase-1.md`.
+## Test Count History
 
-### Security
-- **S-1** `is_landlord` removed from `#[Fillable]` — mass-assignment privilege escalation blocked
-- **S-2** Explicit `Event::listen(WebhookReceived::class, StripeWebhookListener::class)` in `AppServiceProvider::boot()`
-- **S-3** Webhook idempotency — replay of `checkout.session.completed` no longer creates duplicate Payment
-- **S-4** `RateLimiter` in `RegisterTenant::submit()` — Livewire bypasses route-level throttle
-
-### Bugs
-- **B-1** `TenantReactivatedMail` URL fixed — was missing dot separator, hardcoded `https://`; now uses `TenantUrl::to()`
-- **B-2** `CheckTrialExpirations` — `TrialExpired` mail changed from `send()` to `queue()`
-
-### Authorization
-- **G-1** `ExchangeRatePolicy` created (was missing entirely)
-- **G-3** `CompanySettingsPage` — `canAccess()` + `authorize()` in `save()`
-- **G-4** `SubscriptionPage::cancelSubscription()` — role guard added
-
-### Infrastructure
-- **O-1/O-3** `->domain()` on both Filament panels + `Route::domain()` on web routes
-- **O-4** DB indexes on `subscription_status`, `trial_ends_at`, `subscription_ends_at`
+| Milestone | Tests |
+|-----------|-------|
+| Phase 1 baseline | 87 |
+| Phase 1 complete (1.1–1.18) | 211 |
+| Post-release hardening audit | 232 |
+| Phase 2 complete | **293** |
