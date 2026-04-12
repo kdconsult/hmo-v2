@@ -67,4 +67,9 @@ class StockMovement extends Model
     {
         return $this->morphTo();
     }
+
+    public function movedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'moved_by');
+    }
 }

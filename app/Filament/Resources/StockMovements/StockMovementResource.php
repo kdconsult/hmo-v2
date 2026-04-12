@@ -58,6 +58,10 @@ class StockMovementResource extends Resource
                     ->numeric(4)
                     ->color(fn (StockMovement $record): string => (float) $record->quantity >= 0 ? 'success' : 'danger')
                     ->sortable(),
+                TextColumn::make('movedBy.name')
+                    ->label('By')
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('notes')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
