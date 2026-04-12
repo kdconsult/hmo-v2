@@ -4,10 +4,14 @@ namespace App\Providers;
 
 use App\Listeners\StripeWebhookListener;
 use App\Models\Contract;
+use App\Models\GoodsReceivedNote;
 use App\Models\Partner;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\PurchaseOrder;
 use App\Models\StockMovement;
+use App\Models\SupplierCreditNote;
+use App\Models\SupplierInvoice;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
@@ -32,6 +36,11 @@ class AppServiceProvider extends ServiceProvider
             'product_variant' => ProductVariant::class,
             'warehouse' => Warehouse::class,
             'stock_movement' => StockMovement::class,
+            // Phase 3.1 — Purchases
+            'purchase_order' => PurchaseOrder::class,
+            'goods_received_note' => GoodsReceivedNote::class,
+            'supplier_invoice' => SupplierInvoice::class,
+            'supplier_credit_note' => SupplierCreditNote::class,
         ]);
 
         // Explicit Stripe webhook listener registration — ensures the listener is bound

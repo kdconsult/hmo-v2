@@ -161,7 +161,7 @@ class StockService
             'stock_location_id' => $location?->id,
             'type' => $type,
             'quantity' => $quantity,
-            'reference_type' => $reference ? get_class($reference) : null,
+            'reference_type' => $reference ? $reference->getMorphClass() : null,
             'reference_id' => $reference?->id,
             'notes' => $notes,
             'moved_by' => Auth::id(),

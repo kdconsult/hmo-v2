@@ -520,6 +520,205 @@ created_at
 
 ---
 
+## 3b. Tenant DB — Phase 2: Catalog & Warehouse Models
+
+### Category Model (`App\Models\Category`)
+Hierarchical product category tree. Max 3 levels enforced in `boot()`.
+
+**Columns:** `id`, `parent_id (FK nullable→categories, nullOnDelete)`, `name (JSON translatable)`, `description (JSON translatable)`, `sort_order`, `is_active`, `created_at`, `updated_at`, `deleted_at`
+
+**Key constraint:** `parent_id` self-referential FK; boot prevents depth > 3 (checks `parent->parent_id`).
+
+**Traits:** HasFactory, SoftDeletes, Translatable (name, description), LogsActivity
+
+**Relationships:** `parent()` BelongsTo, `children()` HasMany, `products()` HasMany
+
+---
+
+### Unit Model (`App\Models\Unit`)
+Units of measure for product quantities.
+
+**Columns:** `id`, `name (JSON translatable)`, `symbol`, `type (UnitType enum)`, `is_default`, `is_active`, `created_at`, `updated_at`
+
+**Traits:** HasFactory, Translatable (name)
+
+**Seeded:** 13 standard units at tenant onboarding — pcs, kg, g, t, l, ml, m, cm, mm, m², h, day, month.
+
+---
+
+### Product Model (`App\Models\Product`)
+Goods and services. Always creates a default hidden `ProductVariant` on the `created` event.
+
+**Columns:** `id`, `category_id (FK nullable)`, `unit_id (FK nullable)`, `name (JSON translatable)`, `description (JSON translatable)`, `type (ProductType enum: Stock/Service/Bundle)`, `status (ProductStatus enum: Draft/Active/Discontinued)`, `sku`, `barcode`, `purchase_price (decimal 15,4)`, `sale_price (decimal 15,4)`, `is_stockable (boolean)`, `notes`, `created_at`, `updated_at`, `deleted_at`
+
+**Traits:** HasFactory, SoftDeletes, Translatable (name, description), LogsActivity
+
+**Boot event:** `created` → creates one `ProductVariant` with `is_default=true`, `is_visible=false`, copying SKU and prices.
+
+**Relationships:** `category()`, `unit()`, `variants()` HasMany, `defaultVariant()` HasOne where `is_default=true`
+
+---
+
+### ProductVariant Model (`App\Models\ProductVariant`)
+Named variant of a product (size, color, etc.). All stock tracked at this level.
+
+**Columns:** `id`, `product_id (FK cascade)`, `name (JSON translatable, nullable)`, `sku`, `barcode`, `purchase_price (decimal 15,4)`, `sale_price (decimal 15,4)`, `is_default`, `is_visible`, `sort_order`, `created_at`, `updated_at`, `deleted_at`
+
+**Fallback:** If variant `purchase_price`/`sale_price` is null, UI falls back to parent product price.
+
+**Relationships:** `product()`, `stockItems()` HasMany → StockItem
+
+---
+
+### Warehouse Model (`App\Models\Warehouse`)
+Physical stock location. Single `is_default` enforced in `boot()`.
+
+**Columns:** `id`, `code (unique)`, `name`, `address (JSON)`, `is_default`, `is_active`, `created_at`, `updated_at`, `deleted_at`
+
+**Boot:** Clearing `is_default` on save checks no other warehouse is already default.
+
+**Relationships:** `stockLocations()` HasMany, `stockItems()` HasMany
+
+---
+
+### StockLocation Model (`App\Models\StockLocation`)
+Bin/shelf within a warehouse.
+
+**Columns:** `id`, `warehouse_id (FK cascade)`, `code`, `name`, `is_active`, `created_at`, `updated_at`, `deleted_at`
+
+**Relationships:** `warehouse()`, `stockItems()` HasMany
+
+---
+
+### StockItem Model (`App\Models\StockItem`)
+Current stock level per variant per warehouse (+ optional location).
+
+**Columns:** `id`, `product_variant_id (FK restrict)`, `warehouse_id (FK restrict)`, `stock_location_id (FK nullable, nullOnDelete)`, `quantity (decimal 15,4)`, `reserved_quantity (decimal 15,4)`, `created_at`, `updated_at`
+
+**Computed:** `available_quantity = quantity - reserved_quantity`
+
+**Constraint:** Unique on `(product_variant_id, warehouse_id, stock_location_id)`.
+
+**Design:** Only `StockService` methods write to this table. Direct writes are discouraged.
+
+---
+
+### StockMovement Model (`App\Models\StockMovement`)
+Immutable audit log of every stock change.
+
+**Columns:** `id`, `product_variant_id (FK)`, `warehouse_id (FK)`, `stock_location_id (FK nullable)`, `type (MovementType enum)`, `quantity (decimal 15,4, signed)`, `reference_type (string nullable)`, `reference_id (bigint nullable)`, `notes`, `moved_by (FK nullable → users.id, no DB constraint)`, `created_at`
+
+**Immutability:** `boot()` throws `RuntimeException` on `updating` and `deleting` events.
+
+**Morph reference:** `reference_type` / `reference_id` link the movement to its source document (e.g., `goods_received_note` → GoodsReceivedNote). Resolved via morph map in `AppServiceProvider`.
+
+**Design:** No `updated_at` column — movements are append-only.
+
+---
+
+## 3c. Tenant DB — Phase 3.1: Purchases Models
+
+### PurchaseOrder Model (`App\Models\PurchaseOrder`)
+Order sent to a supplier. Status pipeline: Draft → Sent → Confirmed → PartiallyReceived → Received (Cancelled exit at any stage except terminal states).
+
+**Columns:** `id`, `po_number (unique)`, `partner_id (FK restrict→partners)`, `warehouse_id (FK nullOnDelete, nullable)`, `document_series_id (FK nullOnDelete, nullable)`, `status (PurchaseOrderStatus enum)`, `currency_code`, `exchange_rate (decimal 16,6)`, `pricing_mode (PricingMode enum)`, `subtotal (decimal 15,2)`, `discount_amount (decimal 15,2)`, `tax_amount (decimal 15,2)`, `total (decimal 15,2)`, `expected_delivery_date (date nullable)`, `ordered_at (date)`, `notes`, `internal_notes`, `created_by (bigint nullable)`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft/Sent only), `isFullyReceived(): bool`, `recalculateTotals(): void`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### PurchaseOrderItem Model (`App\Models\PurchaseOrderItem`)
+Line item on a purchase order. Tracks received quantities.
+
+**Columns:** `id`, `purchase_order_id (FK cascade)`, `product_variant_id (FK restrict)`, `description`, `quantity (decimal 15,4)`, `quantity_received (decimal 15,4, default 0)`, `unit_price (decimal 15,4)`, `discount_percent (decimal 5,2)`, `discount_amount (decimal 15,2)`, `vat_rate_id (FK)`, `vat_amount (decimal 15,2)`, `line_total (decimal 15,2)`, `line_total_with_vat (decimal 15,2)`, `sort_order`, `created_at`, `updated_at`
+
+**Key methods:** `remainingQuantity(): string` (quantity − quantity_received), `isFullyReceived(): bool`
+
+---
+
+### GoodsReceivedNote Model (`App\Models\GoodsReceivedNote`)
+Physical receipt of goods into a warehouse. Confirming triggers `StockService::receive()` for each line.
+
+**Columns:** `id`, `grn_number (unique)`, `purchase_order_id (FK nullOnDelete, nullable)`, `partner_id (FK restrict)`, `warehouse_id (FK restrict — required)`, `document_series_id (FK nullOnDelete, nullable)`, `status (GoodsReceivedNoteStatus enum: Draft/Confirmed/Cancelled)`, `received_at (date nullable)`, `notes`, `created_by (bigint nullable)`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft only), `isConfirmed(): bool`
+
+**Morph alias:** `goods_received_note` (registered in AppServiceProvider morph map)
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### GoodsReceivedNoteItem Model (`App\Models\GoodsReceivedNoteItem`)
+Line on a GRN. Optionally links back to the PO item it fulfils.
+
+**Columns:** `id`, `goods_received_note_id (FK cascade)`, `purchase_order_item_id (FK nullOnDelete, nullable)`, `product_variant_id (FK restrict)`, `quantity (decimal 15,4)`, `unit_cost (decimal 15,4)`, `created_at`, `updated_at`
+
+---
+
+### SupplierInvoice Model (`App\Models\SupplierInvoice`)
+Billing document received from a supplier. `internal_number` is auto-generated from `NumberSeries` at creation.
+
+**Columns:** `id`, `supplier_invoice_number (supplier's own reference)`, `internal_number (unique)`, `document_series_id (FK nullable)`, `purchase_order_id (FK nullOnDelete, nullable)`, `partner_id (FK restrict)`, `status (DocumentStatus)`, `currency_code`, `exchange_rate (decimal 16,6)`, `pricing_mode (PricingMode)`, `subtotal`, `discount_amount`, `tax_amount`, `total`, `amount_paid`, `amount_due (decimal 15,2)`, `issued_at (date)`, `received_at (date nullable)`, `due_date (date nullable)`, `payment_method (nullable)`, `notes`, `internal_notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`
+
+**Constraint:** Composite unique on `(partner_id, supplier_invoice_number)` — same supplier can't have duplicate invoice numbers.
+
+**Key methods:** `isEditable(): bool` (Draft only), `isOverdue(): bool` (due_date < today AND amount_due > 0), `recalculateTotals(): void`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### SupplierInvoiceItem Model (`App\Models\SupplierInvoiceItem`)
+Line on a supplier invoice. `product_variant_id` is nullable — free-text lines are allowed.
+
+**Columns:** `id`, `supplier_invoice_id (FK cascade)`, `purchase_order_item_id (FK nullOnDelete, nullable)`, `product_variant_id (FK nullOnDelete, nullable)`, `description (not null)`, `quantity (decimal 15,4)`, `unit_price (decimal 15,4)`, `discount_percent`, `discount_amount`, `vat_rate_id (FK)`, `vat_amount`, `line_total`, `line_total_with_vat`, `sort_order`, `created_at`, `updated_at`
+
+**Key methods:** `creditedQuantity(): string` — sum of all credit note items (Draft + Confirmed); `remainingCreditableQuantity(): string` — quantity − creditedQuantity
+
+---
+
+### SupplierCreditNote Model (`App\Models\SupplierCreditNote`)
+Partial or full credit issued against a confirmed supplier invoice.
+
+**Columns:** `id`, `credit_note_number (unique)`, `supplier_invoice_id (FK restrict)`, `partner_id (FK restrict)`, `document_series_id (FK nullable)`, `status (DocumentStatus)`, `reason (CreditNoteReason enum)`, `reason_description (nullable)`, `currency_code`, `exchange_rate`, `subtotal`, `tax_amount`, `total`, `issued_at (date)`, `notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft only), `recalculateTotals(): void`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### SupplierCreditNoteItem Model (`App\Models\SupplierCreditNoteItem`)
+Line on a supplier credit note. Quantity validated against `SupplierInvoiceItem::remainingCreditableQuantity()` using `lockForUpdate()`.
+
+**Columns:** `id`, `supplier_credit_note_id (FK cascade)`, `supplier_invoice_item_id (FK restrict)`, `product_variant_id (FK nullOnDelete, nullable)`, `description (not null)`, `quantity (decimal 15,4)`, `unit_price (decimal 15,4)`, `vat_rate_id (FK)`, `vat_amount`, `line_total`, `line_total_with_vat`, `created_at`, `updated_at`
+
+---
+
+### Morph Map (AppServiceProvider)
+
+All polymorphic `reference_type` / `reference_id` columns resolve aliases via:
+
+```php
+Relation::morphMap([
+    'product'              => Product::class,
+    'product_variant'      => ProductVariant::class,
+    'warehouse'            => Warehouse::class,
+    'stock_movement'       => StockMovement::class,
+    'purchase_order'       => PurchaseOrder::class,
+    'goods_received_note'  => GoodsReceivedNote::class,
+    'supplier_invoice'     => SupplierInvoice::class,
+    'supplier_credit_note' => SupplierCreditNote::class,
+]);
+```
+
+**Why:** Stored string aliases decouple the DB from PHP class names. Renames don't break existing rows.
+
+---
+
 ## 4. Enums (30 Total)
 
 All enums located in `app/Enums/` directory. Most implement Filament contracts for automatic label/color/icon rendering in tables and forms.

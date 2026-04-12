@@ -10,8 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Partner extends Model
 {
@@ -63,6 +63,11 @@ class Partner extends Model
     public function scopeActive($query): mixed
     {
         return $query->where('is_active', true);
+    }
+
+    public function scopeSuppliers($query): mixed
+    {
+        return $query->where('is_supplier', true);
     }
 
     public function defaultVatRate(): BelongsTo

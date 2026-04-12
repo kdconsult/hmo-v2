@@ -1,26 +1,26 @@
 # Business Logic: Services, RBAC & Automation
 
-This document details the core business logic systems built in Phase 1: role-based access control, financial services, tenant lifecycle management, plan/subscription handling, automated commands, and mail notifications.
+This document details the core business logic systems: role-based access control, financial services, stock management, purchasing pipeline, tenant lifecycle management, plan/subscription handling, automated commands, and mail notifications.
 
 ---
 
 ## 1. RBAC System (Role-Based Access Control)
 
-### 10 Roles
+### 11 Roles
 
-All roles are registered in tenant databases via `RolesAndPermissionsSeeder`:
+All roles are registered in tenant databases via `RolesAndPermissionsSeeder` (re-run on existing tenants with `sail artisan tenants:seed --class=RolesAndPermissionsSeeder`):
 
 1. **super-admin** — Bypasses all permission gates (via `Gate::before()` in `AppServiceProvider`). No specific permissions assigned.
-2. **admin** — Full CRUD on all Phase 1 models.
-3. **sales-manager** — CRUD partners, view contracts, CRUD tags.
+2. **admin** — Full CRUD on all models (synced to `$allPermissions` — automatically includes new permissions added in future phases).
+3. **sales-manager** — CRUD partners, view contracts, CRUD tags, view catalog + stock levels.
 4. **sales-agent** — Create/update partners (no delete), view contracts, view tags.
-5. **accountant** — View partners/contracts, CRUD currencies/VAT rates, view document series.
-6. **viewer** — View-only access to all Phase 1 models.
-7. **warehouse-manager** — Minimal Phase 1 access (reserved for later phases).
-8. **field-technician** — Minimal Phase 1 access (reserved for later phases).
-9. **finance-manager** — View-only on all Phase 1 models (expanded in Phase 2).
-10. **purchasing-manager** — Minimal Phase 1 access (reserved for later phases).
-11. **report-viewer** — View list (`view_any_*`) permissions only.
+5. **accountant** — View partners/contracts, CRUD currencies/VAT rates, view number series; view POs + GRNs; full CRUD on supplier invoices + credit notes.
+6. **viewer** — View-only access to all models.
+7. **warehouse-manager** — Full CRUD on warehouses/locations/movements/stock items; view catalog; full CRUD on GRNs; view POs.
+8. **field-technician** — Minimal access (reserved for field service phase).
+9. **finance-manager** — View-only on all models.
+10. **purchasing-manager** — Full CRUD on all purchase documents (PO, GRN, supplier invoice, supplier credit note) + view catalog/warehouse/partners.
+11. **report-viewer** — `view_any_*` permissions only (list pages, no detail views).
 
 ### Permission Naming Convention
 
@@ -33,10 +33,15 @@ All permissions follow the pattern: `{action}_{model}`
 - `update_{model}` — Edit a record
 - `delete_{model}` — Delete a record
 
-**Models** (10 Phase 1 models):
-- `partner`, `contract`, `currency`, `exchange_rate`, `vat_rate`, `document_series`, `tenant_user`, `tag`, `company_settings`, `role`
+**Models by phase:**
 
-Total: 50 permissions seeded per tenant.
+| Phase | Models | Permissions |
+|-------|--------|-------------|
+| Phase 1 | partner, contract, currency, exchange_rate, vat_rate, number_series, tenant_user, tag, company_settings, role | 50 |
+| Phase 2 | category, unit, product, product_variant, warehouse, stock_location, stock_item, stock_movement | +40 |
+| Phase 3.1 | purchase_order, purchase_order_item, goods_received_note, goods_received_note_item, supplier_invoice, supplier_invoice_item, supplier_credit_note, supplier_credit_note_item | +40 |
+
+**Total: ~130 permissions per tenant**
 
 ### Gate::before Super-Admin Bypass
 
@@ -204,6 +209,87 @@ Sets up a newly created tenant's database and owner user record.
   - Assigns the `admin` role to the owner if not already assigned.
   - **Creates default `MAIN` warehouse** (is_default=true) if not already present (Phase 2).
   - **Sets `locale_en = '1'`** in CompanySettings `localization` group (Phase 2).
+
+---
+
+### StockService
+
+Location: `/app/Services/StockService.php`
+
+Single entry point for all stock mutations. **Never write directly to `stock_items` or `stock_movements`.**
+
+All methods are wrapped in `DB::transaction()` and use `bcmath` for decimal precision.
+
+**Methods:**
+
+- `receive(ProductVariant $variant, Warehouse $warehouse, string $quantity, ?StockLocation $location, ?Model $reference, MovementType $type): StockMovement`
+  - Adds stock: increments `stock_items.quantity`, creates positive `StockMovement`.
+  - `$reference` is the source document (e.g., GoodsReceivedNote). Stored via `$reference->getMorphClass()` (alias, not class name).
+
+- `issue(ProductVariant $variant, Warehouse $warehouse, string $quantity, ?StockLocation $location, ?Model $reference, MovementType $type): StockMovement`
+  - Removes stock: decrements `stock_items.quantity`. Throws `InsufficientStockException` if result < 0.
+
+- `adjust(ProductVariant $variant, Warehouse $warehouse, string $newQuantity, ?StockLocation $location, string $notes): StockMovement`
+  - Sets stock to an absolute value (positive or negative signed movement created for the delta). Uses `MovementType::Adjustment`.
+
+- `transfer(ProductVariant $variant, Warehouse $from, Warehouse $to, string $quantity, ?StockLocation $fromLoc, ?StockLocation $toLoc): array`
+  - Issues from source (TransferOut), receives at destination (TransferIn). Returns `[StockMovement, StockMovement]`.
+
+**Design Notes:**
+- `StockItem` is upserted (create-or-update) on every mutation — no pre-creation needed.
+- `StockMovement` rows are immutable (boot throws `RuntimeException` on update/delete).
+- `moved_by` set to `Auth::id()` — null in CLI/queue contexts (acceptable).
+
+---
+
+### PurchaseOrderService
+
+Location: `/app/Services/PurchaseOrderService.php`
+
+Handles arithmetic and state transitions for purchase orders.
+
+**Methods:**
+
+- `recalculateItemTotals(PurchaseOrderItem $item): void`
+  - Computes `discount_amount`, `vat_amount`, `line_total`, `line_total_with_vat` from `quantity × unit_price`, discount, and VAT rate.
+  - Delegates VAT math to `VatCalculationService::calculate()` based on `PurchaseOrder.pricing_mode`.
+
+- `recalculateDocumentTotals(PurchaseOrder $po): void`
+  - Sums all items → sets `subtotal`, `tax_amount`, `total` on the PO.
+
+- `transitionStatus(PurchaseOrder $po, PurchaseOrderStatus $newStatus): void`
+  - Validates against `$validTransitions` map; throws `InvalidArgumentException` on invalid transition.
+  - **Valid transitions:**
+    - Draft → {Sent, Cancelled}
+    - Sent → {Draft, Confirmed, Cancelled}
+    - Confirmed → {PartiallyReceived, Received, Cancelled}
+    - PartiallyReceived → {Received, Cancelled}
+    - Received, Cancelled → (terminal — no transitions)
+
+- `updateReceivedQuantities(PurchaseOrder $po): void`
+  - Called by `GoodsReceiptService` after GRN confirmation.
+  - Sums `quantity_received` from all confirmed GRN items per PO item.
+  - Auto-updates PO status: PartiallyReceived (some items full) or Received (all items full).
+
+---
+
+### GoodsReceiptService
+
+Location: `/app/Services/GoodsReceiptService.php`
+
+Orchestrates GRN confirmation: stock in, PO status update, audit trail.
+
+**Methods:**
+
+- `confirm(GoodsReceivedNote $grn): void`
+  - Pre-checks: `$grn->isEditable()` (throws if not Draft); at least one item; warehouse set.
+  - Inside `DB::transaction()`:
+    1. For each GRN item: calls `StockService::receive($variant, $warehouse, $qty, null, $grn, MovementType::Purchase)`.
+    2. Sets `$grn->status = Confirmed`, `$grn->received_at = today`.
+    3. If GRN has a linked PO: calls `PurchaseOrderService::updateReceivedQuantities($po)`.
+
+- `cancel(GoodsReceivedNote $grn): void`
+  - Sets status to Cancelled. Only valid from Draft — confirmed GRNs cannot be cancelled (stock already received).
 
 ---
 
