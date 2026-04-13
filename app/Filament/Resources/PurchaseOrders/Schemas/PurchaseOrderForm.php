@@ -65,7 +65,9 @@ class PurchaseOrderForm
                             ->numeric()
                             ->default('1.000000')
                             ->step('0.000001')
-                            ->helperText('Auto-filled from exchange rate table when available.'),
+                            ->placeholder('Enter rate…')
+                            ->helperText('Auto-filled when a saved rate exists. Enter manually and click the bookmark to save.')
+                            ->suffixAction(CurrencyRateService::makeSaveRateAction('ordered_at')),
                     ]),
 
                 Section::make('Dates')

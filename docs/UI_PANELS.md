@@ -717,6 +717,7 @@ All Purchases group resources use `NavigationGroup::Purchases` for `$navigationG
 #### Form Schema (GoodsReceivedNoteForm)
 
 - `purchase_order_id` — Optional, live; `afterStateUpdated` auto-fills `partner_id` and `warehouse_id` from the PO
+- `supplier_invoice_id` — FK to `supplier_invoices`; set automatically when GRN is created via "Confirm & Receive" on a SupplierInvoice; enables Related Documents panel to link GRN ↔ SI even without a shared PO
 - `partner_id` — Required, select from active suppliers
 - `warehouse_id` — **Required** (physical receipt must target a warehouse)
 - `document_series_id` — Optional
@@ -788,23 +789,26 @@ All Purchases group resources use `NavigationGroup::Purchases` for `$navigationG
 
 - **Edit** — visible when `isEditable()`
 - **Confirm** — Draft → Confirmed
+- **Confirm & Receive** — visible when Draft AND tenant setting `express_purchasing = true`; opens warehouse selector modal; calls `SupplierInvoiceService::confirmAndReceive()` in a single transaction (confirms SI + creates and confirms a GRN with stock movement)
 - **Cancel** — visible when editable
 - **Create Credit Note** — URL link to SupplierCreditNotes create page with `?supplier_invoice_id=` pre-fill; visible when Confirmed
 
 #### Mount Behaviour
 
-`CreateSupplierInvoice::mount()` reads `?purchase_order_id=` from URL and pre-fills partner, currency from the PO.
+`CreateSupplierInvoice::mount()` reads `?purchase_order_id=` from URL and pre-fills partner, currency, exchange_rate, pricing_mode from the PO.
 
 `mutateFormDataBeforeCreate()` generates `internal_number` from the default SupplierInvoice `NumberSeries`.
 
 #### SupplierInvoiceItemsRelationManager
 
 - `isReadOnly()` returns `true` when invoice is confirmed
-- `product_variant_id` — **Nullable** (free-text lines without a product are allowed)
+- **"Import from PO" header action** — visible when SI has a linked PO; bulk-creates items from all PO lines (using `purchase_order_item_id`, variant, quantity, unit_price, VAT); skips already-imported PO items (idempotent); calls `SupplierInvoiceService::recalculateItemTotals()` per item and `recalculateDocumentTotals()` after
+- `product_variant_id` — **Nullable** (free-text lines without a product are allowed); when SI linked to PO, dropdown filtered to variants present on the PO only
+- `purchase_order_item_id` — Optional PO line link; visible when SI has a linked PO; `afterStateUpdated` auto-fills variant, quantity, unit_price, VAT, description
 - `description` — Required (not null; must be supplied for free-text lines)
 - `quantity`, `unit_price`, `discount_percent`, `vat_rate_id`
 - Computed: `vat_amount`, `line_total`, `line_total_with_vat` (disabled)
-- `after()` hooks on Create/Edit/Delete call `$invoice->recalculateTotals()`
+- `after()` hooks on Create/Edit/Delete call `SupplierInvoiceService::recalculateItemTotals()` and `recalculateDocumentTotals()`
 
 ---
 
@@ -932,3 +936,32 @@ All actions call methods on the Tenant model and are policy-authorized.
 - TenantForm: `country_code` live field triggers auto-update of currency, timezone, locale
 - PlanForm: `name` field live generates slug on blur
 - CurrencyForm: `is_default` toggle manages default currency state
+
+---
+
+## 8. Admin Panel: Company Settings Page
+
+**Path:** `/admin/company-settings`
+**Class:** `App\Filament\Pages\CompanySettingsPage`
+
+A multi-tab settings page (not a resource) for tenant-level configuration. Settings are stored via `App\Models\CompanySettings` using the `CompanySettings::get(group, key, default)` / `CompanySettings::set(group, key, value)` API.
+
+### Tabs
+
+#### General
+- `general.company_name` — Company name
+- `general.company_address`, `general.company_city`, `general.company_postal_code`, `general.company_country`
+
+#### Invoicing
+- `invoicing.default_payment_terms` — Numeric (days)
+- `invoicing.invoice_footer_text` — Textarea
+
+#### Purchasing
+- `purchasing.express_purchasing` — Toggle (default: **off**)
+  - When **on**: "Confirm & Receive" button appears on `ViewSupplierInvoice` alongside the regular "Confirm" button, enabling one-click SI confirmation + GRN creation + stock receipt.
+  - When **off**: SI confirmation flow is standard (confirm only, no GRN created).
+  - Intended for micro-businesses where one person handles purchasing, receiving, and accounting.
+  - Keep **off** for businesses with separation of duties (purchasing manager, warehouse, accountant).
+
+#### Fiscal
+- Bulgarian SUPTO/NRA fiscal printer settings (future Phase 3.3)

@@ -63,8 +63,9 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 **Services:**
 - `PurchaseOrderService` — item total calculation (via `VatCalculationService`), document total aggregation, status transition guard, `updateReceivedQuantities()` called from GoodsReceiptService.
 - `GoodsReceiptService` — `confirm()` in DB transaction: validates Draft state + has items, calls `StockService::receive()` per line, updates PO if linked; `cancel()` for Draft only.
-- `SupplierInvoiceService` — per-item VAT/discount/line-total calculation (mirrors PO service), document total aggregation with amount_due update.
+- `SupplierInvoiceService` — per-item VAT/discount/line-total calculation (mirrors PO service), document total aggregation with amount_due update; `confirmAndReceive()` for Express Purchasing (confirm SI + create + confirm GRN in one transaction).
 - `SupplierCreditNoteService` — per-item VAT/line-total calculation, document total aggregation.
+- `CurrencyRateService` — per-request rate resolution via `ExchangeRate` table (exact-match + fallback to most-recent); static closure factories for form `afterStateUpdated` hooks (currency change, date change); bookmark suffix action for saving manually-entered rates.
 
 **Task 3.1.10 UX wiring (added after initial build):**
 - `po_number`, `grn_number`, `credit_note_number` auto-generated from NumberSeries (were blocked by `required()` validation — now `disabled()->dehydrated()->placeholder()`).
@@ -90,6 +91,9 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - Morph map extended: `purchase_order`, `goods_received_note`, `supplier_invoice`, `supplier_credit_note`.
 - `StockService::receive()` now uses `$reference->getMorphClass()` (morph alias, not full class name).
 - `supplier_invoices.due_date` is nullable (date not always known at creation).
+- `goods_received_notes.supplier_invoice_id` FK (nullable) — set when GRN is auto-created by "Confirm & Receive"; enables cross-navigation between SI and GRN without a shared PO.
+- `PurchaseOrderItem::invoicedQuantity()` / `remainingInvoiceableQuantity()` — computed (no migration); mirrors `creditedQuantity()` pattern; used to filter SI import and suggest quantities.
+- Express Purchasing tenant setting (`purchasing.express_purchasing`, default off) — when on, "Confirm & Receive" button visible on `ViewSupplierInvoice`.
 
 ---
 

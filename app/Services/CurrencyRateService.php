@@ -6,6 +6,8 @@ use App\Models\Currency;
 use App\Models\ExchangeRate;
 use Carbon\Carbon;
 use Closure;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 
@@ -72,6 +74,7 @@ class CurrencyRateService
     /**
      * Filament afterStateUpdated closure for currency_code select fields.
      * Call when the user changes currency — fetches rate for the document date.
+     * Clears exchange_rate and warns the user when no rate is found.
      */
     public static function makeAfterCurrencyChanged(string $dateField): Closure
     {
@@ -87,6 +90,14 @@ class CurrencyRateService
 
             if ($rate !== null) {
                 $set('exchange_rate', $rate);
+            } else {
+                $set('exchange_rate', null);
+                Notification::make()
+                    ->title('No exchange rate found')
+                    ->body('No rate found for this currency. Please enter the exchange rate manually, then click the bookmark icon to save it for reuse.')
+                    ->warning()
+                    ->persistent()
+                    ->send();
             }
         };
     }
@@ -94,6 +105,7 @@ class CurrencyRateService
     /**
      * Filament afterStateUpdated closure for document date picker fields.
      * Call when the user changes the document date — re-fetches rate for the new date.
+     * Clears exchange_rate and warns the user when no rate is found.
      */
     public static function makeAfterDateChanged(string $currencyField = 'currency_code'): Closure
     {
@@ -108,7 +120,83 @@ class CurrencyRateService
 
             if ($rate !== null) {
                 $set('exchange_rate', $rate);
+            } else {
+                // Only warn if currency is not base (base always returns '1.000000')
+                $baseCurrency = app(self::class)->getBaseCurrencyCode();
+                if ($currencyCode !== $baseCurrency) {
+                    $set('exchange_rate', null);
+                    Notification::make()
+                        ->title('No exchange rate found')
+                        ->body('No rate found for this currency on the selected date. Please enter the exchange rate manually, then click the bookmark icon to save it for reuse.')
+                        ->warning()
+                        ->persistent()
+                        ->send();
+                }
             }
         };
+    }
+
+    /**
+     * Filament suffix Action for exchange_rate TextInput fields.
+     * Saves the entered rate to the ExchangeRate table for the currency + date combination.
+     * Only visible when a non-base currency is selected and a rate value is present.
+     */
+    public static function makeSaveRateAction(string $dateField): Action
+    {
+        return Action::make('save_exchange_rate')
+            ->label('Save rate')
+            ->icon('heroicon-o-bookmark')
+            ->tooltip('Save this rate to the exchange rate table for reuse')
+            ->size('sm')
+            ->color('gray')
+            ->visible(function (Get $get): bool {
+                $currencyCode = $get('currency_code');
+
+                if (! $currencyCode) {
+                    return false;
+                }
+
+                return $currencyCode !== app(self::class)->getBaseCurrencyCode();
+            })
+            ->action(function (Get $get) use ($dateField): void {
+                $currencyCode = $get('currency_code');
+                $rate = $get('exchange_rate');
+
+                if (! $rate) {
+                    Notification::make()->title('Enter a rate first')->warning()->send();
+
+                    return;
+                }
+
+                $dateValue = $get($dateField);
+                $date = $dateValue ? Carbon::parse($dateValue)->toDateString() : today()->toDateString();
+
+                $service = app(self::class);
+                $currencyId = Currency::where('code', $currencyCode)->value('id');
+
+                if (! $currencyId) {
+                    Notification::make()->title('Currency not found')->danger()->send();
+
+                    return;
+                }
+
+                ExchangeRate::updateOrCreate(
+                    [
+                        'currency_id' => $currencyId,
+                        'base_currency_code' => $service->getBaseCurrencyCode(),
+                        'date' => $date,
+                    ],
+                    [
+                        'rate' => $rate,
+                        'source' => 'manual',
+                    ]
+                );
+
+                Notification::make()
+                    ->title('Exchange rate saved')
+                    ->body("Rate {$rate} saved for {$currencyCode} on {$date}.")
+                    ->success()
+                    ->send();
+            });
     }
 }

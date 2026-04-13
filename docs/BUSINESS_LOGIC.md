@@ -293,6 +293,88 @@ Orchestrates GRN confirmation: stock in, PO status update, audit trail.
 
 ---
 
+### SupplierInvoiceService
+
+Location: `/app/Services/SupplierInvoiceService.php`
+
+Handles arithmetic and status transitions for supplier invoices.
+
+**Methods:**
+
+- `recalculateItemTotals(SupplierInvoiceItem $item): void`
+  - Computes `discount_amount`, `vat_amount`, `line_total`, `line_total_with_vat` from `quantity × unit_price`, discount, and VAT rate.
+  - Delegates VAT math to `VatCalculationService::calculate()` based on `SupplierInvoice.pricing_mode`.
+
+- `recalculateDocumentTotals(SupplierInvoice $invoice): void`
+  - Sums all items → sets `subtotal`, `discount_amount`, `tax_amount`, `total`, `amount_due` on the invoice.
+
+- `confirmAndReceive(SupplierInvoice $invoice, Warehouse $warehouse): GoodsReceivedNote`
+  - **Express Purchasing fast-track** — used by the "Confirm & Receive" action on `ViewSupplierInvoice`.
+  - Requires SI to be in Draft state; throws `InvalidArgumentException` otherwise.
+  - Requires at least one stockable item (line with `product_variant_id`); throws if all lines are free-text.
+  - Requires a default `GoodsReceivedNote` NumberSeries to exist; throws if missing.
+  - Inside `DB::transaction()`:
+    1. Sets SI status to Confirmed.
+    2. Creates a `GoodsReceivedNote` linked to `partner_id`, the given warehouse, today's date, and `supplier_invoice_id`. If SI is linked to a PO, also sets `purchase_order_id`.
+    3. For each stockable SI item: creates a `GoodsReceivedNoteItem` (variant, quantity, unit_cost).
+    4. Calls `app(GoodsReceiptService::class)->confirm($grn)` — stock moves in.
+    5. Returns the created and confirmed GRN.
+  - Free-text SI lines (no variant) are skipped — no stock to receive.
+
+---
+
+### SupplierCreditNoteService
+
+Location: `/app/Services/SupplierCreditNoteService.php`
+
+Handles arithmetic for supplier credit notes.
+
+**Methods:**
+
+- `recalculateItemTotals(SupplierCreditNoteItem $item): void`
+  - Computes `vat_amount`, `line_total`, `line_total_with_vat` from `quantity × unit_price` and VAT rate.
+  - Delegates VAT math to `VatCalculationService::calculate()` based on `SupplierCreditNote.pricing_mode`.
+
+- `recalculateDocumentTotals(SupplierCreditNote $creditNote): void`
+  - Sums all items → sets `subtotal`, `tax_amount`, `total` on the credit note.
+
+---
+
+### CurrencyRateService
+
+Location: `/app/Services/CurrencyRateService.php`
+
+Centralised exchange rate resolution. All document forms (PO, SI, SCN, and future Sales documents) use this service to auto-fill and save exchange rates.
+
+**Methods:**
+
+- `getBaseCurrencyCode(): string`
+  - Returns the code of the currency marked `is_default = true` in the `currencies` table.
+  - Cached per request via `??=`.
+
+- `getRate(string $currencyCode, ?Carbon $date = null): ?string`
+  - Returns `'1.000000'` when `$currencyCode` equals the base currency.
+  - Looks up `exchange_rates` table: exact match for `(currency_id, base_currency_code, date)` first.
+  - Falls back to the most recent rate on or before `$date` if no exact match.
+  - Returns `null` if no rate has ever been recorded for this currency.
+
+- `makeAfterCurrencyChanged(string $dateField): Closure` *(static)*
+  - Returns a Filament `afterStateUpdated` closure for the `currency_code` select field.
+  - On currency change: calls `getRate()` for the document date and sets `exchange_rate`.
+  - If no rate found: clears `exchange_rate` to null and sends a persistent warning notification prompting manual entry.
+
+- `makeAfterDateChanged(string $currencyField = 'currency_code'): Closure` *(static)*
+  - Returns a Filament `afterStateUpdated` closure for document date pickers.
+  - On date change: re-fetches rate for the new date. Same clear + warn behaviour when no rate exists (skipped for base currency).
+
+- `makeSaveRateAction(string $dateField): Action` *(static)*
+  - Returns a Filament suffix `Action` (bookmark icon) for use on the `exchange_rate` TextInput.
+  - Visible whenever the selected currency is non-base (regardless of whether a rate value is entered).
+  - On click: saves the current rate value to `exchange_rates` via `updateOrCreate` keyed on `(currency_id, base_currency_code, date)`. Source recorded as `'manual'`.
+  - Validates that a rate value is present before saving; sends a warning if empty.
+
+---
+
 ## 3. Tenant Lifecycle Management
 
 ### TenantStatus State Machine
