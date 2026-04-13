@@ -25,7 +25,7 @@ class PartnerFactory extends Factory
             'phone' => fake()->phoneNumber(),
             'is_customer' => true,
             'is_supplier' => false,
-            'default_currency_code' => 'BGN',
+            'default_currency_code' => 'EUR',
             'is_active' => true,
         ];
     }

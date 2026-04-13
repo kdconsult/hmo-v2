@@ -7,6 +7,7 @@ use App\Enums\PricingMode;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\PurchaseOrder;
+use App\Services\CurrencyRateService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -85,13 +86,16 @@ class SupplierInvoiceForm
                             ->required()
                             ->default('EUR')
                             ->disabled(fn (Get $get): bool => ! empty($get('purchase_order_id')))
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->live()
+                            ->afterStateUpdated(CurrencyRateService::makeAfterCurrencyChanged('issued_at')),
                         TextInput::make('exchange_rate')
                             ->label('Exchange Rate')
                             ->required()
                             ->numeric()
                             ->default('1.000000')
-                            ->step('0.000001'),
+                            ->step('0.000001')
+                            ->helperText('Auto-filled from exchange rate table when available.'),
                     ]),
 
                 Section::make('Dates & Payment')
@@ -99,7 +103,9 @@ class SupplierInvoiceForm
                     ->schema([
                         DatePicker::make('issued_at')
                             ->required()
-                            ->default(now()->toDateString()),
+                            ->default(now()->toDateString())
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
                         DatePicker::make('received_at')
                             ->nullable(),
                         DatePicker::make('due_date')

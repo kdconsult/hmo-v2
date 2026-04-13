@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.1 — Refactor in progress (Tier 1+2+3 of 5 done).** 348/348 tests pass. Remaining: Tier 4 (SI-2, SI-3, INFRA-1), Tier 5 (PR-1).
+**Phase 3.1 — Refactor in progress (Tier 1+2+3 of 5 done, INFRA-1 done).** 355/355 tests pass. Remaining: Tier 4 (SI-2, SI-3), Tier 5 (PR-1).
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -191,3 +191,4 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 3.1 UX wiring + services | 335 |
 | Phase 3.1.12 Tier 1+2 refactor | **344** |
 | Phase 3.1.12 Tier 3 refactor | **348** |
+| Phase 3.1.12 INFRA-1 (Currency Rate Manager) | **355** |

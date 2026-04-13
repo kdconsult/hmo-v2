@@ -6,6 +6,7 @@ use App\Enums\PricingMode;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\Warehouse;
+use App\Services\CurrencyRateService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -55,13 +56,16 @@ class PurchaseOrderForm
                             ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
                             ->searchable()
                             ->required()
-                            ->default('EUR'),
+                            ->default('EUR')
+                            ->live()
+                            ->afterStateUpdated(CurrencyRateService::makeAfterCurrencyChanged('ordered_at')),
                         TextInput::make('exchange_rate')
                             ->label('Exchange Rate')
                             ->required()
                             ->numeric()
                             ->default('1.000000')
-                            ->step('0.000001'),
+                            ->step('0.000001')
+                            ->helperText('Auto-filled from exchange rate table when available.'),
                     ]),
 
                 Section::make('Dates')
@@ -69,7 +73,9 @@ class PurchaseOrderForm
                     ->schema([
                         DatePicker::make('ordered_at')
                             ->required()
-                            ->default(now()->toDateString()),
+                            ->default(now()->toDateString())
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
                         DatePicker::make('expected_delivery_date')
                             ->nullable(),
                     ]),

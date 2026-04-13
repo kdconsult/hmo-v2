@@ -27,7 +27,7 @@ class ContractFactory extends Factory
             'end_date' => fake()->dateTimeBetween('now', '+2 years'),
             'auto_renew' => false,
             'monthly_fee' => fake()->randomFloat(2, 100, 5000),
-            'currency_code' => 'BGN',
+            'currency_code' => 'EUR',
         ];
     }
 }

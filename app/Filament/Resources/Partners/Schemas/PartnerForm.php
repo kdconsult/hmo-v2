@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Partners\Schemas;
 
 use App\Enums\PartnerType;
 use App\Enums\PaymentMethod;
+use App\Models\Currency;
 use App\Models\VatRate;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -68,10 +69,11 @@ class PartnerForm
                 Section::make('Financial')
                     ->columns(2)
                     ->schema([
-                        TextInput::make('default_currency_code')
+                        Select::make('default_currency_code')
                             ->label('Currency')
-                            ->maxLength(3)
-                            ->default('BGN'),
+                            ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
+                            ->searchable()
+                            ->default('EUR'),
                         TextInput::make('default_payment_term_days')
                             ->label('Payment Terms (days)')
                             ->numeric()
@@ -85,7 +87,7 @@ class PartnerForm
                             ->searchable(),
                         TextInput::make('credit_limit')
                             ->numeric()
-                            ->prefix('BGN'),
+                            ->prefix('EUR'),
                         TextInput::make('discount_percent')
                             ->numeric()
                             ->suffix('%'),

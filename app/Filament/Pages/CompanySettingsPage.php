@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Enums\NavigationGroup;
 use App\Models\CompanySettings;
+use App\Models\Currency;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -77,9 +78,11 @@ class CompanySettingsPage extends Page implements HasForms
                                     ->email(),
                                 TextInput::make('general.company_phone')
                                     ->label('Phone'),
-                                TextInput::make('general.default_currency')
+                                Select::make('general.default_currency')
                                     ->label('Default Currency')
-                                    ->default('BGN'),
+                                    ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
+                                    ->searchable()
+                                    ->default('EUR'),
                                 Select::make('general.locale')
                                     ->label('Language')
                                     ->options([

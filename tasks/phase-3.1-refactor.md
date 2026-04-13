@@ -10,7 +10,7 @@ Infrastructure items are listed first — they unblock document-level fixes.
 
 | Item | Status |
 |------|--------|
-| INFRA-1 | ⬜ |
+| INFRA-1 | ✅ |
 | INFRA-2 | ✅ |
 | INFRA-3 | ✅ |
 | INFRA-4 | ✅ |
