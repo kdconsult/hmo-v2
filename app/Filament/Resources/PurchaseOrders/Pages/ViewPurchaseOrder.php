@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\PurchaseOrders\Pages;
 
+use App\Enums\DocumentStatus;
+use App\Enums\GoodsReceivedNoteStatus;
 use App\Enums\PurchaseOrderStatus;
 use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
 use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
@@ -19,6 +21,41 @@ class ViewPurchaseOrder extends ViewRecord
     protected static string $resource = PurchaseOrderResource::class;
 
     protected string $view = 'filament.pages.view-document-with-items';
+
+    public function getRelatedDocuments(): array
+    {
+        $record = $this->getRecord();
+        $record->loadMissing(['goodsReceivedNotes', 'supplierInvoices']);
+
+        return [
+            [
+                'label' => 'Goods Receipts',
+                'items' => $record->goodsReceivedNotes->map(fn ($grn) => [
+                    'number' => $grn->grn_number,
+                    'status' => $grn->status->value,
+                    'color' => match ($grn->status) {
+                        GoodsReceivedNoteStatus::Confirmed => 'success',
+                        GoodsReceivedNoteStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => GoodsReceivedNoteResource::getUrl('view', ['record' => $grn]),
+                ])->all(),
+            ],
+            [
+                'label' => 'Supplier Invoices',
+                'items' => $record->supplierInvoices->map(fn ($si) => [
+                    'number' => $si->internal_number,
+                    'status' => $si->status->value,
+                    'color' => match ($si->status) {
+                        DocumentStatus::Confirmed, DocumentStatus::Paid => 'success',
+                        DocumentStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => SupplierInvoiceResource::getUrl('view', ['record' => $si]),
+                ])->all(),
+            ],
+        ];
+    }
 
     protected function getHeaderActions(): array
     {
@@ -74,10 +111,32 @@ class ViewPurchaseOrder extends ViewRecord
                 ),
 
             Action::make('cancel')
-                ->label('Cancel')
+                ->label('Cancel Order')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')
                 ->requiresConfirmation()
+                ->modalDescription(function (PurchaseOrder $record): ?string {
+                    $draftGrns = $record->goodsReceivedNotes()
+                        ->where('status', GoodsReceivedNoteStatus::Draft->value)
+                        ->count();
+                    $draftSis = $record->supplierInvoices()
+                        ->where('status', DocumentStatus::Draft->value)
+                        ->count();
+
+                    if ($draftGrns === 0 && $draftSis === 0) {
+                        return null;
+                    }
+
+                    $parts = [];
+                    if ($draftGrns > 0) {
+                        $parts[] = "{$draftGrns} draft Goods Receipt".($draftGrns > 1 ? 's' : '');
+                    }
+                    if ($draftSis > 0) {
+                        $parts[] = "{$draftSis} draft Supplier Invoice".($draftSis > 1 ? 's' : '');
+                    }
+
+                    return 'This will also cancel: '.implode(', ', $parts).'.';
+                })
                 ->visible(fn (PurchaseOrder $record): bool => in_array($record->status, [
                     PurchaseOrderStatus::Draft,
                     PurchaseOrderStatus::Sent,

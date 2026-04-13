@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\GoodsReceivedNotes\Pages;
 
 use App\Enums\GoodsReceivedNoteStatus;
+use App\Enums\PurchaseOrderStatus;
 use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
+use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
 use App\Models\GoodsReceivedNote;
 use App\Services\GoodsReceiptService;
 use Filament\Actions\Action;
@@ -17,6 +19,34 @@ class ViewGoodsReceivedNote extends ViewRecord
     protected static string $resource = GoodsReceivedNoteResource::class;
 
     protected string $view = 'filament.pages.view-document-with-items';
+
+    public function getRelatedDocuments(): array
+    {
+        $record = $this->getRecord();
+
+        if (! $record->purchase_order_id) {
+            return [];
+        }
+
+        $record->loadMissing('purchaseOrder');
+        $po = $record->purchaseOrder;
+
+        return [
+            [
+                'label' => 'Purchase Order',
+                'items' => [[
+                    'number' => $po->po_number,
+                    'status' => $po->status->value,
+                    'color' => match ($po->status) {
+                        PurchaseOrderStatus::Confirmed, PurchaseOrderStatus::Received => 'success',
+                        PurchaseOrderStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => PurchaseOrderResource::getUrl('view', ['record' => $po]),
+                ]],
+            ],
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

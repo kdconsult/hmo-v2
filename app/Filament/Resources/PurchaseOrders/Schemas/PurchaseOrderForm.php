@@ -3,9 +3,7 @@
 namespace App\Filament\Resources\PurchaseOrders\Schemas;
 
 use App\Enums\PricingMode;
-use App\Enums\SeriesType;
 use App\Models\Currency;
-use App\Models\NumberSeries;
 use App\Models\Partner;
 use App\Models\Warehouse;
 use Filament\Forms\Components\DatePicker;
@@ -31,15 +29,6 @@ class PurchaseOrderForm
                             ->placeholder('Auto-generated on save')
                             ->maxLength(50)
                             ->unique(ignoreRecord: true),
-                        Select::make('document_series_id')
-                            ->label('Number Series')
-                            ->options(
-                                NumberSeries::where('is_active', true)
-                                    ->where('series_type', SeriesType::PurchaseOrder->value)
-                                    ->pluck('name', 'id')
-                            )
-                            ->searchable()
-                            ->nullable(),
                         Select::make('partner_id')
                             ->label('Supplier')
                             ->options(

@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\SupplierCreditNotes\Pages;
 
+use App\Enums\SeriesType;
 use App\Filament\Resources\SupplierCreditNotes\SupplierCreditNoteResource;
 use App\Models\NumberSeries;
 use App\Models\SupplierInvoice;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CreateSupplierCreditNote extends CreateRecord
 {
@@ -34,15 +35,15 @@ class CreateSupplierCreditNote extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (! empty($data['document_series_id']) && empty($data['credit_note_number'])) {
-            $series = NumberSeries::find($data['document_series_id']);
-            if ($series) {
-                $data['credit_note_number'] = $series->generateNumber();
-            }
-        }
-
         if (empty($data['credit_note_number'])) {
-            $data['credit_note_number'] = 'SCN-'.strtoupper(Str::random(8));
+            $series = NumberSeries::getDefault(SeriesType::SupplierCreditNote);
+            if (! $series) {
+                throw ValidationException::withMessages([
+                    'credit_note_number' => 'No active number series configured for Supplier Credit Notes. Go to Settings → Number Series.',
+                ]);
+            }
+            $data['document_series_id'] = $series->id;
+            $data['credit_note_number'] = $series->generateNumber();
         }
 
         // Safety net: ensure partner_id is set from the invoice if not already populated

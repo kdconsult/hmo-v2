@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Enums\DocumentStatus;
+use App\Enums\GoodsReceivedNoteStatus;
 use App\Enums\PricingMode;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceivedNote;
 use App\Models\Partner;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\SupplierInvoice;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\VatRate;
@@ -255,5 +258,49 @@ test('partially received purchase order cannot be cancelled', function () {
 
         expect(fn () => $service->transitionStatus($po, PurchaseOrderStatus::Cancelled))
             ->toThrow(InvalidArgumentException::class);
+    });
+});
+
+test('cancelling purchase order cascades to draft grns and draft supplier invoices', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $warehouse = Warehouse::factory()->create();
+        $po = PurchaseOrder::factory()->sent()->create();
+
+        $grn = GoodsReceivedNote::factory()->forPurchaseOrder($po)->create([
+            'warehouse_id' => $warehouse->id,
+            'status' => GoodsReceivedNoteStatus::Draft,
+        ]);
+        $si = SupplierInvoice::factory()->state(['purchase_order_id' => $po->id])->create([
+            'status' => DocumentStatus::Draft,
+        ]);
+
+        $service->transitionStatus($po, PurchaseOrderStatus::Cancelled);
+
+        expect($grn->fresh()->status)->toBe(GoodsReceivedNoteStatus::Cancelled)
+            ->and($si->fresh()->status)->toBe(DocumentStatus::Cancelled);
+    });
+});
+
+test('cancelling purchase order does not cascade to confirmed supplier invoices', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $po = PurchaseOrder::factory()->sent()->create();
+
+        $si = SupplierInvoice::factory()->state(['purchase_order_id' => $po->id])->create([
+            'status' => DocumentStatus::Confirmed,
+        ]);
+
+        $service->transitionStatus($po, PurchaseOrderStatus::Cancelled);
+
+        expect($si->fresh()->status)->toBe(DocumentStatus::Confirmed);
     });
 });

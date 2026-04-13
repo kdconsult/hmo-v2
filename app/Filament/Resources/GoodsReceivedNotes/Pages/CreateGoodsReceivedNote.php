@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\GoodsReceivedNotes\Pages;
 
+use App\Enums\SeriesType;
 use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
 use App\Models\NumberSeries;
 use App\Models\PurchaseOrder;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class CreateGoodsReceivedNote extends CreateRecord
 {
@@ -31,11 +33,15 @@ class CreateGoodsReceivedNote extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (! empty($data['document_series_id']) && empty($data['grn_number'])) {
-            $series = NumberSeries::find($data['document_series_id']);
-            if ($series) {
-                $data['grn_number'] = $series->generateNumber();
+        if (empty($data['grn_number'])) {
+            $series = NumberSeries::getDefault(SeriesType::GoodsReceivedNote);
+            if (! $series) {
+                throw ValidationException::withMessages([
+                    'grn_number' => 'No active number series configured for Goods Receipts. Go to Settings → Number Series.',
+                ]);
             }
+            $data['document_series_id'] = $series->id;
+            $data['grn_number'] = $series->generateNumber();
         }
 
         $data['created_by'] = Auth::id();

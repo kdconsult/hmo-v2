@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\SupplierInvoices\Pages;
 
+use App\Enums\SeriesType;
 use App\Filament\Resources\SupplierInvoices\SupplierInvoiceResource;
 use App\Models\NumberSeries;
 use App\Models\PurchaseOrder;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CreateSupplierInvoice extends CreateRecord
 {
@@ -34,15 +35,15 @@ class CreateSupplierInvoice extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (! empty($data['document_series_id'])) {
-            $series = NumberSeries::find($data['document_series_id']);
-            if ($series) {
-                $data['internal_number'] = $series->generateNumber();
-            }
-        }
-
         if (empty($data['internal_number'])) {
-            $data['internal_number'] = 'SI-'.strtoupper(Str::random(8));
+            $series = NumberSeries::getDefault(SeriesType::SupplierInvoice);
+            if (! $series) {
+                throw ValidationException::withMessages([
+                    'internal_number' => 'No active number series configured for Supplier Invoices. Go to Settings → Number Series.',
+                ]);
+            }
+            $data['document_series_id'] = $series->id;
+            $data['internal_number'] = $series->generateNumber();
         }
 
         $data['created_by'] = Auth::id();

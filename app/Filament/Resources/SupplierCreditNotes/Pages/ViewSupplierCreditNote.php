@@ -4,6 +4,7 @@ namespace App\Filament\Resources\SupplierCreditNotes\Pages;
 
 use App\Enums\DocumentStatus;
 use App\Filament\Resources\SupplierCreditNotes\SupplierCreditNoteResource;
+use App\Filament\Resources\SupplierInvoices\SupplierInvoiceResource;
 use App\Models\SupplierCreditNote;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -16,6 +17,29 @@ class ViewSupplierCreditNote extends ViewRecord
     protected static string $resource = SupplierCreditNoteResource::class;
 
     protected string $view = 'filament.pages.view-document-with-items';
+
+    public function getRelatedDocuments(): array
+    {
+        $record = $this->getRecord();
+        $record->loadMissing('supplierInvoice');
+        $si = $record->supplierInvoice;
+
+        return [
+            [
+                'label' => 'Supplier Invoice',
+                'items' => [[
+                    'number' => $si->internal_number,
+                    'status' => $si->status->value,
+                    'color' => match ($si->status) {
+                        DocumentStatus::Confirmed, DocumentStatus::Paid => 'success',
+                        DocumentStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => SupplierInvoiceResource::getUrl('view', ['record' => $si]),
+                ]],
+            ],
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

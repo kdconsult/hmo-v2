@@ -64,4 +64,26 @@ class ProductVariant extends Model
     {
         return $this->sale_price ?? $this->product->sale_price;
     }
+
+    /**
+     * Returns a flat options array suitable for Filament Select fields.
+     * Excludes the default variant when a product has named variants, so that
+     * users only see the named options (e.g. "Size S / Size M") rather than a
+     * confusingly generic default alongside them.
+     *
+     * @return array<int, string>
+     */
+    public static function variantOptionsForSelect(): array
+    {
+        return static::with('product')
+            ->where('is_active', true)
+            ->get()
+            ->reject(fn (ProductVariant $v) => $v->is_default && $v->product->hasVariants())
+            ->mapWithKeys(fn (ProductVariant $v) => [
+                $v->id => $v->is_default
+                    ? "{$v->sku} — {$v->product->name}"
+                    : "{$v->sku} — {$v->product->name} / {$v->getTranslation('name', app()->getLocale())}",
+            ])
+            ->all();
+    }
 }

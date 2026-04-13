@@ -79,16 +79,10 @@ class GoodsReceivedNoteItemsRelationManager extends RelationManager
 
                 Select::make('product_variant_id')
                     ->label('Product')
-                    ->options(
-                        ProductVariant::with('product')
-                            ->where('is_active', true)
-                            ->get()
-                            ->mapWithKeys(fn (ProductVariant $v) => [
-                                $v->id => "{$v->sku} — {$v->product->name}",
-                            ])
-                    )
+                    ->options(ProductVariant::variantOptionsForSelect())
                     ->searchable()
-                    ->required()
+                    ->required(fn (): bool => empty($poItemOptions))
+                    ->visible(fn (): bool => empty($poItemOptions))
                     ->columnSpanFull(),
 
                 TextInput::make('quantity')

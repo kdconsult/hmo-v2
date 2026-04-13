@@ -213,3 +213,42 @@ test('default variant name is stored as translatable structure', function () {
             ->and($defaultVariant->getTranslation('name', 'bg'))->toBe('Болт М8');
     });
 });
+
+test('default variant is excluded from variant options when named variants exist', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $product = Product::factory()->stock()->create(['code' => 'SHIRT-001']);
+        $defaultVariant = $product->defaultVariant;
+
+        $namedVariant = ProductVariant::create([
+            'product_id' => $product->id,
+            'name' => ['en' => 'Size S'],
+            'sku' => 'SHIRT-001-S',
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+
+        $options = ProductVariant::variantOptionsForSelect();
+
+        expect(array_key_exists($defaultVariant->id, $options))->toBeFalse()
+            ->and(array_key_exists($namedVariant->id, $options))->toBeTrue();
+    });
+});
+
+test('default variant is included in options when product has no named variants', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $product = Product::factory()->stock()->create(['code' => 'BOLT-M8']);
+        $defaultVariant = $product->defaultVariant;
+
+        $options = ProductVariant::variantOptionsForSelect();
+
+        expect(array_key_exists($defaultVariant->id, $options))->toBeTrue();
+    });
+});

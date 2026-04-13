@@ -4,9 +4,7 @@ namespace App\Filament\Resources\SupplierInvoices\Schemas;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
-use App\Enums\SeriesType;
 use App\Models\Currency;
-use App\Models\NumberSeries;
 use App\Models\Partner;
 use App\Models\PurchaseOrder;
 use Filament\Forms\Components\DatePicker;
@@ -14,6 +12,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
@@ -35,22 +34,15 @@ class SupplierInvoiceForm
                             ->disabled()
                             ->dehydrated()
                             ->placeholder('Auto-generated on save'),
-                        Select::make('document_series_id')
-                            ->label('Number Series')
-                            ->options(
-                                NumberSeries::where('is_active', true)
-                                    ->where('series_type', SeriesType::SupplierInvoice->value)
-                                    ->pluck('name', 'id')
-                            )
-                            ->searchable()
-                            ->nullable(),
                         Select::make('partner_id')
                             ->label('Supplier')
                             ->options(
                                 Partner::suppliers()->where('is_active', true)->orderBy('name')->pluck('name', 'id')
                             )
                             ->searchable()
-                            ->required(),
+                            ->required()
+                            ->disabled(fn (Get $get): bool => ! empty($get('purchase_order_id')))
+                            ->dehydrated(),
                         Select::make('purchase_order_id')
                             ->label('Purchase Order (optional)')
                             ->options(
@@ -83,13 +75,17 @@ class SupplierInvoiceForm
                         Select::make('pricing_mode')
                             ->options(PricingMode::class)
                             ->required()
-                            ->default(PricingMode::VatExclusive->value),
+                            ->default(PricingMode::VatExclusive->value)
+                            ->disabled(fn (Get $get): bool => ! empty($get('purchase_order_id')))
+                            ->dehydrated(),
                         Select::make('currency_code')
                             ->label('Currency')
                             ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
                             ->searchable()
                             ->required()
-                            ->default('EUR'),
+                            ->default('EUR')
+                            ->disabled(fn (Get $get): bool => ! empty($get('purchase_order_id')))
+                            ->dehydrated(),
                         TextInput::make('exchange_rate')
                             ->label('Exchange Rate')
                             ->required()

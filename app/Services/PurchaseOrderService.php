@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Enums\DocumentStatus;
 use App\Enums\GoodsReceivedNoteStatus;
 use App\Enums\PricingMode;
 use App\Enums\PurchaseOrderStatus;
+use App\Models\GoodsReceivedNote;
 use App\Models\GoodsReceivedNoteItem;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\SupplierInvoice;
 use InvalidArgumentException;
 
 class PurchaseOrderService
@@ -120,6 +123,19 @@ class PurchaseOrderService
                     'Cannot cancel: goods have already been received against this order.'
                 );
             }
+        }
+
+        if ($newStatus === PurchaseOrderStatus::Cancelled) {
+            $po->goodsReceivedNotes()
+                ->where('status', GoodsReceivedNoteStatus::Draft->value)
+                ->each(fn (GoodsReceivedNote $grn) => app(GoodsReceiptService::class)->cancel($grn));
+
+            $po->supplierInvoices()
+                ->where('status', DocumentStatus::Draft->value)
+                ->each(function (SupplierInvoice $si): void {
+                    $si->status = DocumentStatus::Cancelled;
+                    $si->save();
+                });
         }
 
         $po->status = $newStatus;

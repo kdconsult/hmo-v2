@@ -4,9 +4,7 @@ namespace App\Filament\Resources\SupplierCreditNotes\Schemas;
 
 use App\Enums\CreditNoteReason;
 use App\Enums\PricingMode;
-use App\Enums\SeriesType;
 use App\Models\Currency;
-use App\Models\NumberSeries;
 use App\Models\SupplierInvoice;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -33,15 +31,6 @@ class SupplierCreditNoteForm
                             ->placeholder('Auto-generated on save')
                             ->maxLength(50)
                             ->unique(ignoreRecord: true),
-                        Select::make('document_series_id')
-                            ->label('Number Series')
-                            ->options(
-                                NumberSeries::where('is_active', true)
-                                    ->where('series_type', SeriesType::SupplierCreditNote->value)
-                                    ->pluck('name', 'id')
-                            )
-                            ->searchable()
-                            ->nullable(),
                         Select::make('supplier_invoice_id')
                             ->label('Supplier Invoice')
                             ->options(

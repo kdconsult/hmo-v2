@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\GoodsReceivedNotes\Schemas;
 
-use App\Enums\SeriesType;
-use App\Models\NumberSeries;
 use App\Models\Partner;
 use App\Models\PurchaseOrder;
 use App\Models\Warehouse;
@@ -12,6 +10,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
@@ -31,15 +30,6 @@ class GoodsReceivedNoteForm
                             ->placeholder('Auto-generated on save')
                             ->maxLength(50)
                             ->unique(ignoreRecord: true),
-                        Select::make('document_series_id')
-                            ->label('Number Series')
-                            ->options(
-                                NumberSeries::where('is_active', true)
-                                    ->where('series_type', SeriesType::GoodsReceivedNote->value)
-                                    ->pluck('name', 'id')
-                            )
-                            ->searchable()
-                            ->nullable(),
                         Select::make('purchase_order_id')
                             ->label('Purchase Order (optional)')
                             ->options(
@@ -70,7 +60,9 @@ class GoodsReceivedNoteForm
                                 Partner::suppliers()->where('is_active', true)->orderBy('name')->pluck('name', 'id')
                             )
                             ->searchable()
-                            ->required(),
+                            ->required()
+                            ->disabled(fn (Get $get): bool => ! empty($get('purchase_order_id')))
+                            ->dehydrated(),
                         Select::make('warehouse_id')
                             ->label('Receiving Warehouse')
                             ->options(Warehouse::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
