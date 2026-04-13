@@ -22,6 +22,7 @@ class GoodsReceivedNoteFactory extends Factory
         return [
             'grn_number' => 'GRN-'.strtoupper(Str::random(8)),
             'purchase_order_id' => null,
+            'supplier_invoice_id' => null,
             'partner_id' => Partner::factory()->supplier(),
             'warehouse_id' => Warehouse::factory(),
             'status' => GoodsReceivedNoteStatus::Draft,

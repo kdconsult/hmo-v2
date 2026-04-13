@@ -20,6 +20,7 @@ class GoodsReceivedNote extends Model
         'grn_number',
         'document_series_id',
         'purchase_order_id',
+        'supplier_invoice_id',
         'partner_id',
         'warehouse_id',
         'status',
@@ -56,6 +57,11 @@ class GoodsReceivedNote extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function supplierInvoice(): BelongsTo
+    {
+        return $this->belongsTo(SupplierInvoice::class);
     }
 
     public function documentSeries(): BelongsTo

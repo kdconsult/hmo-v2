@@ -93,6 +93,11 @@ class SupplierInvoice extends Model
         return $this->hasMany(SupplierCreditNote::class);
     }
 
+    public function goodsReceivedNotes(): HasMany
+    {
+        return $this->hasMany(GoodsReceivedNote::class);
+    }
+
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

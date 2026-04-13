@@ -24,8 +24,8 @@ Infrastructure items are listed first — they unblock document-level fixes.
 | CATALOG-BUG-1 | ✅ |
 | GRN-1 | ✅ |
 | SI-1 | ✅ |
-| SI-2 | ⬜ |
-| SI-3 | ⬜ |
+| SI-2 | ✅ |
+| SI-3 | ✅ |
 | PR-1 | ⬜ |
 
 ---

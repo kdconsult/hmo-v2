@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DocumentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -61,6 +62,11 @@ class PurchaseOrderItem extends Model
         return $this->hasMany(GoodsReceivedNoteItem::class);
     }
 
+    public function supplierInvoiceItems(): HasMany
+    {
+        return $this->hasMany(SupplierInvoiceItem::class);
+    }
+
     public function remainingQuantity(): string
     {
         return bcsub((string) $this->quantity, (string) $this->quantity_received, 4);
@@ -69,5 +75,17 @@ class PurchaseOrderItem extends Model
     public function isFullyReceived(): bool
     {
         return bccomp((string) $this->quantity_received, (string) $this->quantity, 4) >= 0;
+    }
+
+    public function invoicedQuantity(): string
+    {
+        return (string) $this->supplierInvoiceItems()
+            ->whereHas('supplierInvoice', fn ($q) => $q->where('status', '!=', DocumentStatus::Cancelled->value))
+            ->sum('quantity');
+    }
+
+    public function remainingInvoiceableQuantity(): string
+    {
+        return bcsub((string) $this->quantity, $this->invoicedQuantity(), 4);
     }
 }

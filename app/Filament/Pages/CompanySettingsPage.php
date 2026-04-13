@@ -41,6 +41,8 @@ class CompanySettingsPage extends Page implements HasForms
 
     public array $invoicing = [];
 
+    public array $purchasing = [];
+
     public array $fiscal = [];
 
     public function mount(): void
@@ -57,6 +59,7 @@ class CompanySettingsPage extends Page implements HasForms
         $this->form->fill([
             'general' => CompanySettings::getGroup('general'),
             'invoicing' => CompanySettings::getGroup('invoicing'),
+            'purchasing' => CompanySettings::getGroup('purchasing'),
             'fiscal' => CompanySettings::getGroup('fiscal'),
             'localization' => $localizationGroup,
         ]);
@@ -107,6 +110,14 @@ class CompanySettingsPage extends Page implements HasForms
                                     ->label('Bank Name'),
                                 Toggle::make('invoicing.auto_send_invoices')
                                     ->label('Auto-send Invoices'),
+                            ]),
+
+                        Tab::make('Purchasing')
+                            ->schema([
+                                Toggle::make('purchasing.express_purchasing')
+                                    ->label('Express Purchasing')
+                                    ->helperText('When enabled, a "Confirm & Receive" action appears on supplier invoices, allowing one-click invoice confirmation with automatic goods receipt.')
+                                    ->inline(false),
                             ]),
 
                         Tab::make('Fiscal')

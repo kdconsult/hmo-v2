@@ -27,6 +27,8 @@ Build the inbound purchasing pipeline: PO → GRN → Supplier Invoice → Suppl
 | 3.1.12a | Tier 1+2 done: PO-1, INFRA-5, PO-5, PO-4, PO-2, INFRA-4, CATALOG-BUG-1 | ✅ |
 | 3.1.12b | Tier 3 done: PO-6, PO-3, INFRA-2, INFRA-3, GRN-1, SI-1 | ✅ |
 | 3.1.12c | INFRA-1 done: CurrencyRateService, ExchangeRates RM rebuild, live rate auto-fill, BGN→EUR fixes | ✅ |
+| 3.1.12d | SI-2 done: Import from PO action, PO-filtered form, invoicedQuantity/remainingInvoiceableQuantity on PurchaseOrderItem | ✅ |
+| 3.1.12e | SI-3 done: Express Purchasing tenant setting, Confirm & Receive action, supplier_invoice_id on GRN, GRNs in related docs | ✅ |
 
 ---
 
