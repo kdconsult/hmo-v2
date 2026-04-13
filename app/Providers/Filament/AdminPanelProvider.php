@@ -3,9 +3,9 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\Partners\Widgets\PartnerOverview;
+use App\Http\Middleware\AdminPanelAuthenticate;
 use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\SetSubdomainUrlDefault;
-use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -71,7 +71,7 @@ class AdminPanelProvider extends PanelProvider
                 SetSubdomainUrlDefault::class,
             ], isPersistent: true)
             ->authMiddleware([
-                Authenticate::class,
+                AdminPanelAuthenticate::class,
                 EnsureActiveSubscription::class,
             ])
             ->spa();

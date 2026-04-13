@@ -4,26 +4,26 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use Closure;
+use Filament\Http\Middleware\Authenticate;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\URL;
-use Symfony\Component\HttpFoundation\Response;
 
-class SetSubdomainUrlDefault
+class AdminPanelAuthenticate extends Authenticate
 {
-    public function handle(Request $request, Closure $next): Response
+    protected function redirectTo($request): ?string
     {
-        $subdomain = $request->route('subdomain') ?: $this->subdomainFromHost($request);
-
-        if ($subdomain !== null) {
-            URL::defaults(['subdomain' => $subdomain]);
-        }
-
-        return $next($request);
+        return route('filament.admin.auth.login', [
+            'subdomain' => $this->resolveSubdomain($request),
+        ]);
     }
 
-    private function subdomainFromHost(Request $request): ?string
+    private function resolveSubdomain(Request $request): ?string
     {
+        $subdomain = $request->route('subdomain');
+
+        if (is_string($subdomain) && $subdomain !== '') {
+            return $subdomain;
+        }
+
         $host = $request->getHost();
         $appDomain = (string) config('app.domain');
 
