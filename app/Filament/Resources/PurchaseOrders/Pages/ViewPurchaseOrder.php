@@ -10,12 +10,15 @@ use App\Models\PurchaseOrder;
 use App\Services\PurchaseOrderService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
 
 class ViewPurchaseOrder extends ViewRecord
 {
     protected static string $resource = PurchaseOrderResource::class;
+
+    protected string $view = 'filament.pages.view-document-with-items';
 
     protected function getHeaderActions(): array
     {
@@ -24,12 +27,16 @@ class ViewPurchaseOrder extends ViewRecord
                 ->visible(fn (PurchaseOrder $record): bool => $record->isEditable()),
 
             Action::make('send')
-                ->label('Send to Supplier')
+                ->label('Mark as Sent')
                 ->icon(Heroicon::OutlinedPaperAirplane)
                 ->color('primary')
                 ->visible(fn (PurchaseOrder $record): bool => $record->status === PurchaseOrderStatus::Draft)
                 ->requiresConfirmation()
-                ->action(fn (PurchaseOrder $record) => app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Sent)),
+                ->action(function (PurchaseOrder $record): void {
+                    app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Sent);
+                    Notification::make()->title('Order marked as sent')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                }),
 
             Action::make('confirm')
                 ->label('Confirm')
@@ -37,7 +44,11 @@ class ViewPurchaseOrder extends ViewRecord
                 ->color('success')
                 ->visible(fn (PurchaseOrder $record): bool => $record->status === PurchaseOrderStatus::Sent)
                 ->requiresConfirmation()
-                ->action(fn (PurchaseOrder $record) => app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Confirmed)),
+                ->action(function (PurchaseOrder $record): void {
+                    app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Confirmed);
+                    Notification::make()->title('Order confirmed')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                }),
 
             Action::make('create_grn')
                 ->label('Create Goods Receipt')
@@ -72,7 +83,15 @@ class ViewPurchaseOrder extends ViewRecord
                     PurchaseOrderStatus::Sent,
                     PurchaseOrderStatus::Confirmed,
                 ]))
-                ->action(fn (PurchaseOrder $record) => app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Cancelled)),
+                ->action(function (PurchaseOrder $record): void {
+                    try {
+                        app(PurchaseOrderService::class)->transitionStatus($record, PurchaseOrderStatus::Cancelled);
+                        Notification::make()->title('Order cancelled')->success()->send();
+                        $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()->title('Cannot cancel order')->body($e->getMessage())->danger()->send();
+                    }
+                }),
         ];
     }
 }

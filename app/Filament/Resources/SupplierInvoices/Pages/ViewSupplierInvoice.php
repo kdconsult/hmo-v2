@@ -8,12 +8,15 @@ use App\Filament\Resources\SupplierInvoices\SupplierInvoiceResource;
 use App\Models\SupplierInvoice;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
 
 class ViewSupplierInvoice extends ViewRecord
 {
     protected static string $resource = SupplierInvoiceResource::class;
+
+    protected string $view = 'filament.pages.view-document-with-items';
 
     protected function getHeaderActions(): array
     {
@@ -30,6 +33,8 @@ class ViewSupplierInvoice extends ViewRecord
                 ->action(function (SupplierInvoice $record): void {
                     $record->status = DocumentStatus::Confirmed;
                     $record->save();
+                    Notification::make()->title('Invoice confirmed')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
 
             Action::make('create_credit_note')
@@ -55,6 +60,8 @@ class ViewSupplierInvoice extends ViewRecord
                 ->action(function (SupplierInvoice $record): void {
                     $record->status = DocumentStatus::Cancelled;
                     $record->save();
+                    Notification::make()->title('Invoice cancelled')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
         ];
     }

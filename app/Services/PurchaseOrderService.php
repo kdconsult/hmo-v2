@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\GoodsReceivedNoteStatus;
 use App\Enums\PricingMode;
 use App\Enums\PurchaseOrderStatus;
 use App\Models\GoodsReceivedNoteItem;
@@ -34,7 +35,6 @@ class PurchaseOrderService
             ],
             PurchaseOrderStatus::PartiallyReceived->value => [
                 PurchaseOrderStatus::Received,
-                PurchaseOrderStatus::Cancelled,
             ],
         ];
     }
@@ -102,6 +102,24 @@ class PurchaseOrderService
             throw new InvalidArgumentException(
                 "Cannot transition purchase order from [{$po->status->value}] to [{$newStatus->value}]."
             );
+        }
+
+        if ($newStatus !== PurchaseOrderStatus::Cancelled && ! $po->items()->exists()) {
+            throw new InvalidArgumentException(
+                'Cannot transition: purchase order has no line items.'
+            );
+        }
+
+        if ($po->status === PurchaseOrderStatus::Confirmed && $newStatus === PurchaseOrderStatus::Cancelled) {
+            $hasConfirmedGrns = $po->goodsReceivedNotes()
+                ->where('status', GoodsReceivedNoteStatus::Confirmed->value)
+                ->exists();
+
+            if ($hasConfirmedGrns) {
+                throw new InvalidArgumentException(
+                    'Cannot cancel: goods have already been received against this order.'
+                );
+            }
         }
 
         $po->status = $newStatus;

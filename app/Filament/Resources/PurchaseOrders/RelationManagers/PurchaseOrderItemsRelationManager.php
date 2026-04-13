@@ -56,11 +56,15 @@ class PurchaseOrderItemsRelationManager extends RelationManager
                     ->live()
                     ->afterStateUpdated(function (Set $set, Get $get, ?string $state): void {
                         if ($state) {
-                            $variant = ProductVariant::find($state);
+                            $variant = ProductVariant::with('product')->find($state);
                             if ($variant) {
                                 $set('unit_price', $variant->purchase_price ?? '0.0000');
                                 if (empty($get('description'))) {
                                     $set('description', $variant->getTranslation('name', app()->getLocale()) ?? '');
+                                }
+                                $product = $variant->product;
+                                if ($product->vat_rate_id) {
+                                    $set('vat_rate_id', $product->vat_rate_id);
                                 }
                             }
                         }
@@ -79,6 +83,7 @@ class PurchaseOrderItemsRelationManager extends RelationManager
                     ->default('1.0000'),
 
                 TextInput::make('unit_price')
+                    ->label('Purchase Price')
                     ->required()
                     ->numeric()
                     ->minValue(0)
@@ -86,7 +91,7 @@ class PurchaseOrderItemsRelationManager extends RelationManager
                     ->default('0.0000'),
 
                 TextInput::make('discount_percent')
-                    ->label('Discount %')
+                    ->label('Supplier Discount %')
                     ->required()
                     ->numeric()
                     ->minValue(0)

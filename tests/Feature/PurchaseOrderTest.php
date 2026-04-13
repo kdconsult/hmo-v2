@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use App\Enums\PricingMode;
 use App\Enums\PurchaseOrderStatus;
+use App\Models\GoodsReceivedNote;
 use App\Models\Partner;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\VatRate;
+use App\Models\Warehouse;
 use App\Services\PurchaseOrderService;
 use App\Services\TenantOnboardingService;
 
@@ -61,6 +63,7 @@ test('purchase order status transitions are enforced', function () {
     $tenant->run(function () {
         $service = app(PurchaseOrderService::class);
         $po = PurchaseOrder::factory()->draft()->create();
+        PurchaseOrderItem::factory()->for($po)->create();
 
         $service->transitionStatus($po, PurchaseOrderStatus::Sent);
         expect($po->fresh()->status)->toBe(PurchaseOrderStatus::Sent);
@@ -190,5 +193,67 @@ test('purchase order can be soft deleted and restored', function () {
 
         $po->restore();
         expect(PurchaseOrder::where('po_number', 'PO-DEL')->count())->toBe(1);
+    });
+});
+
+test('purchase order cannot transition to sent with no line items', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $po = PurchaseOrder::factory()->draft()->create();
+
+        expect(fn () => $service->transitionStatus($po, PurchaseOrderStatus::Sent))
+            ->toThrow(InvalidArgumentException::class, 'no line items');
+    });
+});
+
+test('empty purchase order can still be cancelled', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $po = PurchaseOrder::factory()->draft()->create();
+
+        $service->transitionStatus($po, PurchaseOrderStatus::Cancelled);
+
+        expect($po->fresh()->status)->toBe(PurchaseOrderStatus::Cancelled);
+    });
+});
+
+test('purchase order cannot be cancelled when confirmed grns exist', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $warehouse = Warehouse::factory()->create();
+        $po = PurchaseOrder::factory()->confirmed()->create();
+
+        GoodsReceivedNote::factory()->confirmed()->forPurchaseOrder($po)->create([
+            'warehouse_id' => $warehouse->id,
+        ]);
+
+        expect(fn () => $service->transitionStatus($po, PurchaseOrderStatus::Cancelled))
+            ->toThrow(InvalidArgumentException::class, 'goods have already been received');
+    });
+});
+
+test('partially received purchase order cannot be cancelled', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $service = app(PurchaseOrderService::class);
+        $po = PurchaseOrder::factory()->partiallyReceived()->create();
+
+        expect(fn () => $service->transitionStatus($po, PurchaseOrderStatus::Cancelled))
+            ->toThrow(InvalidArgumentException::class);
     });
 });

@@ -73,10 +73,11 @@ class Product extends Model
         });
 
         static::created(function (Product $model) {
-            $name = $model->getRawOriginal('name') ?? $model->getAttributes()['name'];
+            $raw = $model->getRawOriginal('name') ?? $model->getAttributes()['name'];
+            $nameArray = is_string($raw) ? (json_decode($raw, true) ?? [$raw]) : $raw;
 
             $model->variants()->create([
-                'name' => $name,
+                'name' => $nameArray,
                 'sku' => $model->code,
                 'is_default' => true,
                 'is_active' => true,

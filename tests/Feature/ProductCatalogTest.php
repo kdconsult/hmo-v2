@@ -196,3 +196,20 @@ test('product type enum is cast correctly', function () {
         expect($product->type)->toBe(ProductType::Service);
     });
 });
+
+test('default variant name is stored as translatable structure', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $product = Product::factory()->stock()->create([
+            'name' => ['en' => 'Bolt M8', 'bg' => 'Болт М8'],
+        ]);
+
+        $defaultVariant = $product->defaultVariant;
+
+        expect($defaultVariant->getTranslation('name', 'en'))->toBe('Bolt M8')
+            ->and($defaultVariant->getTranslation('name', 'bg'))->toBe('Болт М8');
+    });
+});

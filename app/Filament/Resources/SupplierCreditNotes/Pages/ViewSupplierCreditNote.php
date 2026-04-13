@@ -7,12 +7,15 @@ use App\Filament\Resources\SupplierCreditNotes\SupplierCreditNoteResource;
 use App\Models\SupplierCreditNote;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
 
 class ViewSupplierCreditNote extends ViewRecord
 {
     protected static string $resource = SupplierCreditNoteResource::class;
+
+    protected string $view = 'filament.pages.view-document-with-items';
 
     protected function getHeaderActions(): array
     {
@@ -29,6 +32,8 @@ class ViewSupplierCreditNote extends ViewRecord
                 ->action(function (SupplierCreditNote $record): void {
                     $record->status = DocumentStatus::Confirmed;
                     $record->save();
+                    Notification::make()->title('Credit note confirmed')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
 
             Action::make('cancel')
@@ -43,6 +48,8 @@ class ViewSupplierCreditNote extends ViewRecord
                 ->action(function (SupplierCreditNote $record): void {
                     $record->status = DocumentStatus::Cancelled;
                     $record->save();
+                    Notification::make()->title('Credit note cancelled')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
         ];
     }

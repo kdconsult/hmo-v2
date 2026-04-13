@@ -6,6 +6,28 @@ Review order: Purchase Orders → Goods Receipts → Supplier Invoices → Suppl
 Each item captures: **What** (the problem), **Why** (the reasoning), **How** (the fix).
 Infrastructure items are listed first — they unblock document-level fixes.
 
+## Implementation Status
+
+| Item | Status |
+|------|--------|
+| INFRA-1 | ⬜ |
+| INFRA-2 | ⬜ |
+| INFRA-3 | ⬜ |
+| INFRA-4 | ✅ |
+| INFRA-5 | ✅ |
+| PO-1 | ✅ |
+| PO-2 | ✅ |
+| PO-3 | ⬜ |
+| PO-4 | ✅ |
+| PO-5 | ✅ |
+| PO-6 | ⬜ |
+| CATALOG-BUG-1 | ✅ |
+| GRN-1 | ⬜ |
+| SI-1 | ⬜ |
+| SI-2 | ⬜ |
+| SI-3 | ⬜ |
+| PR-1 | ⬜ |
+
 ---
 
 ## Infrastructure (Cross-cutting)

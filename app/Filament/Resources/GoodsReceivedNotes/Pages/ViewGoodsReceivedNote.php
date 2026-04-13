@@ -16,6 +16,8 @@ class ViewGoodsReceivedNote extends ViewRecord
 {
     protected static string $resource = GoodsReceivedNoteResource::class;
 
+    protected string $view = 'filament.pages.view-document-with-items';
+
     protected function getHeaderActions(): array
     {
         return [
@@ -37,6 +39,7 @@ class ViewGoodsReceivedNote extends ViewRecord
                             ->title('Goods received successfully')
                             ->success()
                             ->send();
+                        $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                     } catch (\InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Cannot confirm receipt')
@@ -54,6 +57,8 @@ class ViewGoodsReceivedNote extends ViewRecord
                 ->visible(fn (GoodsReceivedNote $record): bool => $record->status === GoodsReceivedNoteStatus::Draft)
                 ->action(function (GoodsReceivedNote $record): void {
                     app(GoodsReceiptService::class)->cancel($record);
+                    Notification::make()->title('Receipt cancelled')->success()->send();
+                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
         ];
     }
