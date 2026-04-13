@@ -22,6 +22,8 @@ Build the inbound purchasing pipeline: PO → GRN → Supplier Invoice → Suppl
 | 3.1.8 | Tests | ✅ |
 | 3.1.9 | Docs update + Pint + final test run | ✅ |
 | 3.1.10 | UX wiring — connect pipeline, fix totals, auto-numbering, cascade data | ✅ |
+| 3.1.11 | Structured review — 17 findings written to `tasks/phase-3.1-refactor.md` | ✅ |
+| 3.1.12 | Refactor implementation — INFRA-1..5, PO-1..6, CATALOG-BUG-1, GRN-1, SI-1..3, PR-1 | ⬜ |
 
 ---
 

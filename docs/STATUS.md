@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.1 — Purchases + UX wiring (Task 3.1.10)** — Complete. 335/335 tests pass.
+**Phase 3.1 — Structured review complete. Refactor plan written (`tasks/phase-3.1-refactor.md`).** 335/335 tests pass. Refactor implementation is next before Phase 3.2.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -118,6 +118,16 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## What's Next
 
+**Phase 3.1 Refactor — implement findings from structured review**
+
+See `tasks/phase-3.1-refactor.md` for the full plan (17 findings):
+- **INFRA-1–5** (cross-cutting): Currency Rate Manager, Number Series auto-resolution, Related Documents panel, empty draft banner, redirect-after-action on all view pages
+- **PO-1–6**: label fixes, empty-PO guard, cancel cascade, service-layer cancel block, VAT auto-fill, default variant filtering
+- **CATALOG-BUG-1**: default variant name stored as raw JSON (data + code fix)
+- **GRN-1**: context-driven field visibility (linked vs standalone)
+- **SI-1–3**: currency/VAT locking, items form import + filtering, Express Purchasing tenant setting
+- **PR-1**: Purchase Return — new document type (GRN link, stock issue, full document stack)
+
 **Phase 3.2 — Sales/Invoicing (not yet planned)**
 
 See `tasks/phase-3.md` for the sub-phase breakdown:
@@ -134,6 +144,7 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 1 history | `tasks/phase-1.md` |
 | Phase 2 tasks + decisions | `tasks/phase-2.md`, `tasks/phase-2-plan.md` |
 | Phase 2.5 tasks | `tasks/phase-2.5.md` |
+| Phase 3.1 refactor plan | `tasks/phase-3.1-refactor.md` |
 | Post-phase backlog | `tasks/backlog.md` |
 | Architecture & models | `docs/ARCHITECTURE.md` |
 | Business logic & services | `docs/BUSINESS_LOGIC.md` |
