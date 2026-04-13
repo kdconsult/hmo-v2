@@ -83,6 +83,7 @@ class GoodsReceivedNoteItemsRelationManager extends RelationManager
                     ->searchable()
                     ->required(fn (): bool => empty($poItemOptions))
                     ->visible(fn (): bool => empty($poItemOptions))
+                    ->dehydrated()
                     ->columnSpanFull(),
 
                 TextInput::make('quantity')
@@ -169,7 +170,17 @@ class GoodsReceivedNoteItemsRelationManager extends RelationManager
                             ->success()
                             ->send();
                     }),
-                CreateAction::make(),
+                CreateAction::make()
+                    ->mutateFormDataUsing(function (array $data): array {
+                        if (empty($data['product_variant_id']) && ! empty($data['purchase_order_item_id'])) {
+                            $poItem = PurchaseOrderItem::find($data['purchase_order_item_id']);
+                            if ($poItem) {
+                                $data['product_variant_id'] = $poItem->product_variant_id;
+                            }
+                        }
+
+                        return $data;
+                    }),
             ])
             ->recordActions([
                 EditAction::make(),

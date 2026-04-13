@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\GoodsReceivedNote;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReturn;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
 use App\Models\Tenant;
@@ -11,6 +12,7 @@ use App\Models\TenantUser;
 use App\Models\User;
 use App\Policies\GoodsReceivedNotePolicy;
 use App\Policies\PurchaseOrderPolicy;
+use App\Policies\PurchaseReturnPolicy;
 use App\Policies\SupplierCreditNotePolicy;
 use App\Policies\SupplierInvoicePolicy;
 use App\Services\TenantOnboardingService;
@@ -60,6 +62,14 @@ test('purchasing-manager has full CRUD on all purchase documents', function () {
         expect($scnPolicy->viewAny($user))->toBeTrue()
             ->and($scnPolicy->create($user))->toBeTrue()
             ->and($scnPolicy->update($user, $scn))->toBeTrue();
+
+        $prPolicy = new PurchaseReturnPolicy;
+        $pr = new PurchaseReturn;
+
+        expect($prPolicy->viewAny($user))->toBeTrue()
+            ->and($prPolicy->create($user))->toBeTrue()
+            ->and($prPolicy->update($user, $pr))->toBeTrue()
+            ->and($prPolicy->delete($user, $pr))->toBeTrue();
     });
 });
 
@@ -96,6 +106,13 @@ test('accountant can view POs and GRNs but has full CRUD on supplier invoices an
 
         expect($scnPolicy->viewAny($user))->toBeTrue()
             ->and($scnPolicy->create($user))->toBeTrue();
+
+        $prPolicy = new PurchaseReturnPolicy;
+        $pr = new PurchaseReturn;
+
+        expect($prPolicy->viewAny($user))->toBeTrue()
+            ->and($prPolicy->view($user, $pr))->toBeTrue()
+            ->and($prPolicy->create($user))->toBeFalse();
     });
 });
 
@@ -127,5 +144,13 @@ test('warehouse-manager has CRUD on GRNs and view-only on POs', function () {
 
         expect($siPolicy->viewAny($user))->toBeFalse()
             ->and($siPolicy->create($user))->toBeFalse();
+
+        $prPolicy = new PurchaseReturnPolicy;
+        $pr = new PurchaseReturn;
+
+        expect($prPolicy->viewAny($user))->toBeTrue()
+            ->and($prPolicy->create($user))->toBeTrue()
+            ->and($prPolicy->update($user, $pr))->toBeTrue()
+            ->and($prPolicy->delete($user, $pr))->toBeTrue();
     });
 });

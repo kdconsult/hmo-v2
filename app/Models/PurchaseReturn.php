@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\GoodsReceivedNoteStatus;
+use App\Enums\PurchaseReturnStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,19 +12,19 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
-class GoodsReceivedNote extends Model
+class PurchaseReturn extends Model
 {
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
-        'grn_number',
+        'pr_number',
         'document_series_id',
-        'purchase_order_id',
-        'supplier_invoice_id',
+        'goods_received_note_id',
         'partner_id',
         'warehouse_id',
         'status',
-        'received_at',
+        'returned_at',
+        'reason',
         'notes',
         'created_by',
     ];
@@ -32,15 +32,15 @@ class GoodsReceivedNote extends Model
     protected function casts(): array
     {
         return [
-            'status' => GoodsReceivedNoteStatus::class,
-            'received_at' => 'date',
+            'status' => PurchaseReturnStatus::class,
+            'returned_at' => 'date',
         ];
     }
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'grn_number'])
+            ->logOnly(['status', 'pr_number'])
             ->logOnlyDirty();
     }
 
@@ -54,14 +54,9 @@ class GoodsReceivedNote extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function purchaseOrder(): BelongsTo
+    public function goodsReceivedNote(): BelongsTo
     {
-        return $this->belongsTo(PurchaseOrder::class);
-    }
-
-    public function supplierInvoice(): BelongsTo
-    {
-        return $this->belongsTo(SupplierInvoice::class);
+        return $this->belongsTo(GoodsReceivedNote::class);
     }
 
     public function documentSeries(): BelongsTo
@@ -71,7 +66,7 @@ class GoodsReceivedNote extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(GoodsReceivedNoteItem::class);
+        return $this->hasMany(PurchaseReturnItem::class);
     }
 
     public function stockMovements(): MorphMany
@@ -86,16 +81,11 @@ class GoodsReceivedNote extends Model
 
     public function isEditable(): bool
     {
-        return $this->status === GoodsReceivedNoteStatus::Draft;
+        return $this->status === PurchaseReturnStatus::Draft;
     }
 
     public function isConfirmed(): bool
     {
-        return $this->status === GoodsReceivedNoteStatus::Confirmed;
-    }
-
-    public function purchaseReturns(): HasMany
-    {
-        return $this->hasMany(PurchaseReturn::class);
+        return $this->status === PurchaseReturnStatus::Confirmed;
     }
 }

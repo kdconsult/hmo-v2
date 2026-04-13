@@ -40,6 +40,9 @@ class RolesAndPermissionsSeeder extends Seeder
         'supplier_invoice_item',
         'supplier_credit_note',
         'supplier_credit_note_item',
+        // Phase 3.1 — Purchase Returns
+        'purchase_return',
+        'purchase_return_item',
     ];
 
     /** @var string[] */
@@ -101,6 +104,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_purchase_order_item', 'view_purchase_order_item',
             'view_any_goods_received_note', 'view_goods_received_note',
             'view_any_goods_received_note_item', 'view_goods_received_note_item',
+            // Phase 3.1 — view purchase returns
+            'view_any_purchase_return', 'view_purchase_return',
+            'view_any_purchase_return_item', 'view_purchase_return_item',
             // Phase 3.1 — full CRUD on supplier invoices/credit notes
             'view_any_supplier_invoice', 'view_supplier_invoice', 'create_supplier_invoice', 'update_supplier_invoice', 'delete_supplier_invoice',
             'view_any_supplier_invoice_item', 'view_supplier_invoice_item', 'create_supplier_invoice_item', 'update_supplier_invoice_item', 'delete_supplier_invoice_item',
@@ -132,6 +138,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_purchase_order_item', 'view_purchase_order_item',
             'view_any_goods_received_note', 'view_goods_received_note', 'create_goods_received_note', 'update_goods_received_note', 'delete_goods_received_note',
             'view_any_goods_received_note_item', 'view_goods_received_note_item', 'create_goods_received_note_item', 'update_goods_received_note_item', 'delete_goods_received_note_item',
+            // Phase 3.1 — full CRUD on purchase returns
+            'view_any_purchase_return', 'view_purchase_return', 'create_purchase_return', 'update_purchase_return', 'delete_purchase_return',
+            'view_any_purchase_return_item', 'view_purchase_return_item', 'create_purchase_return_item', 'update_purchase_return_item', 'delete_purchase_return_item',
         ]);
 
         // field-technician — minimal Phase 1 access (expanded in later phases)
@@ -155,6 +164,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_supplier_invoice_item', 'view_supplier_invoice_item', 'create_supplier_invoice_item', 'update_supplier_invoice_item', 'delete_supplier_invoice_item',
             'view_any_supplier_credit_note', 'view_supplier_credit_note', 'create_supplier_credit_note', 'update_supplier_credit_note', 'delete_supplier_credit_note',
             'view_any_supplier_credit_note_item', 'view_supplier_credit_note_item', 'create_supplier_credit_note_item', 'update_supplier_credit_note_item', 'delete_supplier_credit_note_item',
+            // Phase 3.1 — full CRUD on purchase returns
+            'view_any_purchase_return', 'view_purchase_return', 'create_purchase_return', 'update_purchase_return', 'delete_purchase_return',
+            'view_any_purchase_return_item', 'view_purchase_return_item', 'create_purchase_return_item', 'update_purchase_return_item', 'delete_purchase_return_item',
             // View-only on catalog, warehouse, partners
             'view_any_partner', 'view_partner',
             'view_any_product', 'view_product',

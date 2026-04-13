@@ -6,9 +6,9 @@ use App\Enums\SeriesType;
 use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
 use App\Models\NumberSeries;
 use App\Models\PurchaseOrder;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 class CreateGoodsReceivedNote extends CreateRecord
 {
@@ -31,15 +31,24 @@ class CreateGoodsReceivedNote extends CreateRecord
         }
     }
 
+    protected function beforeCreate(): void
+    {
+        if (! NumberSeries::getDefault(SeriesType::GoodsReceivedNote)) {
+            Notification::make()
+                ->title('No number series configured')
+                ->body('Go to Settings → Number Series and create one for Goods Receipts.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            $this->halt();
+        }
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['grn_number'])) {
             $series = NumberSeries::getDefault(SeriesType::GoodsReceivedNote);
-            if (! $series) {
-                throw ValidationException::withMessages([
-                    'grn_number' => 'No active number series configured for Goods Receipts. Go to Settings → Number Series.',
-                ]);
-            }
             $data['document_series_id'] = $series->id;
             $data['grn_number'] = $series->generateNumber();
         }

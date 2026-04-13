@@ -16,10 +16,10 @@ All roles are registered in tenant databases via `RolesAndPermissionsSeeder` (re
 4. **sales-agent** — Create/update partners (no delete), view contracts, view tags.
 5. **accountant** — View partners/contracts, CRUD currencies/VAT rates, view number series; view POs + GRNs; full CRUD on supplier invoices + credit notes.
 6. **viewer** — View-only access to all models.
-7. **warehouse-manager** — Full CRUD on warehouses/locations/movements/stock items; view catalog; full CRUD on GRNs; view POs.
+7. **warehouse-manager** — Full CRUD on warehouses/locations/movements/stock items; view catalog; full CRUD on GRNs + purchase returns; view POs.
 8. **field-technician** — Minimal access (reserved for field service phase).
 9. **finance-manager** — View-only on all models.
-10. **purchasing-manager** — Full CRUD on all purchase documents (PO, GRN, supplier invoice, supplier credit note) + view catalog/warehouse/partners.
+10. **purchasing-manager** — Full CRUD on all purchase documents (PO, GRN, supplier invoice, supplier credit note, purchase return) + view catalog/warehouse/partners.
 11. **report-viewer** — `view_any_*` permissions only (list pages, no detail views).
 
 ### Permission Naming Convention
@@ -39,9 +39,9 @@ All permissions follow the pattern: `{action}_{model}`
 |-------|--------|-------------|
 | Phase 1 | partner, contract, currency, exchange_rate, vat_rate, number_series, tenant_user, tag, company_settings, role | 50 |
 | Phase 2 | category, unit, product, product_variant, warehouse, stock_location, stock_item, stock_movement | +40 |
-| Phase 3.1 | purchase_order, purchase_order_item, goods_received_note, goods_received_note_item, supplier_invoice, supplier_invoice_item, supplier_credit_note, supplier_credit_note_item | +40 |
+| Phase 3.1 | purchase_order, purchase_order_item, goods_received_note, goods_received_note_item, supplier_invoice, supplier_invoice_item, supplier_credit_note, supplier_credit_note_item, purchase_return, purchase_return_item | +50 |
 
-**Total: ~130 permissions per tenant**
+**Total: ~140 permissions per tenant**
 
 ### Gate::before Super-Admin Bypass
 
@@ -372,6 +372,30 @@ Centralised exchange rate resolution. All document forms (PO, SI, SCN, and futur
   - Visible whenever the selected currency is non-base (regardless of whether a rate value is entered).
   - On click: saves the current rate value to `exchange_rates` via `updateOrCreate` keyed on `(currency_id, base_currency_code, date)`. Source recorded as `'manual'`.
   - Validates that a rate value is present before saving; sends a warning if empty.
+
+---
+
+### PurchaseReturnService
+
+Location: `/app/Services/PurchaseReturnService.php`
+
+Handles stock issuance and status transitions for purchase returns (physical return of goods to supplier).
+
+**Methods:**
+
+- `confirm(PurchaseReturn $pr): void`
+  - Guards: must be Draft state and must have at least one item.
+  - Loads `items.productVariant` and `warehouse` via `loadMissing`.
+  - Wraps in `DB::transaction`: calls `StockService::issue()` per line with `MovementType::PurchaseReturn`.
+  - Sets status to `Confirmed` and `returned_at` to today.
+  - Does **not** catch `InsufficientStockException` — bubbles to the UI action handler which shows a danger notification.
+  - Does **not** auto-create a Supplier Credit Note — physical and financial flows are separate.
+
+- `cancel(PurchaseReturn $pr): void`
+  - Guards: must be Draft state.
+  - Sets status to `Cancelled`.
+
+**Key constraint:** `GoodsReceivedNoteItem::remainingReturnableQuantity()` tracks how much of a GRN line is still returnable (`qty_received − sum(active return items)`). Cancelled returns are excluded. The items RM uses `lockForUpdate()` inside `DB::transaction` when validating quantity to prevent race conditions.
 
 ---
 

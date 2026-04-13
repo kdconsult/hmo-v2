@@ -26,7 +26,7 @@ Infrastructure items are listed first — they unblock document-level fixes.
 | SI-1 | ✅ |
 | SI-2 | ✅ |
 | SI-3 | ✅ |
-| PR-1 | ⬜ |
+| PR-1 | ✅ |
 
 ---
 

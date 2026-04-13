@@ -6,9 +6,9 @@ use App\Enums\SeriesType;
 use App\Filament\Resources\SupplierCreditNotes\SupplierCreditNoteResource;
 use App\Models\NumberSeries;
 use App\Models\SupplierInvoice;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 class CreateSupplierCreditNote extends CreateRecord
 {
@@ -33,15 +33,24 @@ class CreateSupplierCreditNote extends CreateRecord
         }
     }
 
+    protected function beforeCreate(): void
+    {
+        if (! NumberSeries::getDefault(SeriesType::SupplierCreditNote)) {
+            Notification::make()
+                ->title('No number series configured')
+                ->body('Go to Settings → Number Series and create one for Supplier Credit Notes.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            $this->halt();
+        }
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['credit_note_number'])) {
             $series = NumberSeries::getDefault(SeriesType::SupplierCreditNote);
-            if (! $series) {
-                throw ValidationException::withMessages([
-                    'credit_note_number' => 'No active number series configured for Supplier Credit Notes. Go to Settings → Number Series.',
-                ]);
-            }
             $data['document_series_id'] = $series->id;
             $data['credit_note_number'] = $series->generateNumber();
         }

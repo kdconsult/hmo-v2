@@ -9,6 +9,7 @@ use App\Models\Partner;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReturn;
 use App\Models\StockMovement;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
@@ -41,6 +42,8 @@ class AppServiceProvider extends ServiceProvider
             'goods_received_note' => GoodsReceivedNote::class,
             'supplier_invoice' => SupplierInvoice::class,
             'supplier_credit_note' => SupplierCreditNote::class,
+            // Phase 3.1 — Purchase Returns
+            'purchase_return' => PurchaseReturn::class,
         ]);
 
         // Explicit Stripe webhook listener registration — ensures the listener is bound

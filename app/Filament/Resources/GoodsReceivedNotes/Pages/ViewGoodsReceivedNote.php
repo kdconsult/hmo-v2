@@ -4,8 +4,10 @@ namespace App\Filament\Resources\GoodsReceivedNotes\Pages;
 
 use App\Enums\GoodsReceivedNoteStatus;
 use App\Enums\PurchaseOrderStatus;
+use App\Enums\PurchaseReturnStatus;
 use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
 use App\Filament\Resources\PurchaseOrders\PurchaseOrderResource;
+use App\Filament\Resources\PurchaseReturns\PurchaseReturnResource;
 use App\Models\GoodsReceivedNote;
 use App\Services\GoodsReceiptService;
 use Filament\Actions\Action;
@@ -22,17 +24,15 @@ class ViewGoodsReceivedNote extends ViewRecord
 
     public function getRelatedDocuments(): array
     {
+        /** @var GoodsReceivedNote $record */
         $record = $this->getRecord();
+        $groups = [];
 
-        if (! $record->purchase_order_id) {
-            return [];
-        }
+        if ($record->purchase_order_id) {
+            $record->loadMissing('purchaseOrder');
+            $po = $record->purchaseOrder;
 
-        $record->loadMissing('purchaseOrder');
-        $po = $record->purchaseOrder;
-
-        return [
-            [
+            $groups[] = [
                 'label' => 'Purchase Order',
                 'items' => [[
                     'number' => $po->po_number,
@@ -44,8 +44,28 @@ class ViewGoodsReceivedNote extends ViewRecord
                     },
                     'url' => PurchaseOrderResource::getUrl('view', ['record' => $po]),
                 ]],
-            ],
-        ];
+            ];
+        }
+
+        $record->loadMissing('purchaseReturns');
+
+        if ($record->purchaseReturns->isNotEmpty()) {
+            $groups[] = [
+                'label' => 'Purchase Returns',
+                'items' => $record->purchaseReturns->map(fn ($pr) => [
+                    'number' => $pr->pr_number,
+                    'status' => $pr->status->value,
+                    'color' => match ($pr->status) {
+                        PurchaseReturnStatus::Confirmed => 'success',
+                        PurchaseReturnStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => PurchaseReturnResource::getUrl('view', ['record' => $pr]),
+                ])->toArray(),
+            ];
+        }
+
+        return $groups;
     }
 
     protected function getHeaderActions(): array
@@ -78,6 +98,13 @@ class ViewGoodsReceivedNote extends ViewRecord
                             ->send();
                     }
                 }),
+
+            Action::make('create_return')
+                ->label('Create Return')
+                ->icon(Heroicon::OutlinedArrowUturnLeft)
+                ->color('warning')
+                ->visible(fn (GoodsReceivedNote $record): bool => $record->status === GoodsReceivedNoteStatus::Confirmed)
+                ->url(fn (GoodsReceivedNote $record): string => PurchaseReturnResource::getUrl('create').'?goods_received_note_id='.$record->id),
 
             Action::make('cancel')
                 ->label('Cancel')

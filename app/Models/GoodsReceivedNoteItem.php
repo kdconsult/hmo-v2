@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\PurchaseReturnStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GoodsReceivedNoteItem extends Model
 {
@@ -40,5 +42,22 @@ class GoodsReceivedNoteItem extends Model
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
+    }
+
+    public function purchaseReturnItems(): HasMany
+    {
+        return $this->hasMany(PurchaseReturnItem::class);
+    }
+
+    public function returnedQuantity(): string
+    {
+        return (string) $this->purchaseReturnItems()
+            ->whereHas('purchaseReturn', fn ($q) => $q->where('status', '!=', PurchaseReturnStatus::Cancelled->value))
+            ->sum('quantity');
+    }
+
+    public function remainingReturnableQuantity(): string
+    {
+        return bcsub((string) $this->quantity, $this->returnedQuantity(), 4);
     }
 }

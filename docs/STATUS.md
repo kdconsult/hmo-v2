@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.1 — Refactor in progress (Tier 1+2+3 done, INFRA-1, SI-2, SI-3 done).** 368/368 tests pass. Remaining: PR-1 (Purchase Return).
+**Phase 3.1 — Refactor complete (all 17 findings implemented).** 377/377 tests pass. Next: Phase 3.2 (Sales/Invoicing).
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -59,6 +59,7 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - `GoodsReceivedNote` — records physical receipt of goods into a warehouse. Confirming a GRN calls `StockService::receive()` for each line (stock goes up), sets morph reference `goods_received_note` on `StockMovement`, and auto-updates linked PO status (PartiallyReceived/Received). `GoodsReceivedNoteResource` with confirm action (irreversible). Soft deletes. ActivityLog.
 - `SupplierInvoice` — supplier's billing document. `internal_number` auto-generated from NumberSeries. Composite unique on `(partner_id, supplier_invoice_number)`. `SupplierInvoiceResource` with `SupplierInvoiceItemsRelationManager` (supports free-text lines without variant). "Create Credit Note" action. Soft deletes. ActivityLog.
 - `SupplierCreditNote` — partial or full credit against a confirmed supplier invoice. `SupplierCreditNoteItemsRelationManager` validates quantity against `remainingCreditableQuantity()` with `lockForUpdate()` for race safety. Soft deletes. ActivityLog.
+- `PurchaseReturn` — reversal of a GRN: records goods physically returned to a supplier. Linked to a GRN (nullable for future standalone use). Confirming calls `StockService::issue()` per item (`MovementType::PurchaseReturn`) — stock goes down. No auto-SCN created (financial flow is separate). `PurchaseReturnItemsRelationManager` with "Import from GRN" bulk action; GRN item selector auto-fills variant/qty/cost; quantity validated against `remainingReturnableQuantity()` with `lockForUpdate()`. Soft deletes. ActivityLog.
 
 **Services:**
 - `PurchaseOrderService` — item total calculation (via `VatCalculationService`), document total aggregation, status transition guard, `updateReceivedQuantities()` called from GoodsReceiptService.
@@ -66,6 +67,7 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - `SupplierInvoiceService` — per-item VAT/discount/line-total calculation (mirrors PO service), document total aggregation with amount_due update; `confirmAndReceive()` for Express Purchasing (confirm SI + create + confirm GRN in one transaction).
 - `SupplierCreditNoteService` — per-item VAT/line-total calculation, document total aggregation.
 - `CurrencyRateService` — per-request rate resolution via `ExchangeRate` table (exact-match + fallback to most-recent); static closure factories for form `afterStateUpdated` hooks (currency change, date change); bookmark suffix action for saving manually-entered rates.
+- `PurchaseReturnService` — `confirm()` in DB transaction: validates Draft state + has items, calls `StockService::issue()` per line with `MovementType::PurchaseReturn`; `cancel()` for Draft only. `InsufficientStockException` bubbles to UI action handler.
 
 **Task 3.1.10 UX wiring (added after initial build):**
 - `po_number`, `grn_number`, `credit_note_number` auto-generated from NumberSeries (were blocked by `required()` validation — now `disabled()->dehydrated()->placeholder()`).
@@ -82,13 +84,13 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - `Currency::scopeActive()` added for consistent query patterns.
 
 **RBAC (Phase 3.1 additions):**
-- 8 new models → 40 new permissions per tenant (now ~130 total).
-- `purchasing-manager` role: full CRUD on all purchase documents + view catalog/warehouse/partners.
-- `accountant` role updated: view POs/GRNs + full CRUD supplier invoices/credit notes.
-- `warehouse-manager` role updated: full CRUD on GRNs + view POs.
+- 10 new models → 50 new permissions per tenant (now ~140 total).
+- `purchasing-manager` role: full CRUD on all purchase documents (including PR) + view catalog/warehouse/partners.
+- `accountant` role updated: view POs/GRNs/PRs + full CRUD supplier invoices/credit notes.
+- `warehouse-manager` role updated: full CRUD on GRNs + PRs + view POs.
 
 **Infrastructure:**
-- Morph map extended: `purchase_order`, `goods_received_note`, `supplier_invoice`, `supplier_credit_note`.
+- Morph map extended: `purchase_order`, `goods_received_note`, `supplier_invoice`, `supplier_credit_note`, `purchase_return`.
 - `StockService::receive()` now uses `$reference->getMorphClass()` (morph alias, not full class name).
 - `supplier_invoices.due_date` is nullable (date not always known at creation).
 - `goods_received_notes.supplier_invoice_id` FK (nullable) — set when GRN is auto-created by "Confirm & Receive"; enables cross-navigation between SI and GRN without a shared PO.
@@ -122,16 +124,6 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## What's Next
 
-**Phase 3.1 Refactor — implement findings from structured review**
-
-See `tasks/phase-3.1-refactor.md` for the full plan (17 findings):
-- **INFRA-1–5** (cross-cutting): Currency Rate Manager, Number Series auto-resolution, Related Documents panel, empty draft banner, redirect-after-action on all view pages
-- **PO-1–6**: label fixes, empty-PO guard, cancel cascade, service-layer cancel block, VAT auto-fill, default variant filtering
-- **CATALOG-BUG-1**: default variant name stored as raw JSON (data + code fix)
-- **GRN-1**: context-driven field visibility (linked vs standalone)
-- **SI-1–3**: currency/VAT locking, items form import + filtering, Express Purchasing tenant setting
-- **PR-1**: Purchase Return — new document type (GRN link, stock issue, full document stack)
-
 **Phase 3.2 — Sales/Invoicing (not yet planned)**
 
 See `tasks/phase-3.md` for the sub-phase breakdown:
@@ -162,11 +154,11 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Tenant panel | `app/Filament/` (non-Landlord) |
 | Catalog resources | `app/Filament/Resources/{Categories,Units,Products}/` |
 | Warehouse resources | `app/Filament/Resources/{Warehouses,StockItems,StockMovements}/` |
-| Purchases resources | `app/Filament/Resources/{PurchaseOrders,GoodsReceivedNotes,SupplierInvoices,SupplierCreditNotes}/` |
+| Purchases resources | `app/Filament/Resources/{PurchaseOrders,GoodsReceivedNotes,SupplierInvoices,SupplierCreditNotes,PurchaseReturns}/` |
 | Settings resources | `app/Filament/Resources/{Currencies,VatRates,NumberSeries,TenantUsers,Roles}/` |
 | Phase 2 models | `app/Models/{Category,Unit,Product,ProductVariant,Warehouse,StockLocation,StockItem,StockMovement}.php` |
-| Phase 3.1 models | `app/Models/{PurchaseOrder,PurchaseOrderItem,GoodsReceivedNote,GoodsReceivedNoteItem,SupplierInvoice,SupplierInvoiceItem,SupplierCreditNote,SupplierCreditNoteItem}.php` |
-| Policies | `app/Policies/` (22 total: 9 Phase 1 + 8 Phase 2 + 4 Phase 3.1 + 1 landlord) |
+| Phase 3.1 models | `app/Models/{PurchaseOrder,PurchaseOrderItem,GoodsReceivedNote,GoodsReceivedNoteItem,SupplierInvoice,SupplierInvoiceItem,SupplierCreditNote,SupplierCreditNoteItem,PurchaseReturn,PurchaseReturnItem}.php` |
+| Policies | `app/Policies/` (23 total: 9 Phase 1 + 8 Phase 2 + 5 Phase 3.1 + 1 landlord) |
 | Migrations (tenant) | `database/migrations/tenant/` |
 
 ---
@@ -179,6 +171,7 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 - `APP_DOMAIN=hmo.localhost` — central domain
 - Artisan must be run inside Docker or via Sail: `./vendor/bin/sail artisan ...`
 - Tests: `./vendor/bin/sail artisan test --parallel --compact` (~86s with 12 workers)
+- **After adding new permissions to `RolesAndPermissionsSeeder`**, existing tenant DBs need re-seeding: `./vendor/bin/sail artisan tenants:seed --class=RolesAndPermissionsSeeder`. New resources won't appear in the UI until this is run (0 matching permissions = Filament hides the nav entry).
 
 ---
 
@@ -198,3 +191,4 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 3.1.12 INFRA-1 (Currency Rate Manager) | **355** |
 | Phase 3.1.12 SI-2 (SI items import + PO-filtered form) | **362** |
 | Phase 3.1.12 SI-3 (Express Purchasing — Confirm & Receive) | **368** |
+| Phase 3.1.12 PR-1 (Purchase Return — full document stack) | **377** |
