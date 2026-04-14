@@ -304,7 +304,7 @@ One per document model. Register in `AuthServiceProvider`.
 | **3.2.8** | `SalesReturn` resource (confirm → `receive()`, prompt CN modal) | ✅ |
 | **3.2.9** | `AdvancePayment` resource (CRUD, applications pivot, open advances surfaced on invoice creation) | ✅ |
 | **3.2.10** | Tests — SalesPolicyTest, EuOssTest, CustomerInvoiceTest, CustomerCreditNoteTest, CustomerDebitNoteTest (513 tests; ReverseChargeTest skipped — no auto-detection logic exists) | ✅ |
-| **3.2.11** | Docs update (`docs/STATUS.md`, `docs/UI_PANELS.md`) + Pint + final test run | |
+| **3.2.11** | Docs update (`docs/STATUS.md`, `docs/UI_PANELS.md`) + Pint + final test run | ✅ |
 | **3.2.12** | **Refactor phase** — structured review → `tasks/phase-3.2-refactor.md` | |
 
 ---

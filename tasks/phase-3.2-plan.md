@@ -671,7 +671,7 @@ All tests use Pest syntax in `tests/Feature/`. Mirror patterns from `tests/Featu
 
 ---
 
-## Sub-task 3.2.11 — Docs Update + Pint + Final Test Run
+## Sub-task 3.2.11 — Docs Update + Pint + Final Test Run ✅ DONE (2026-04-14, 513 tests)
 
 - Update `docs/STATUS.md` — Phase 3.2 complete, test count
 - Update `docs/UI_PANELS.md` — add Sales navigation group with all 8 resources

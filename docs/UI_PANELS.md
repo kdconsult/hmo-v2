@@ -654,6 +654,8 @@ Navigation groups are used to organize resources in the left sidebar menu.
 - CustomerInvoiceResource (sort 4, with CustomerInvoiceItemsRelationManager; Confirm calls CustomerInvoiceService::confirm() — updates SO qty_invoiced, sets service item qty_delivered, dispatches FiscalReceiptRequested on cash, accumulates EU OSS; Print Invoice PDF; Create Credit/Debit Note actions wired to their respective resources)
 - CustomerCreditNoteResource (sort 5, with CustomerCreditNoteItemsRelationManager; quantity validated against remainingCreditableQuantity() with lockForUpdate(); requires linked customer_invoice_item)
 - CustomerDebitNoteResource (sort 6, with CustomerDebitNoteItemsRelationManager; free-form line items — invoice item link optional, product_variant_id optional; no quantity constraint)
+- SalesReturnResource (sort 7, with SalesReturnItemsRelationManager; Confirm calls SalesReturnService::confirm() — receives stock back via StockService::receive(); Create Credit Note modal action on confirmed returns; Cancel for Draft only)
+- AdvancePaymentResource (sort 8, no items relation manager — single-amount document; Issue Advance Invoice action creates confirmed CustomerInvoice(Advance type); Apply to Invoice modal deducts amount from final invoice; Refund action)
 
 ---
 
@@ -998,6 +1000,215 @@ All Sales group resources use `NavigationGroup::Sales` for `$navigationGroup`.
 - `sales_order_item_id` — Optional; when SO-linked, dropdown shows remaining-deliverable SO items; `afterStateUpdated` auto-fills variant, quantity, unit_cost
 - `product_variant_id` — Required; visible when no SO is linked
 - `quantity`, `unit_cost` — Required (decimal)
+
+---
+
+### 5c.4 CustomerInvoiceResource
+
+**Model:** `App\Models\CustomerInvoice`
+**Navigation Sort:** 4
+**Record Title Attribute:** `invoice_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if Confirmed/Cancelled)
+
+#### Form Schema (CustomerInvoiceForm)
+
+- `invoice_number` — Auto-filled from `SeriesType::Invoice` series; disabled + dehydrated
+- `invoice_type` — Select: Standard / Advance (default: Standard)
+- `partner_id` — Required, active customers only; disabled (read-only) when `sales_order_id` is set
+- `sales_order_id` — Optional, live; `afterStateUpdated` auto-fills partner, currency, exchange_rate, pricing_mode from SO; options filtered to Confirmed + PartiallyDelivered + Delivered SOs
+- `is_reverse_charge` — Toggle; disabled + dehydrated (manual-only; no auto-detection)
+- `pricing_mode` — disabled when SO-linked
+- `currency_code` — disabled when SO-linked; `afterStateUpdated` uses `CurrencyRateService::makeAfterCurrencyChanged('issued_at')`
+- `exchange_rate` — `CurrencyRateService::makeSaveRateAction('issued_at')`
+- `issued_at` — Required, default today; `afterStateUpdated` uses `CurrencyRateService::makeAfterDateChanged()`
+- `due_date` — Optional
+- `payment_method` — Optional; triggers `FiscalReceiptRequested` on Cash when confirmed
+- `notes`, `internal_notes`
+
+#### Table Schema (CustomerInvoicesTable)
+
+**Columns:** invoice_number (searchable), partner.name, status (badge), total, amount_due, issued_at, due_date (toggleable)
+
+**Filters:** SelectFilter status (DocumentStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Invoice** — Draft → Confirmed; calls `CustomerInvoiceService::confirm()`
+- **Print Invoice** (PDF) — visible when Confirmed; streams `pdf/customer-invoice.blade.php` via DomPDF
+- **Create Credit Note** — visible when Confirmed; URL link to CustomerCreditNote create page with `?customer_invoice_id=`
+- **Create Debit Note** — visible when Confirmed; URL link to CustomerDebitNote create page with `?customer_invoice_id=`
+- **Cancel** — visible for Draft and Confirmed; sets status to Cancelled
+
+#### Related Documents Panel
+
+Shows: linked SalesOrder, CustomerCreditNotes, CustomerDebitNotes
+
+#### CustomerInvoiceItemsRelationManager
+
+- `isReadOnly()` returns `true` when invoice is not editable
+- **"Import from SO" header action** — visible when invoice has a linked SO; bulk-creates items from all SO lines with `remainingInvoiceableQuantity() > 0`; auto-fills `sales_order_item_id`, variant, quantity, unit_price
+- `sales_order_item_id` — Optional; when SO-linked, dropdown shows remaining-invoiceable SO items; `afterStateUpdated` auto-fills variant, quantity, unit_price
+- `product_variant_id` — Required; visible when no SO is linked
+- `after()` hooks call `CustomerInvoiceService::recalculateItemTotals()` and `recalculateDocumentTotals()`
+
+---
+
+### 5c.5 CustomerCreditNoteResource
+
+**Model:** `App\Models\CustomerCreditNote`
+**Navigation Sort:** 5
+**Record Title Attribute:** `credit_note_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if not Draft)
+
+#### Form Schema (CustomerCreditNoteForm)
+
+- `credit_note_number` — Auto-filled from `SeriesType::CreditNote` series; disabled + dehydrated
+- `customer_invoice_id` — Required; options filtered to Confirmed invoices for the selected partner
+- `partner_id` — Required, active customers; auto-filled from invoice when invoice is selected
+- `pricing_mode` — Copied from linked invoice
+- `currency_code`, `exchange_rate`, `issued_at`, `reason`, `reason_description`
+
+#### Table Schema (CustomerCreditNotesTable)
+
+**Columns:** credit_note_number (searchable), partner.name, status (badge), total, issued_at
+
+**Filters:** SelectFilter status (DocumentStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Credit Note** — Draft → Confirmed
+- **Cancel** — visible for Draft and Confirmed
+
+#### Related Documents Panel
+
+Shows: linked CustomerInvoice
+
+#### CustomerCreditNoteItemsRelationManager
+
+- `isReadOnly()` returns `true` when credit note is not editable
+- `customer_invoice_item_id` — Required; dropdown shows items from the linked invoice with `remainingCreditableQuantity() > 0`; `afterStateUpdated` auto-fills variant, unit_price
+- `quantity` — validated client-side and server-side against `remainingCreditableQuantity()`
+- `after()` hooks call `CustomerCreditNoteService::recalculateItemTotals()` and `recalculateDocumentTotals()`
+
+---
+
+### 5c.6 CustomerDebitNoteResource
+
+**Model:** `App\Models\CustomerDebitNote`
+**Navigation Sort:** 6
+**Record Title Attribute:** `debit_note_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if not Draft)
+
+#### Form Schema (CustomerDebitNoteForm)
+
+- `debit_note_number` — Auto-filled from `SeriesType::DebitNote` series; disabled + dehydrated
+- `customer_invoice_id` — Optional; links to a Confirmed invoice
+- `partner_id` — Required, active customers; auto-filled from invoice when selected
+- `pricing_mode`, `currency_code`, `exchange_rate`, `issued_at`, `reason`, `reason_description`
+
+#### Table Schema (CustomerDebitNotesTable)
+
+**Columns:** debit_note_number (searchable), partner.name, status (badge), total, issued_at
+
+**Filters:** SelectFilter status (DocumentStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Debit Note** — Draft → Confirmed
+- **Cancel** — visible for Draft and Confirmed
+
+#### Related Documents Panel
+
+Shows: linked CustomerInvoice (if present)
+
+#### CustomerDebitNoteItemsRelationManager
+
+- `isReadOnly()` returns `true` when debit note is not editable
+- Free-form items: `customer_invoice_item_id` optional, `product_variant_id` optional — no quantity constraints
+- `after()` hooks call `CustomerDebitNoteService::recalculateItemTotals()` and `recalculateDocumentTotals()`
+
+---
+
+### 5c.7 SalesReturnResource
+
+**Model:** `App\Models\SalesReturn`
+**Navigation Sort:** 7
+**Record Title Attribute:** `sr_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if not Draft)
+
+#### Form Schema (SalesReturnForm)
+
+- `sr_number` — Auto-filled from `SeriesType::SalesReturn` series; disabled + dehydrated
+- `delivery_note_id` — Optional, live; `afterStateUpdated` auto-fills `partner_id` and `warehouse_id` from the DN; options filtered to Confirmed DNs
+- `partner_id` — Required, active customers; disabled (read-only) when DN is selected
+- `warehouse_id` — Required; disabled (read-only) when DN is selected
+- `returned_at` — DatePicker, default today
+- `reason` — Textarea
+
+#### Table Schema (SalesReturnsTable)
+
+**Columns:** sr_number (searchable), partner.name, warehouse.name, status (badge), returned_at
+
+**Filters:** SelectFilter status (SalesReturnStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Return** — Draft → Confirmed; calls `SalesReturnService::confirm()` which receives all items back into stock via `StockService::receive()` (creates `StockMovement::SalesReturn` entries); irreversible; shows danger notification on `InvalidArgumentException`
+- **Create Credit Note** — visible when Confirmed AND linked SO has at least one Confirmed invoice; shows modal to select which invoice to credit; redirects to CustomerCreditNote create page with `?customer_invoice_id=`
+- **Cancel** — Draft only; calls `SalesReturnService::cancel()`
+
+#### Related Documents Panel
+
+Shows: linked DeliveryNote
+
+#### SalesReturnItemsRelationManager
+
+- `isReadOnly()` returns `true` when return is confirmed
+- **"Import from DN" header action** — visible when SR has a linked DN; bulk-creates items from DN lines
+- `delivery_note_item_id` — Optional; when DN-linked, dropdown shows DN items
+- `product_variant_id`, `quantity`, `unit_cost` — Required
+
+---
+
+### 5c.8 AdvancePaymentResource
+
+**Model:** `App\Models\AdvancePayment`
+**Navigation Sort:** 8
+**Record Title Attribute:** `ap_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if not Open)
+**No items relation manager** — single-amount document
+
+#### Form Schema (AdvancePaymentForm)
+
+- `ap_number` — Auto-filled from `SeriesType::AdvancePayment` series; disabled + dehydrated
+- `sales_order_id` — Optional, live; `afterStateUpdated` auto-fills partner, currency, exchange_rate from SO
+- `partner_id` — Required, active customers; disabled (read-only) when SO is selected
+- `amount` — Required, decimal
+- `payment_method` — Optional; Cash triggers `FiscalReceiptRequested` when advance invoice is issued
+- `currency_code` — `afterStateUpdated` uses `CurrencyRateService::makeAfterCurrencyChanged('received_at')`
+- `exchange_rate` — `CurrencyRateService::makeSaveRateAction('received_at')`
+- `received_at` — DatePicker; `afterStateUpdated` uses `CurrencyRateService::makeAfterDateChanged()`
+
+#### Table Schema (AdvancePaymentsTable)
+
+**Columns:** ap_number (searchable), partner.name, status (badge), amount, amount_applied, remaining (computed via `remainingAmount()`), received_at
+
+**Filters:** SelectFilter status (AdvancePaymentStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()` (Open status only)
+- **Issue Advance Invoice** — visible when no advance invoice exists and status is Open/PartiallyApplied; calls `AdvancePaymentService::createAdvanceInvoice()` which creates a Confirmed CustomerInvoice of type Advance with a single line item; dispatches `FiscalReceiptRequested` on Cash; redirects to new invoice
+- **Apply to Invoice** — visible when advance invoice exists and status is Open/PartiallyApplied; modal with invoice selector + amount input; calls `AdvancePaymentService::applyToFinalInvoice()` which adds a negative deduction row on the final invoice (qty=-1, same VAT rate as advance invoice item) and updates `amount_applied`; transitions to PartiallyApplied / FullyApplied
+- **Refund** — visible for Open/PartiallyApplied; calls `AdvancePaymentService::refund()` → Refunded
+
+#### Related Documents Panel
+
+Shows: linked Advance Invoice (CustomerInvoice), Applied-to Invoices (via AdvancePaymentApplications), linked SalesOrder
 
 ---
 
