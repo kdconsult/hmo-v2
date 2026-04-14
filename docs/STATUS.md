@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.3 complete (QuotationResource, QuotationService, PDF templates — offer + proforma, 12 new tests).** 418/418 tests pass. Next: Phase 3.2.4 — SalesOrder Resource.
+**Phase 3.2.4 complete (SalesOrderResource, SalesOrderService, ViewQuotation redirect updated, 17 new tests). Bug fix: TenancyServiceProvider now flushes Spatie permission cache on TenancyBootstrapped — fixes 403 on all policy-guarded create/update actions across tenants.** 435/435 tests pass. Next: Phase 3.2.5 — DeliveryNote Resource.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -155,7 +155,9 @@ Sub-task 3.2.2 complete: morph map extended (+8 entries), `FiscalReceiptRequeste
 
 Sub-task 3.2.3 complete: `QuotationResource` (full CRUD, status pipeline: Draft→Sent→Accepted/Rejected/Expired/Cancelled, PDF actions, Convert to SO action). `QuotationService` mirrors `PurchaseOrderService` (item + document total recalc, status transition guard with no-items check, `convertToSalesOrder(Quotation, Warehouse): SalesOrder`). PDF templates: `quotation-offer.blade.php` + `quotation-proforma.blade.php`. `QuotationItemsRelationManager` auto-fills `sale_price` on variant select. 12 new tests.
 
-Next: Sub-task 3.2.4 — SalesOrder Resource
+Sub-task 3.2.4 complete: `SalesOrderResource` (full CRUD, status pipeline: Draft→Confirmed/PartiallyDelivered/Delivered/Invoiced/Cancelled, Confirm triggers stock reservation, Import to PO modal action, Cancel with cascade + unreservation). `SalesOrderService` (7 methods: recalculateItemTotals, recalculateDocumentTotals, transitionStatus, reserveAllItems, unreserveRemainingItems, updateDeliveredQuantities, updateInvoicedQuantities). `SalesOrderItemsRelationManager` shows `qty_delivered`/`qty_invoiced` columns. `CreateSalesOrder` handles `?quotation_id` query param for pre-fill. `ViewQuotation` Convert to SO now redirects to new SO and related SO links are live. 17 new tests.
+
+Next: Sub-task 3.2.5 — DeliveryNote Resource
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -225,3 +227,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.1 (enums + 20 migrations + 18 models + 15 factories — full outbound pipeline data layer) | **398** |
 | Phase 3.2.2 (morph map, FiscalReceiptRequested, StockService reserve/unreserve/issueReserved, 8 policies, RBAC + EU VAT seeder) | **406** |
 | Phase 3.2.3 (QuotationResource, QuotationService, PDF templates — offer + proforma) | **418** |
+| Phase 3.2.4 (SalesOrderResource, SalesOrderService, 7 methods, stock reservation/unreservation, ViewQuotation redirect fixed) | **435** |

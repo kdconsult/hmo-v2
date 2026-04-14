@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Quotations\Pages;
 
 use App\Enums\QuotationStatus;
 use App\Filament\Resources\Quotations\QuotationResource;
+use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\Quotation;
 use App\Models\Warehouse;
 use App\Services\QuotationService;
@@ -33,7 +34,7 @@ class ViewQuotation extends ViewRecord
                     'number' => $so->so_number,
                     'status' => $so->status->getLabel(),
                     'color' => $so->status->getColor(),
-                    'url' => '#', // updated in 3.2.4 when SalesOrderResource exists
+                    'url' => SalesOrderResource::getUrl('view', ['record' => $so]),
                 ])->all(),
             ],
         ];
@@ -113,7 +114,7 @@ class ViewQuotation extends ViewRecord
                         ->body("Sales Order {$salesOrder->so_number} created successfully.")
                         ->success()
                         ->send();
-                    $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                    $this->redirect(SalesOrderResource::getUrl('view', ['record' => $salesOrder]));
                 }),
 
             Action::make('print_offer')

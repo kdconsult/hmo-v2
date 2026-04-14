@@ -400,7 +400,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.4 — SalesOrder Resource
+## Sub-task 3.2.4 — SalesOrder Resource ✅ DONE (2026-04-14, 435 tests)
 
 ### SalesOrderService
 

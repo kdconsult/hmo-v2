@@ -196,7 +196,7 @@ class TenantForm
                                     ->label('Paid Subscription Ends At')
                                     ->visibleOn('edit'),
                             ]),
-                        
+
                         Section::make('Bank Details')
                             ->columnSpanFull()
                             ->columns(3)
@@ -214,7 +214,7 @@ class TenantForm
                                     ->label('BIC / SWIFT')
                                     ->maxLength(11),
                             ]),
-                    ]),                
+                    ]),
 
                 // Full width: Owner (create only)
                 Section::make('Owner')
