@@ -151,9 +151,166 @@ Build the inbound purchasing pipeline: PO → GRN → Supplier Invoice → Suppl
 
 ---
 
-## Sub-Phase 3.2 — Sales/Invoicing (not yet planned)
+## Sub-Phase 3.2 — Sales/Invoicing
 
-Quote → SalesOrder → Invoice → CreditNote → DebitNote → DeliveryNote
+**Status:** Brainstorm complete (2026-04-14). Ready for planning.
+
+**Process (agreed 2026-04-14):**
+1. ✅ Brainstorm → agree on coverage
+2. Write `tasks/phase-3.2-plan.md` — detailed implementation plan
+3. Implement the plan
+4. Refactor phase — structured review + `tasks/phase-3.2-refactor.md` (mirrors Phase 3.1.12 approach)
+
+---
+
+### Instructions for the Planning Agent
+
+Read `docs/STATUS.md` and `tasks/phase-3.md` (this file) for full project context. Then read:
+- `tasks/phase-3.1-refactor.md` — how the refactor phase was structured
+- `app/Services/StockService.php` — before adding new methods
+- `app/Models/PurchaseOrder.php` + `app/Models/PurchaseOrderItem.php` — mirror for SalesOrder
+- `app/Models/SupplierInvoice.php` — mirror for CustomerInvoice
+- `app/Filament/Resources/PurchaseOrders/` — mirror structure for Sales resources
+- `app/Enums/MovementType.php`, `SeriesType.php`, `NavigationGroup.php` — all need extending
+
+Your task: write `tasks/phase-3.2-plan.md` following the sub-task breakdown below. The plan must be specific enough that an implementing agent can write code without making decisions. All design decisions are already settled — do not re-open them. Use `search-docs` before writing any Filament-specific implementation details.
+
+---
+
+### Settled Design Decisions
+
+#### General
+- Phase 3.2 is the outbound mirror of Phase 3.1. Mirror all patterns: one service per document, morph map entries, policies, RBAC, ActivityLog, SoftDeletes, `decimal(15,4)` prices/quantities, `decimal(15,2)` totals.
+- New navigation group: `NavigationGroup::Sales` — add to the enum with icon + label.
+- Phase 3.3 boundary: emit `FiscalReceiptRequested` event on cash payment confirmation (CustomerInvoice + AdvancePayment). Phase 3.3 listens. No SUPTO calls in Phase 3.2.
+
+#### Document: `Quotation`
+- Statuses: `Draft → Sent → Accepted / Expired / Rejected / Cancelled` (four distinct terminal states — each has different reporting meaning)
+- Print modes on same model: print as **Offer** (when Sent), print as **Proforma Invoice** (when Sent/Accepted) — PDF via `barryvdh/laravel-dompdf`, not separate document types
+- "Create Sales Order" action on Accepted quotation — copies partner, lines, pricing, currency into new `SalesOrder` (like "Create GRN from PO" in Phase 3.1)
+- `SeriesType::Quotation`
+
+#### Document: `SalesOrder`
+- Statuses: `Draft → Confirmed → PartiallyDelivered → Delivered → Invoiced → Cancelled`
+- Items track `qty_delivered` and `qty_invoiced` (mirrors `qty_received` on `PurchaseOrderItem`)
+- `DeliveryNoteService::updateDeliveredQuantities()` auto-transitions SO status after DN confirmation
+- Service lines (`ProductType::Service`) skip DeliveryNote — `qty_delivered` set when `CustomerInvoice` is created for them
+- **Stock reservation on SO confirmation:** `StockService::reserve()` per stock-type line; `StockService::unreserve()` on SO cancellation
+- **SO → PO linkage (line level):** `purchase_order_items.sales_order_item_id` (nullable FK). "Import to PO" action on SO + batch action on SO list → PO selector dialog (pick existing Draft PO or create new). Imports SO lines as PO lines with `sales_order_item_id` set. Does NOT advance PO status. Repeatable (multiple SOs into same PO). PO items table gets editable SO-item column (dropdown filtered by same `product_variant_id`). Never merge lines for same product from different SOs.
+- `SeriesType::SalesOrder`
+
+#### Document: `DeliveryNote`
+- Statuses: `Draft → Confirmed → Cancelled`
+- Confirming calls `StockService::issueReserved()` per stock-type line
+- Service lines skipped (no stock movement)
+- One warehouse per DN (mirrors GRN)
+- Links to SalesOrder; updates SO `qty_delivered` via `SalesOrderService`
+- `SeriesType::DeliveryNote`
+
+#### Document: `CustomerInvoice`
+- `InvoiceType` enum: `Standard | Advance` — same model, different badge
+- Advance invoices: issued when advance payment received (Bulgarian ЗДДС: within 5 days of receiving money; also correct EU practice for B2B)
+- Final invoices: deduct advances as negative line rows — negative rows MUST carry negative VAT amounts so net VAT is correct. `VatCalculationService` must handle negative amounts without errors.
+- Statuses: `Draft → Confirmed → Cancelled`
+- Updates SO `qty_invoiced` on confirmation; sets service line `qty_delivered` on creation
+- **Intra-EU reverse charge:** if `partner.country ≠ tenant.country` AND partner has valid EU VAT number → VAT rate forced to 0%, `is_reverse_charge = true` on invoice, "Reverse charge" note added
+- **EU OSS threshold:** track cumulative B2C cross-border sales in `eu_oss_accumulations` table `(year, country_code, accumulated_amount_eur)`. Threshold: €10,000 aggregate across ALL EU countries (not per country). Once crossed, all B2C invoices to any EU country use destination-country VAT rate. Needs `eu_country_vat_rates` config/table (standard rate per EU country).
+- `SeriesType::CustomerInvoice` (plan should note whether Advance type warrants separate series)
+
+#### Document: `CustomerCreditNote`
+- Quantity-constrained against original invoice lines — `remainingCreditableQuantity()` + `lockForUpdate()` in `DB::transaction()` (mirrors `SupplierCreditNote`)
+- Statuses: `Draft → Confirmed → Cancelled`
+- **Prompted from SalesReturn confirmation:** if SO has one invoice → auto-select; if multiple invoices → invoice selector in prompt dialog. Hook available on rejection.
+- `SeriesType::CustomerCreditNote`
+
+#### Document: `CustomerDebitNote`
+- Amount-only — no stock movement, no quantity constraints
+- Use case: shipping/packaging charges known only after dispatch, additional post-invoice charges
+- Has line items (description + amount + VAT) but `product_variant_id` not required
+- Links to original `CustomerInvoice` (informational, not constraining)
+- Statuses: `Draft → Confirmed → Cancelled`
+- `SeriesType::CustomerDebitNote`
+
+#### Document: `SalesReturn`
+- Mirrors `PurchaseReturn` exactly
+- Links to `DeliveryNote` (nullable for future standalone)
+- Confirming calls `StockService::receive()` per line with `MovementType::SalesReturn`
+- On confirmation: prompted — "this SO has a CustomerInvoice — create Credit Note?" modal. Auto-selects if one invoice; selector if multiple. Hook available on rejection.
+- `SeriesType::SalesReturn`
+
+#### Document: `AdvancePayment`
+- Standalone financial tracker — NOT a CustomerInvoice subtype
+- Fields: `partner_id` (required), `sales_order_id` (nullable — B2C direct; B2B redundant but kept for historical context), `customer_invoice_id` (nullable — the advance invoice, B2B only), `amount`, `currency_code`, `received_at`
+- Statuses: `Open → PartiallyApplied → FullyApplied → Refunded`
+- `Refunded`: SO cancelled → Credit Note against advance invoice (B2B); direct refund record (B2C). No wallet / carry-forward.
+- **`advance_payment_applications` pivot:** `(advance_payment_id, customer_invoice_id, amount_applied)` — financial truth for where advance was applied
+- When creating CustomerInvoice: surface open advances for that partner (by `partner_id`) — "apply advances?" with amount selector
+- `SeriesType::AdvancePayment`
+
+---
+
+### Infrastructure Additions
+
+#### StockService — 3 new methods
+- `reserve(ProductVariant, Warehouse, float $qty, Model $reference)` — increases `reserved_quantity`
+- `unreserve(ProductVariant, Warehouse, float $qty, Model $reference)` — decreases `reserved_quantity`
+- `issueReserved(ProductVariant, Warehouse, float $qty, Model $reference, User $by)` — **single atomic UPDATE** decreasing both `reserved_quantity` AND `quantity` (prevents race condition); creates `StockMovement`
+
+#### New enum values
+- `MovementType::SalesReturn`
+- `SeriesType::Quotation | SalesOrder | DeliveryNote | CustomerInvoice | CustomerCreditNote | CustomerDebitNote | SalesReturn | AdvancePayment`
+- `NavigationGroup::Sales`
+- `InvoiceType::Standard | Advance` (new enum)
+
+#### New DB tables (tenant migrations)
+- `quotations`, `quotation_items`
+- `sales_orders`, `sales_order_items`
+- `delivery_notes`, `delivery_note_items`
+- `customer_invoices`, `customer_invoice_items`
+- `customer_credit_notes`, `customer_credit_note_items`
+- `customer_debit_notes`, `customer_debit_note_items`
+- `sales_returns`, `sales_return_items`
+- `advance_payments`
+- `advance_payment_applications` (pivot: advance_payment_id, customer_invoice_id, amount_applied)
+- `purchase_order_items` — add `sales_order_item_id` nullable FK (migration)
+- `eu_oss_accumulations` (year, country_code, accumulated_amount_eur)
+- `eu_country_vat_rates` (country_code, standard_rate) — or config file; plan should decide
+
+#### Morph map entries
+`quotation`, `sales_order`, `delivery_note`, `customer_invoice`, `customer_credit_note`, `customer_debit_note`, `sales_return`, `advance_payment`
+
+#### Policies (8 new)
+One per document model. Register in `AuthServiceProvider`.
+
+#### RBAC
+- All 8 new models added to `RolesAndPermissionsSeeder`
+- `sales-manager` role: full CRUD on all Sales documents + view catalog/warehouse/partners
+- `accountant` role: extended with CustomerInvoice, CustomerCreditNote, CustomerDebitNote, AdvancePayment
+- `warehouse-manager` role: extended with DeliveryNote + SalesReturn
+
+---
+
+### Sub-Task Breakdown
+
+| Sub-task | Scope |
+|---|---|
+| **3.2.1** | Enums + Models + Migrations + Factories (all documents + pivots + OSS table + `InvoiceType` enum) |
+| **3.2.2** | Infrastructure (StockService 3 new methods, SeriesType, NavigationGroup, InvoiceType, morph map, RBAC, Policies) |
+| **3.2.3** | `Quotation` resource (CRUD, status pipeline, print actions, Create SO action) |
+| **3.2.4** | `SalesOrder` resource (CRUD, status pipeline, reserve on confirm, SO→PO import action) |
+| **3.2.5** | `DeliveryNote` resource (CRUD, confirm → `issueReserved()`, service line skip, SO qty update) |
+| **3.2.6** | `CustomerInvoice` resource (Standard + Advance types, advance deduction rows with VAT, reverse charge, OSS VAT logic) |
+| **3.2.7** | `CustomerCreditNote` + `CustomerDebitNote` resources |
+| **3.2.8** | `SalesReturn` resource (confirm → `receive()`, prompt CN modal) |
+| **3.2.9** | `AdvancePayment` resource (CRUD, applications pivot, open advances surfaced on invoice creation) |
+| **3.2.10** | Tests — cover: stock reservation + `issueReserved()` atomicity, OSS threshold crossing, reverse charge, advance deduction with correct VAT, SalesReturn→CN prompt, partial delivery SO status transitions |
+| **3.2.11** | Docs update (`docs/STATUS.md`, `docs/UI_PANELS.md`) + Pint + final test run |
+| **3.2.12** | **Refactor phase** — structured review → `tasks/phase-3.2-refactor.md` |
+
+---
+
+### Deferred to Backlog
+- Per-partner price lists and special prices — add detailed item to `tasks/backlog.md`
 
 ## Sub-Phase 3.3 — SUPTO/Fiscal (not yet planned)
 
