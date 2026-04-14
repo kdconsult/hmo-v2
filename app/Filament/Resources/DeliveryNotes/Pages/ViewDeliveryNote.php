@@ -116,8 +116,7 @@ class ViewDeliveryNote extends ViewRecord
 
                     return response()->streamDownload(
                         function () use ($record) {
-                            $pdf = app(Pdf::class)
-                                ->loadView('pdf.delivery-note', ['deliveryNote' => $record]);
+                            $pdf = Pdf::loadView('pdf.delivery-note', ['deliveryNote' => $record]);
                             echo $pdf->output();
                         },
                         "delivery-note-{$record->dn_number}.pdf"

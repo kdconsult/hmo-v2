@@ -1528,8 +1528,8 @@ Phases 1, 2, and 3.1 are complete. Phase 3.2 is building the outbound sales pipe
 - ✅ 3.2.3: QuotationResource + QuotationService + PDF templates (offer + proforma)
 - ✅ 3.2.4: SalesOrderResource + SalesOrderService (stock reservation/unreservation, SO→PO import)
 - ✅ 3.2.5: DeliveryNoteResource + DeliveryNoteService (issueReserved per stock item, SO qty update, PDF template)
-- ⬜ 3.2.6: CustomerInvoice Resource
-- ⬜ 3.2.7: CustomerCreditNote + CustomerDebitNote Resources
+- ✅ 3.2.6: CustomerInvoice Resource + CustomerInvoiceService + EuOssService + PDF template
+- ✅ 3.2.7: CustomerCreditNote + CustomerDebitNote Resources + services
 - ⬜ 3.2.8: SalesReturn Resource
 - ⬜ 3.2.9: AdvancePayment Resource
 
@@ -1537,3 +1537,163 @@ Phases 1, 2, and 3.1 are complete. Phase 3.2 is building the outbound sales pipe
 - `FiscalReceiptRequested` event is already wired; listener + ErpNet.FP REST integration is Phase 3.3
 - Bulgarian fiscal compliance: print fiscal receipt on cash payment confirmation
 - ErpNet.FP REST API for fiscal printer compliance
+
+---
+
+## 10. Test Infrastructure
+
+### Overview
+
+The test suite uses **Pest v4** with **parallel execution** (12 workers). Tests run via:
+
+```bash
+./vendor/bin/sail artisan test --parallel --compact
+```
+
+Typical runtime: ~75–90 seconds for 450+ tests. Without parallelism, the same suite takes ~250 seconds and leaves orphaned tenant databases.
+
+---
+
+### Why `DatabaseTruncation` Instead of `RefreshDatabase`
+
+`RefreshDatabase` wraps each test in a database transaction and rolls it back on teardown. This is incompatible with multi-tenancy because **PostgreSQL DDL statements (`CREATE DATABASE`, `DROP DATABASE`) cannot run inside a transaction block**.
+
+Every tenant test calls `TenantOnboardingService::onboard()`, which creates a new PostgreSQL database — that DDL would immediately abort a `RefreshDatabase` transaction.
+
+`DatabaseTruncation` instead truncates all tables between tests without wrapping in a transaction. This is safe for DDL and is configured in `tests/Pest.php`:
+
+```php
+pest()->extend(TestCase::class)
+    ->use(DatabaseTruncation::class)
+    ->afterEach(function () {
+        // Drop each tenant DB before central table truncation
+        Tenant::all()->each(fn (Tenant $tenant) => $tenant->delete());
+    })
+```
+
+---
+
+### Templated Tenant Database (`TemplatedPostgreSQLDatabaseManager`)
+
+**File:** `app/Database/Testing/TemplatedPostgreSQLDatabaseManager.php`
+
+**Problem:** Running ~40 migrations + 5 seeders for each new tenant DB in every test would be prohibitively slow across 400+ tests. Each `TenantOnboardingService::onboard()` call would spend ~1–2 seconds just on schema setup.
+
+**Solution:** Instead of a bare `CREATE DATABASE`, the custom manager creates tenant DBs by cloning a pre-built template:
+
+```sql
+CREATE DATABASE "tenant_abc123" TEMPLATE "hmo_test_tenant_template"
+```
+
+PostgreSQL's `TEMPLATE` clause copies the entire database (schema + data) at the filesystem level. The clone is nearly instant (~5–10 ms vs ~1–2 s).
+
+The custom class overrides `PostgreSQLDatabaseManager::createDatabase()`:
+
+```php
+class TemplatedPostgreSQLDatabaseManager extends PostgreSQLDatabaseManager
+{
+    public const TEMPLATE_DB = 'hmo_test_tenant_template';
+
+    public function createDatabase(TenantWithDatabase $tenant): bool
+    {
+        return $this->database()->statement(sprintf(
+            'CREATE DATABASE "%s" TEMPLATE "%s"',
+            $tenant->database()->getName(),
+            self::TEMPLATE_DB,
+        ));
+    }
+}
+```
+
+It is registered in `config/tenancy.php` as the database manager for the `testing` environment.
+
+---
+
+### Template Database Management (`TenantTemplateManager`)
+
+**File:** `tests/Support/TenantTemplateManager.php`
+
+This class is responsible for building and validating the `hmo_test_tenant_template` database. It is called once per worker process via `TenantTemplateManager::ensureOnce()` in the Pest `beforeEach` hook.
+
+#### How It Works
+
+1. Acquires a **PostgreSQL advisory lock** (`pg_advisory_lock(987654321)`) — server-level, so all 12 workers serialise around the single build step.
+2. Checks if the template is valid:
+   - The `hmo_test_tenant_template` database exists in `pg_database`.
+   - `storage/testing/tenant_template.hash` exists and matches the current hash.
+3. If valid → releases lock and returns immediately (no rebuild needed).
+4. If invalid → rebuilds: drops old template, creates fresh one, runs all tenant migrations, runs all seeders, stores the new hash.
+
+#### Hash Invalidation
+
+The hash is an `md5` of the concatenated `md5_file()` of:
+- All files in `database/migrations/tenant/`
+- `RolesAndPermissionsSeeder.php`
+- `CurrencySeeder.php`
+- `VatRateSeeder.php`
+- `UnitSeeder.php`
+- `EuCountryVatRatesSeeder.php`
+- `TenantOnboardingService.php`
+
+**Any change to these files automatically triggers a template rebuild on the next test run.** No manual intervention needed in the normal case.
+
+---
+
+### How to Force a Template Rebuild
+
+#### Automatic (normal workflow)
+
+Just add/edit a migration or seeder file. The hash will change on the next test run, and `TenantTemplateManager` will detect the mismatch and rebuild automatically.
+
+#### Manual (when the template DB is corrupted or out of sync)
+
+**Option 1 — delete the hash file** (template DB still exists but will be rebuilt):
+```bash
+rm storage/testing/tenant_template.hash
+```
+
+**Option 2 — drop the template DB + delete the hash file** (cleanest reset):
+```bash
+# Drop the template database
+docker exec hmo-postgres psql -U hmo -d hmo_central \
+  -c "DROP DATABASE IF EXISTS hmo_test_tenant_template;"
+
+# Delete the hash so the manager knows to rebuild
+rm -f storage/testing/tenant_template.hash
+```
+
+Then run the full test suite (not a filtered subset — see the race condition note below).
+
+#### When You Must Drop + Delete
+
+- The template DB was created from a broken migration (e.g., wrong timestamp ordering).
+- A migration was deleted after the template was built.
+- A seeder was manually run against the template outside of `TenantTemplateManager`.
+
+---
+
+### Parallel Race Condition (Filtered Runs)
+
+When running a **small filtered subset** (e.g., `--filter=SomeTest`) with parallel enabled, all 12 workers start simultaneously with the hash missing. Multiple workers detect the template is invalid and all try to `CREATE DATABASE hmo_test_tenant_template` at the same time. The advisory lock should serialize this, but in practice the first worker to rebuild the template may complete before the second worker acquires the lock — so the second worker's `recreateTemplate()` call then tries to `CREATE DATABASE` on a database that already exists.
+
+**Workaround:** After dropping the template and deleting the hash, run the **full test suite** first:
+
+```bash
+./vendor/bin/sail artisan test --parallel --compact
+```
+
+This gives enough concurrent tests that workers stay busy while worker 1 builds the template. Once the full suite has run (hash file written), filtered runs work reliably.
+
+---
+
+### Orphaned Tenant Database Cleanup
+
+The `afterEach` hook in `tests/Pest.php` deletes all `Tenant` records after each test:
+
+```php
+Tenant::all()->each(fn (Tenant $tenant) => $tenant->delete());
+```
+
+`Tenant::delete()` triggers `stancl/tenancy`'s lifecycle events, which call `TemplatedPostgreSQLDatabaseManager::deleteDatabase()` — dropping the cloned tenant DB. This prevents orphaned PostgreSQL databases from accumulating across the test run.
+
+If you run tests **without `--parallel`**, the `afterEach` cleanup still runs but worker cleanup between test files may be incomplete. **Always use `--parallel`** — see the memory in `MEMORY.md`.

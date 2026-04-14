@@ -8,6 +8,7 @@ use App\Enums\PurchaseOrderStatus;
 use App\Enums\SalesOrderStatus;
 use App\Enums\SeriesType;
 use App\Exceptions\InsufficientStockException;
+use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\NumberSeries;
@@ -52,7 +53,7 @@ class ViewSalesOrder extends ViewRecord
                     'number' => $inv->invoice_number,
                     'status' => $inv->status->getLabel(),
                     'color' => $inv->status->getColor(),
-                    'url' => '#', // updated in 3.2.6 when CustomerInvoiceResource exists
+                    'url' => CustomerInvoiceResource::getUrl('view', ['record' => $inv]),
                 ])->all(),
             ],
         ];
@@ -103,7 +104,7 @@ class ViewSalesOrder extends ViewRecord
                     SalesOrderStatus::PartiallyDelivered,
                     SalesOrderStatus::Delivered,
                 ]))
-                ->url(fn (SalesOrder $record): string => '#'), // updated in 3.2.6 when CustomerInvoiceResource exists
+                ->url(fn (SalesOrder $record): string => CustomerInvoiceResource::getUrl('create').'?sales_order_id='.$record->id),
 
             Action::make('import_to_po')
                 ->label('Import to PO')

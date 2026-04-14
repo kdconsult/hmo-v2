@@ -508,7 +508,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.6 — CustomerInvoice Resource
+## Sub-task 3.2.6 — CustomerInvoice Resource ✅ DONE (2026-04-14, 445 tests)
 
 ### CustomerInvoiceService
 
@@ -578,7 +578,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.7 — CustomerCreditNote + CustomerDebitNote Resources
+## Sub-task 3.2.7 — CustomerCreditNote + CustomerDebitNote Resources ✅ DONE (2026-04-14, 453 tests)
 
 ### CustomerCreditNoteService — mirror `SupplierCreditNoteService` exactly
 - `recalculateItemTotals()`, `recalculateDocumentTotals()` — identical pattern

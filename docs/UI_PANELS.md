@@ -651,6 +651,9 @@ Navigation groups are used to organize resources in the left sidebar menu.
 - QuotationResource (sort 1, with QuotationItemsRelationManager; actions: Send, Accept, Reject, Convert to SO with warehouse picker modal, Cancel, Print as Offer PDF, Print as Proforma PDF)
 - SalesOrderResource (sort 2, with SalesOrderItemsRelationManager; Confirm triggers stock reservation; Import to PO action; Cancel cascades to draft DNs/invoices)
 - DeliveryNoteResource (sort 3, label 'Delivery Notes', with DeliveryNoteItemsRelationManager; Confirm Delivery calls DeliveryNoteService::confirm() — issues reserved stock; Print PDF action)
+- CustomerInvoiceResource (sort 4, with CustomerInvoiceItemsRelationManager; Confirm calls CustomerInvoiceService::confirm() — updates SO qty_invoiced, sets service item qty_delivered, dispatches FiscalReceiptRequested on cash, accumulates EU OSS; Print Invoice PDF; Create Credit/Debit Note actions wired to their respective resources)
+- CustomerCreditNoteResource (sort 5, with CustomerCreditNoteItemsRelationManager; quantity validated against remainingCreditableQuantity() with lockForUpdate(); requires linked customer_invoice_item)
+- CustomerDebitNoteResource (sort 6, with CustomerDebitNoteItemsRelationManager; free-form line items — invoice item link optional, product_variant_id optional; no quantity constraint)
 
 ---
 
@@ -935,7 +938,7 @@ All Sales group resources use `NavigationGroup::Sales` for `$navigationGroup`.
 - **Edit** — visible when `isEditable()`
 - **Confirm Order** — Draft → Confirmed; triggers `SalesOrderService::reserveAllItems()` (stock reservation)
 - **Create Delivery Note** — URL link to DeliveryNotes create page with `?sales_order_id=` pre-fill; visible when Confirmed/PartiallyDelivered
-- **Create Invoice** — URL link to CustomerInvoices create page with `?sales_order_id=` pre-fill; visible when Confirmed/PartiallyDelivered/Delivered (placeholder until 3.2.6)
+- **Create Invoice** — URL link to CustomerInvoices create page with `?sales_order_id=` pre-fill; visible when Confirmed/PartiallyDelivered/Delivered
 - **Import to PO** — Modal with supplier select + optional existing Draft PO; creates PO items with `sales_order_item_id` linkage; does not advance PO status
 - **Cancel** — Modal warns about draft DN/invoice cascade and unreservation; calls `SalesOrderService::transitionStatus(Cancelled)`
 

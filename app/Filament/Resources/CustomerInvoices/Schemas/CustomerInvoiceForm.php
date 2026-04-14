@@ -1,0 +1,136 @@
+<?php
+
+namespace App\Filament\Resources\CustomerInvoices\Schemas;
+
+use App\Enums\InvoiceType;
+use App\Enums\PaymentMethod;
+use App\Enums\PricingMode;
+use App\Models\Currency;
+use App\Models\Partner;
+use App\Models\SalesOrder;
+use App\Services\CurrencyRateService;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+
+class CustomerInvoiceForm
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make('Invoice Details')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('invoice_number')
+                            ->label('Invoice Number')
+                            ->disabled()
+                            ->dehydrated()
+                            ->placeholder('Auto-generated on save'),
+                        Select::make('invoice_type')
+                            ->options(InvoiceType::class)
+                            ->required()
+                            ->default(InvoiceType::Standard->value),
+                        Select::make('partner_id')
+                            ->label('Customer')
+                            ->options(
+                                Partner::customers()->where('is_active', true)->orderBy('name')->pluck('name', 'id')
+                            )
+                            ->searchable()
+                            ->required()
+                            ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
+                            ->dehydrated(),
+                        Select::make('sales_order_id')
+                            ->label('Sales Order (optional)')
+                            ->options(
+                                SalesOrder::whereIn('status', ['confirmed', 'partially_delivered', 'delivered'])
+                                    ->with('partner')
+                                    ->get()
+                                    ->mapWithKeys(fn (SalesOrder $so) => [
+                                        $so->id => "{$so->so_number} — {$so->partner->name}",
+                                    ])
+                            )
+                            ->searchable()
+                            ->nullable()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                if ($state) {
+                                    $so = SalesOrder::find($state);
+                                    if ($so) {
+                                        $set('partner_id', $so->partner_id);
+                                        $set('currency_code', $so->currency_code);
+                                        $set('exchange_rate', $so->exchange_rate);
+                                        $set('pricing_mode', $so->pricing_mode->value);
+                                    }
+                                }
+                            }),
+                        Toggle::make('is_reverse_charge')
+                            ->label('Reverse Charge (EU B2B)')
+                            ->disabled()
+                            ->dehydrated()
+                            ->columnSpanFull(),
+                    ]),
+
+                Section::make('Pricing & Currency')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('pricing_mode')
+                            ->options(PricingMode::class)
+                            ->required()
+                            ->default(PricingMode::VatExclusive->value)
+                            ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
+                            ->dehydrated(),
+                        Select::make('currency_code')
+                            ->label('Currency')
+                            ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
+                            ->searchable()
+                            ->required()
+                            ->default('EUR')
+                            ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
+                            ->dehydrated()
+                            ->live()
+                            ->afterStateUpdated(CurrencyRateService::makeAfterCurrencyChanged('issued_at')),
+                        TextInput::make('exchange_rate')
+                            ->label('Exchange Rate')
+                            ->required()
+                            ->numeric()
+                            ->default('1.000000')
+                            ->step('0.000001')
+                            ->placeholder('Enter rate…')
+                            ->helperText('Auto-filled when a saved rate exists. Enter manually and click the bookmark to save.')
+                            ->suffixAction(CurrencyRateService::makeSaveRateAction('issued_at')),
+                    ]),
+
+                Section::make('Dates & Payment')
+                    ->columns(2)
+                    ->schema([
+                        DatePicker::make('issued_at')
+                            ->required()
+                            ->default(now()->toDateString())
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
+                        DatePicker::make('due_date')
+                            ->nullable(),
+                        Select::make('payment_method')
+                            ->options(PaymentMethod::class)
+                            ->nullable(),
+                    ]),
+
+                Section::make('Notes')
+                    ->schema([
+                        Textarea::make('notes')
+                            ->rows(3)
+                            ->columnSpanFull(),
+                        Textarea::make('internal_notes')
+                            ->rows(3)
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+}

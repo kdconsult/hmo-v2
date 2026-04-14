@@ -443,6 +443,82 @@ Orchestrates delivery note confirmation: reserved stock out, SO status update, a
 
 ---
 
+### CustomerInvoiceService
+
+Location: `/app/Services/CustomerInvoiceService.php`
+
+Orchestrates customer invoice item totals, document totals, and invoice confirmation for the outbound sales pipeline.
+
+**Methods:**
+
+- `recalculateItemTotals(CustomerInvoiceItem $item): void`
+  - Mirrors `SupplierInvoiceService::recalculateItemTotals()`. Handles negative quantities correctly (advance deduction rows produce negative `vat_amount` naturally via multiplication).
+  - Loads `customerInvoice.pricing_mode` and `vatRate.rate` from item relations.
+
+- `recalculateDocumentTotals(CustomerInvoice $invoice): void`
+  - Sums `line_total` and `vat_amount` across all items. Sets `amount_due = total - amount_paid`.
+
+- `confirm(CustomerInvoice $invoice): void`
+  - Inside `DB::transaction()`:
+    1. Sets `status = Confirmed`.
+    2. If SO-linked: calls `SalesOrderService::updateInvoicedQuantities($so)`.
+    3. For each invoice item linked to a service-type SO item (non-Stock): sets `soItem->qty_delivered = soItem->qty_invoiced` (services are "delivered" when invoiced, not via DN).
+    4. Refreshes SO items and transitions SO to `Delivered` if now fully delivered.
+  - After transaction: dispatches `FiscalReceiptRequested` if `payment_method === PaymentMethod::Cash`.
+  - Calls `EuOssService::accumulate($invoice)` to track cross-border B2C EU totals.
+
+---
+
+### EuOssService
+
+Location: `/app/Services/EuOssService.php`
+
+Handles EU One-Stop Shop (OSS) VAT compliance for cross-border B2C digital/goods sales.
+
+**Methods:**
+
+- `shouldApplyOss(Partner $partner): bool`
+  - Returns `true` when: partner has no valid EU VAT (B2C), partner country is EU, partner country ≠ tenant country, AND the annual €10,000 threshold has been exceeded (`EuOssAccumulation::isThresholdExceeded(year)`).
+
+- `accumulate(CustomerInvoice $invoice): void`
+  - Guards: partner must be non-null, EU country, cross-border (≠ tenant country), B2C (no valid EU VAT).
+  - Converts invoice total to EUR using `exchange_rate`. Calls `EuOssAccumulation::accumulate(countryCode, year, totalEur)`.
+  - Called on every invoice confirmation; `EuOssAccumulation` tracks cumulative totals and records `threshold_exceeded_at` when the €10,000 cross-border threshold is first crossed.
+
+- `getDestinationVatRate(string $countryCode): float`
+  - Looks up `EuCountryVatRate::getStandardRate($countryCode)`. Returns `0.0` if country not found.
+
+---
+
+### CustomerCreditNoteService
+
+Location: `/app/Services/CustomerCreditNoteService.php`
+
+Mirrors `SupplierCreditNoteService` exactly — same calculation logic, different model types.
+
+**Methods:**
+
+- `recalculateItemTotals(CustomerCreditNoteItem $item): void`
+  - Loads `customerCreditNote.pricing_mode` and `vatRate.rate`. Computes `vat_amount`, `line_total`, `line_total_with_vat` via `VatCalculationService`. Saves item.
+
+- `recalculateDocumentTotals(CustomerCreditNote $creditNote): void`
+  - Sums `line_total` and `vat_amount` across all items. Sets `subtotal`, `tax_amount`, `total`. Saves document.
+
+---
+
+### CustomerDebitNoteService
+
+Location: `/app/Services/CustomerDebitNoteService.php`
+
+Same structure as `CustomerCreditNoteService` — applies to debit notes.
+
+**Methods:**
+
+- `recalculateItemTotals(CustomerDebitNoteItem $item): void`
+- `recalculateDocumentTotals(CustomerDebitNote $debitNote): void`
+
+---
+
 ### CurrencyRateService
 
 Location: `/app/Services/CurrencyRateService.php`
