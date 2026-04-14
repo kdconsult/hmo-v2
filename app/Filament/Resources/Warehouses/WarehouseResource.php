@@ -3,12 +3,15 @@
 namespace App\Filament\Resources\Warehouses;
 
 use App\Enums\NavigationGroup;
+use App\Filament\Resources\StockItems\StockItemResource;
+use App\Filament\Resources\StockMovements\StockMovementResource;
 use App\Filament\Resources\Warehouses\Pages\CreateWarehouse;
 use App\Filament\Resources\Warehouses\Pages\EditWarehouse;
 use App\Filament\Resources\Warehouses\Pages\ListWarehouses;
 use App\Filament\Resources\Warehouses\Pages\ViewWarehouse;
 use App\Filament\Resources\Warehouses\RelationManagers\StockLocationsRelationManager;
 use App\Models\Warehouse;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -23,12 +26,14 @@ use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Arr;
 
 class WarehouseResource extends Resource
 {
@@ -101,6 +106,18 @@ class WarehouseResource extends Resource
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+                Action::make('view_stock')
+                    ->label('Stock')
+                    ->icon(Heroicon::OutlinedCube)
+                    ->url(fn (Warehouse $record): string => StockItemResource::getUrl('index').'?'.Arr::query([
+                        'tableFilters' => ['warehouse' => ['value' => $record->id]],
+                    ])),
+                Action::make('view_movements')
+                    ->label('Movements')
+                    ->icon(Heroicon::OutlinedArrowsRightLeft)
+                    ->url(fn (Warehouse $record): string => StockMovementResource::getUrl('index').'?'.Arr::query([
+                        'tableFilters' => ['warehouse' => ['value' => $record->id]],
+                    ])),
                 RestoreAction::make(),
                 DeleteAction::make(),
                 ForceDeleteAction::make(),

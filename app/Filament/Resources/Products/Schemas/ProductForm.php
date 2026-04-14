@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Products\Schemas;
 use App\Enums\ProductStatus;
 use App\Enums\ProductType;
 use App\Models\Category;
+use App\Models\CompanySettings;
 use App\Models\Unit;
 use App\Models\VatRate;
 use Filament\Forms\Components\Select;
@@ -46,7 +47,7 @@ class ProductForm
                             ->label('Category')
                             ->options(fn () => Category::active()->get()->pluck('name', 'id'))
                             ->searchable()
-                            ->nullable(),
+                            ->required(fn () => (bool) CompanySettings::get('catalog', 'require_product_category', false)),
                         Select::make('unit_id')
                             ->label('Unit')
                             ->options(fn () => Unit::active()->get()->pluck('name', 'id'))

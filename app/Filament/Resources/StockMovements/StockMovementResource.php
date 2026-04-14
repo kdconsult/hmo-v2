@@ -4,8 +4,12 @@ namespace App\Filament\Resources\StockMovements;
 
 use App\Enums\MovementType;
 use App\Enums\NavigationGroup;
+use App\Filament\Resources\GoodsReceivedNotes\GoodsReceivedNoteResource;
+use App\Filament\Resources\PurchaseReturns\PurchaseReturnResource;
 use App\Filament\Resources\StockMovements\Pages\ListStockMovements;
+use App\Models\Product;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Models\Warehouse;
 use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
@@ -64,6 +68,24 @@ class StockMovementResource extends Resource
                     ->toggleable(),
                 TextColumn::make('notes')
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('reference_document')
+                    ->label('Reference')
+                    ->state(fn (StockMovement $record): ?string => match ($record->reference_type) {
+                        'goods_received_note' => $record->reference?->grn_number,
+                        'purchase_return' => $record->reference?->pr_number,
+                        default => null,
+                    })
+                    ->url(fn (StockMovement $record): ?string => match ($record->reference_type) {
+                        'goods_received_note' => $record->reference
+                            ? GoodsReceivedNoteResource::getUrl('view', ['record' => $record->reference])
+                            : null,
+                        'purchase_return' => $record->reference
+                            ? PurchaseReturnResource::getUrl('view', ['record' => $record->reference])
+                            : null,
+                        default => null,
+                    })
+                    ->placeholder('—')
+                    ->toggleable(),
             ])
             ->filters([
                 SelectFilter::make('type')
@@ -80,7 +102,22 @@ class StockMovementResource extends Resource
                         ->when($data['from'], fn ($q, $from) => $q->whereDate('moved_at', '>=', $from))
                         ->when($data['until'], fn ($q, $until) => $q->whereDate('moved_at', '<=', $until))
                     ),
+                SelectFilter::make('product_id')
+                    ->label('Product')
+                    ->options(fn () => Product::active()->get()->pluck('name', 'id')->filter(fn ($name) => filled($name)))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'],
+                        fn ($q, $value) => $q->whereHas('productVariant', fn ($q) => $q->where('product_id', $value))
+                    )),
+                SelectFilter::make('moved_by')
+                    ->label('Moved By')
+                    ->options(fn () => User::whereIn('id', StockMovement::distinct()->whereNotNull('moved_by')->pluck('moved_by'))->pluck('name', 'id'))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'],
+                        fn ($q, $value) => $q->where('moved_by', $value)
+                    )),
             ])
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('reference'))
             ->defaultSort('moved_at', 'desc');
     }
 

@@ -3,17 +3,28 @@
 namespace App\Filament\Resources\StockItems;
 
 use App\Enums\NavigationGroup;
+use App\Exceptions\InsufficientStockException;
+use App\Filament\Resources\Products\ProductResource;
 use App\Filament\Resources\StockItems\Pages\ListStockItems;
+use App\Filament\Resources\StockMovements\StockMovementResource;
+use App\Filament\Resources\Warehouses\WarehouseResource;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\StockItem;
 use App\Models\Warehouse;
+use App\Services\StockService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 
 class StockItemResource extends Resource
 {
@@ -40,7 +51,8 @@ class StockItemResource extends Resource
                 TextColumn::make('productVariant.product.name')
                     ->label('Product')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn (StockItem $record): string => ProductResource::getUrl('view', ['record' => $record->productVariant->product_id])),
                 TextColumn::make('productVariant.sku')
                     ->label('SKU')
                     ->searchable()
@@ -51,7 +63,8 @@ class StockItemResource extends Resource
                     ->sortable(),
                 TextColumn::make('warehouse.name')
                     ->label('Warehouse')
-                    ->sortable(),
+                    ->sortable()
+                    ->url(fn (StockItem $record): string => WarehouseResource::getUrl('view', ['record' => $record->warehouse_id])),
                 TextColumn::make('stockLocation.name')
                     ->label('Location')
                     ->placeholder('—')
@@ -86,6 +99,45 @@ class StockItemResource extends Resource
                         fn ($q, $value) => $q->whereHas('productVariant.product', fn ($q) => $q->where('category_id', $value))
                     )),
             ])
+            ->recordActions([
+                Action::make('view_movements')
+                    ->label('Movements')
+                    ->icon(Heroicon::OutlinedArrowsRightLeft)
+                    ->url(fn (StockItem $record): string => StockMovementResource::getUrl('index').'?'.Arr::query([
+                        'tableFilters' => ['warehouse' => ['value' => $record->warehouse_id]],
+                    ])),
+                Action::make('transfer')
+                    ->label('Transfer')
+                    ->icon(Heroicon::OutlinedTruck)
+                    ->color('warning')
+                    ->schema([
+                        Select::make('to_warehouse_id')
+                            ->label('Destination Warehouse')
+                            ->options(fn (StockItem $record): array => Warehouse::active()->where('id', '!=', $record->warehouse_id)->pluck('name', 'id')->all())
+                            ->required()
+                            ->searchable(),
+                        TextInput::make('quantity')
+                            ->required()
+                            ->numeric()
+                            ->minValue(0.0001)
+                            ->step(0.0001),
+                    ])
+                    ->action(function (array $data, StockItem $record): void {
+                        try {
+                            app(StockService::class)->transfer(
+                                variant: $record->productVariant,
+                                fromWarehouse: $record->warehouse,
+                                toWarehouse: Warehouse::findOrFail($data['to_warehouse_id']),
+                                quantity: $data['quantity'],
+                            );
+
+                            Notification::make()->title('Stock transferred successfully')->success()->send();
+                        } catch (InsufficientStockException $e) {
+                            Notification::make()->title('Insufficient stock')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+            ])
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['productVariant.product', 'warehouse', 'stockLocation']))
             ->defaultSort('id', 'desc');
     }
 

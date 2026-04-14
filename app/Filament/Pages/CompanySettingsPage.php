@@ -60,6 +60,7 @@ class CompanySettingsPage extends Page implements HasForms
             'general' => CompanySettings::getGroup('general'),
             'invoicing' => CompanySettings::getGroup('invoicing'),
             'purchasing' => CompanySettings::getGroup('purchasing'),
+            'catalog' => CompanySettings::getGroup('catalog'),
             'fiscal' => CompanySettings::getGroup('fiscal'),
             'localization' => $localizationGroup,
         ]);
@@ -117,6 +118,14 @@ class CompanySettingsPage extends Page implements HasForms
                                 Toggle::make('purchasing.express_purchasing')
                                     ->label('Express Purchasing')
                                     ->helperText('When enabled, a "Confirm & Receive" action appears on supplier invoices, allowing one-click invoice confirmation with automatic goods receipt.')
+                                    ->inline(false),
+                            ]),
+
+                        Tab::make('Catalog')
+                            ->schema([
+                                Toggle::make('catalog.require_product_category')
+                                    ->label('Require Product Category')
+                                    ->helperText('When enabled, every product must be assigned a category.')
                                     ->inline(false),
                             ]),
 

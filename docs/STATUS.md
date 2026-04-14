@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.1 — Refactor complete (all 17 findings implemented).** 377/377 tests pass. Next: Phase 3.2 (Sales/Invoicing).
+**Backlog Session 1 complete (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8).** 391/391 tests pass. Next: Phase 3.2 (Sales/Invoicing).
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -192,3 +192,4 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 3.1.12 SI-2 (SI items import + PO-filtered form) | **362** |
 | Phase 3.1.12 SI-3 (Express Purchasing — Confirm & Receive) | **368** |
 | Phase 3.1.12 PR-1 (Purchase Return — full document stack) | **377** |
+| Backlog Session 1 (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8) | **391** |

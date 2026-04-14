@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Tables;
 
 use App\Enums\ProductType;
+use App\Filament\Resources\Products\ProductResource;
 use App\Models\Category;
 use App\Models\Product;
 use Filament\Actions\BulkActionGroup;
@@ -11,9 +12,11 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\ReplicateAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
@@ -64,6 +67,31 @@ class ProductsTable
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
+                ReplicateAction::make()
+                    ->excludeAttributes(['barcode'])
+                    ->mutateRecordDataUsing(function (array $data): array {
+                        $data['code'] = ($data['code'] ?? '').'-COPY';
+
+                        return $data;
+                    })
+                    ->schema([
+                        TextInput::make('code')
+                            ->required()
+                            ->maxLength(50)
+                            ->unique(table: 'products', ignoreRecord: true),
+                    ])
+                    ->after(function (Product $replica, Product $record): void {
+                        $record->variants()
+                            ->where('is_default', false)
+                            ->get()
+                            ->each(function ($variant) use ($replica): void {
+                                $clone = $variant->replicate(['id', 'created_at', 'updated_at', 'deleted_at']);
+                                $clone->product_id = $replica->id;
+                                $clone->sku = ($variant->sku ?? '').'-COPY';
+                                $clone->save();
+                            });
+                    })
+                    ->successRedirectUrl(fn (Product $replica): string => ProductResource::getUrl('edit', ['record' => $replica])),
                 RestoreAction::make(),
                 DeleteAction::make(),
                 ForceDeleteAction::make(),
