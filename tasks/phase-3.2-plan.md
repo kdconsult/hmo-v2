@@ -601,7 +601,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.8 — SalesReturn Resource
+## Sub-task 3.2.8 — SalesReturn Resource ✅ DONE (2026-04-14, 460 tests)
 
 ### SalesReturnService — mirror `PurchaseReturnService`
 - Dependencies: `StockService`

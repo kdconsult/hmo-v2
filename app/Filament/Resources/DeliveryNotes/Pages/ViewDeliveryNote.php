@@ -8,6 +8,7 @@ use App\Enums\SalesReturnStatus;
 use App\Exceptions\InsufficientStockException;
 use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
+use App\Filament\Resources\SalesReturns\SalesReturnResource;
 use App\Models\DeliveryNote;
 use App\Services\DeliveryNoteService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -61,7 +62,7 @@ class ViewDeliveryNote extends ViewRecord
                         SalesReturnStatus::Cancelled => 'danger',
                         default => 'warning',
                     },
-                    'url' => '#', // updated in 3.2.8 when SalesReturnResource exists
+                    'url' => SalesReturnResource::getUrl('view', ['record' => $sr]),
                 ])->toArray(),
             ];
         }
@@ -128,7 +129,7 @@ class ViewDeliveryNote extends ViewRecord
                 ->icon(Heroicon::OutlinedArrowUturnLeft)
                 ->color('warning')
                 ->visible(fn (DeliveryNote $record): bool => $record->status === DeliveryNoteStatus::Confirmed)
-                ->url(fn (DeliveryNote $record): string => '#'), // updated in 3.2.8 when SalesReturnResource exists
+                ->url(fn (DeliveryNote $record): string => SalesReturnResource::getUrl('create').'?delivery_note_id='.$record->id),
 
             Action::make('cancel')
                 ->label('Cancel')
