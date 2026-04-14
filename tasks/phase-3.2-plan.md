@@ -463,7 +463,7 @@ Also: batch action on ListSalesOrders — select multiple SOs → same modal →
 
 ---
 
-## Sub-task 3.2.5 — DeliveryNote Resource
+## Sub-task 3.2.5 — DeliveryNote Resource ✅ DONE (2026-04-14, 445 tests)
 
 ### DeliveryNoteService
 

@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.4 complete (SalesOrderResource, SalesOrderService, ViewQuotation redirect updated, 17 new tests). Bug fix: TenancyServiceProvider now flushes Spatie permission cache on TenancyBootstrapped — fixes 403 on all policy-guarded create/update actions across tenants.** 435/435 tests pass. Next: Phase 3.2.5 — DeliveryNote Resource.
+**Phase 3.2.5 complete (DeliveryNoteResource, DeliveryNoteService, 10 new tests). ViewSalesOrder wired to DeliveryNoteResource URLs. DN NumberSeries created in bogui tenant.** 445/445 tests pass. Next: Phase 3.2.6 — CustomerInvoice Resource.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -228,3 +228,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.2 (morph map, FiscalReceiptRequested, StockService reserve/unreserve/issueReserved, 8 policies, RBAC + EU VAT seeder) | **406** |
 | Phase 3.2.3 (QuotationResource, QuotationService, PDF templates — offer + proforma) | **418** |
 | Phase 3.2.4 (SalesOrderResource, SalesOrderService, 7 methods, stock reservation/unreservation, ViewQuotation redirect fixed) | **435** |
+| Phase 3.2.5 (DeliveryNoteResource, DeliveryNoteService, issueReserved integration, SO qty update, PDF template) | **445** |

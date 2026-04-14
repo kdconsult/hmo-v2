@@ -704,14 +704,24 @@ All polymorphic `reference_type` / `reference_id` columns resolve aliases via:
 
 ```php
 Relation::morphMap([
-    'product'              => Product::class,
-    'product_variant'      => ProductVariant::class,
-    'warehouse'            => Warehouse::class,
-    'stock_movement'       => StockMovement::class,
-    'purchase_order'       => PurchaseOrder::class,
-    'goods_received_note'  => GoodsReceivedNote::class,
-    'supplier_invoice'     => SupplierInvoice::class,
-    'supplier_credit_note' => SupplierCreditNote::class,
+    'product'                => Product::class,
+    'product_variant'        => ProductVariant::class,
+    'warehouse'              => Warehouse::class,
+    'stock_movement'         => StockMovement::class,
+    'purchase_order'         => PurchaseOrder::class,
+    'goods_received_note'    => GoodsReceivedNote::class,
+    'supplier_invoice'       => SupplierInvoice::class,
+    'supplier_credit_note'   => SupplierCreditNote::class,
+    'purchase_return'        => PurchaseReturn::class,
+    // Phase 3.2 — outbound sales pipeline
+    'quotation'              => Quotation::class,
+    'sales_order'            => SalesOrder::class,
+    'delivery_note'          => DeliveryNote::class,
+    'customer_invoice'       => CustomerInvoice::class,
+    'customer_credit_note'   => CustomerCreditNote::class,
+    'customer_debit_note'    => CustomerDebitNote::class,
+    'sales_return'           => SalesReturn::class,
+    'advance_payment'        => AdvancePayment::class,
 ]);
 ```
 
@@ -719,7 +729,86 @@ Relation::morphMap([
 
 ---
 
-## 4. Enums (30 Total)
+## 3d. Tenant DB — Phase 3.2: Sales / Invoicing Models
+
+Phase 3.2 implements the full outbound sales pipeline: Quotation → SalesOrder → DeliveryNote → CustomerInvoice → CreditNote/DebitNote → SalesReturn → AdvancePayment. Mirrors Phase 3.1 structure on the sales side.
+
+### Quotation Model (`App\Models\Quotation`)
+Commercial offer sent to a customer. Status pipeline: Draft → Sent → Accepted / Rejected / Expired / Cancelled.
+
+**Columns:** `id`, `quotation_number (unique)`, `document_series_id (nullable)`, `partner_id (FK restrict)`, `status (QuotationStatus)`, `currency_code`, `exchange_rate (decimal 16,6)`, `pricing_mode`, `subtotal`, `discount_amount`, `tax_amount`, `total (all decimal 15,2)`, `valid_until (date nullable)`, `issued_at (date nullable)`, `notes`, `internal_notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft only), `isExpired(): bool` (valid_until set and in the past), `recalculateTotals(): void`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### QuotationItem Model (`App\Models\QuotationItem`)
+Line item on a quotation. No tracking columns.
+
+**Columns:** `id`, `quotation_id (FK cascade)`, `product_variant_id (FK restrict)`, `description (nullable)`, `quantity (decimal 15,4)`, `unit_price (decimal 15,4)`, `discount_percent`, `discount_amount`, `vat_rate_id (FK)`, `vat_amount`, `line_total`, `line_total_with_vat`, `sort_order`, `created_at`, `updated_at`
+
+---
+
+### SalesOrder Model (`App\Models\SalesOrder`)
+Confirmed customer order. Status pipeline: Draft → Confirmed → PartiallyDelivered → Delivered → Invoiced (Cancelled exit at any non-terminal stage).
+
+**Columns:** `id`, `so_number (unique)`, `document_series_id (nullable)`, `partner_id (FK restrict)`, `quotation_id (FK nullOnDelete, nullable)`, `warehouse_id (FK restrict — NOT nullable)`, `status (SalesOrderStatus)`, `currency_code`, `exchange_rate`, `pricing_mode`, `subtotal`, `discount_amount`, `tax_amount`, `total`, `expected_delivery_date (date nullable)`, `issued_at (date nullable)`, `notes`, `internal_notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft only), `isFullyDelivered(): bool`, `isFullyInvoiced(): bool`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### SalesOrderItem Model (`App\Models\SalesOrderItem`)
+Line item on a sales order. Tracks two quantities: delivered and invoiced.
+
+**Columns:** `id`, `sales_order_id (FK cascade)`, `quotation_item_id (FK nullOnDelete, nullable)`, `product_variant_id (FK restrict)`, `description (nullable)`, `quantity (decimal 15,4)`, `qty_delivered (decimal 15,4, default 0)`, `qty_invoiced (decimal 15,4, default 0)`, `unit_price (decimal 15,4)`, `discount_percent`, `discount_amount`, `vat_rate_id (FK)`, `vat_amount`, `line_total`, `line_total_with_vat`, `sort_order`, `created_at`, `updated_at`
+
+**Key methods:** `remainingDeliverableQuantity(): string`, `remainingInvoiceableQuantity(): string`, `isFullyDelivered(): bool`, `isFullyInvoiced(): bool`
+
+---
+
+### DeliveryNote Model (`App\Models\DeliveryNote`)
+Physical dispatch of goods from the warehouse to a customer. Confirming calls `StockService::issueReserved()` for each stock-type line.
+
+**Columns:** `id`, `dn_number (unique)`, `document_series_id (nullable)`, `sales_order_id (FK nullOnDelete, nullable)`, `partner_id (FK restrict)`, `warehouse_id (FK restrict)`, `status (DeliveryNoteStatus: Draft/Confirmed/Cancelled)`, `delivered_at (date nullable)`, `notes`, `created_by`, `created_at`, `updated_at`, `deleted_at`
+
+**Key methods:** `isEditable(): bool` (Draft only), `isConfirmed(): bool`
+
+**Morph alias:** `delivery_note`
+
+**Traits:** HasFactory, SoftDeletes, LogsActivity
+
+---
+
+### DeliveryNoteItem Model (`App\Models\DeliveryNoteItem`)
+Line on a delivery note. Optionally links back to the SO item it fulfils.
+
+**Columns:** `id`, `delivery_note_id (FK cascade)`, `sales_order_item_id (FK nullOnDelete, nullable)`, `product_variant_id (FK restrict)`, `quantity (decimal 15,4)`, `unit_cost (decimal 15,4)`, `notes (nullable)`, `created_at`, `updated_at`
+
+**Key methods:** `returnedQuantity(): string`, `remainingReturnableQuantity(): string`
+
+---
+
+### CustomerInvoice, CustomerCreditNote, CustomerDebitNote, SalesReturn, AdvancePayment
+
+These models mirror their purchase-side equivalents with the following key differences:
+- `CustomerInvoice` — mirrors `SupplierInvoice`; adds `sales_order_id`, `invoice_type (InvoiceType enum)`, `is_reverse_charge (bool)`; drops `supplier_invoice_number`, `received_at`, `purchase_order_id`
+- `CustomerInvoiceItem` — mirrors `SupplierInvoiceItem`; adds `sales_order_item_id`; has `creditedQuantity()` + `remainingCreditableQuantity()` methods
+- `CustomerCreditNote` — exact mirror of `SupplierCreditNote` (same column structure)
+- `CustomerDebitNote` — same structure as `CustomerCreditNote`; uses `DebitNoteReason` enum; `customer_invoice_id` is nullable (informational link only)
+- `SalesReturn` — mirrors `PurchaseReturn`; links to `delivery_note_id` instead of `goods_received_note_id`
+- `AdvancePayment` — no purchase-side mirror; tracks advance/prepayment received from customer; status pipeline: Open → PartiallyApplied → FullyApplied / Refunded; `remainingAmount()` method
+- `AdvancePaymentApplication` — pivot linking `AdvancePayment` to `CustomerInvoice`; composite unique on `(advance_payment_id, customer_invoice_id)`
+
+All models use `HasFactory`, `SoftDeletes` (except `AdvancePaymentApplication`), and `LogsActivity` (except items and applications).
+
+---
+
+## 4. Enums (40 Total)
 
 All enums located in `app/Enums/` directory. Most implement Filament contracts for automatic label/color/icon rendering in tables and forms.
 
@@ -1069,6 +1158,20 @@ POS terminal shift state.
 
 ---
 
+### Phase 3.2 Sales Enums
+
+**QuotationStatus** — Draft, Sent, Accepted, Expired, Rejected, Cancelled (HasColor, HasIcon, HasLabel)
+
+**SalesOrderStatus** — Draft, Confirmed, PartiallyDelivered, Delivered, Invoiced, Cancelled (HasColor, HasIcon, HasLabel)
+
+**DeliveryNoteStatus** — Draft, Confirmed, Cancelled (HasColor, HasLabel)
+
+**SalesReturnStatus** — Draft, Confirmed, Cancelled (HasColor, HasLabel)
+
+**AdvancePaymentStatus** — Open, PartiallyApplied, FullyApplied, Refunded (HasColor, HasLabel)
+
+**InvoiceType** — Standard, Advance (HasLabel)
+
 ---
 
 ## 5. Key Design Decisions
@@ -1414,13 +1517,23 @@ Document-facing fields (`Product.name`, `Product.description`, `Category.name`, 
 
 ---
 
-## 9. Next Phase
+## 9. Current Phase
 
-**Phase 3 — Sales/Invoicing + Purchases + SUPTO/Fiscal**
+**Phase 3.2 — Sales / Invoicing (in progress)**
 
-Key integration points from Phase 2:
-- Sales invoices will call `StockService::issue()` to decrement stock
-- Purchase orders will call `StockService::receive()` to increment stock
-- `StockMovement.reference` morph is already wired for Invoice/PO links (nullable now)
-- `DocumentSeries` (Phase 1) will generate Invoice and PO numbers
+Phases 1, 2, and 3.1 are complete. Phase 3.2 is building the outbound sales pipeline:
+
+- ✅ 3.2.1: Enums + 20 migrations + 18 models + 15 factories (full outbound data layer)
+- ✅ 3.2.2: Morph map (+8 entries), FiscalReceiptRequested event, StockService reserve/unreserve/issueReserved, 8 policies, RBAC (~80 new permissions), EuCountryVatRatesSeeder
+- ✅ 3.2.3: QuotationResource + QuotationService + PDF templates (offer + proforma)
+- ✅ 3.2.4: SalesOrderResource + SalesOrderService (stock reservation/unreservation, SO→PO import)
+- ✅ 3.2.5: DeliveryNoteResource + DeliveryNoteService (issueReserved per stock item, SO qty update, PDF template)
+- ⬜ 3.2.6: CustomerInvoice Resource
+- ⬜ 3.2.7: CustomerCreditNote + CustomerDebitNote Resources
+- ⬜ 3.2.8: SalesReturn Resource
+- ⬜ 3.2.9: AdvancePayment Resource
+
+**Phase 3.3 — SUPTO/NRA Fiscal Printer**
+- `FiscalReceiptRequested` event is already wired; listener + ErpNet.FP REST integration is Phase 3.3
+- Bulgarian fiscal compliance: print fiscal receipt on cash payment confirmation
 - ErpNet.FP REST API for fiscal printer compliance

@@ -645,6 +645,12 @@ Navigation groups are used to organize resources in the left sidebar menu.
 - GoodsReceivedNoteResource (sort 2, label 'Goods Receipts', with GoodsReceivedNoteItemsRelationManager; Confirm Receipt action is irreversible, calls GoodsReceiptService)
 - SupplierInvoiceResource (sort 3, with SupplierInvoiceItemsRelationManager supporting free-text lines; actions: Confirm, Cancel, Create Credit Note)
 - SupplierCreditNoteResource (sort 4, with SupplierCreditNoteItemsRelationManager; quantity validated against remainingCreditableQuantity())
+- PurchaseReturnResource (sort 5, with PurchaseReturnItemsRelationManager; Confirm action calls PurchaseReturnService::confirm() — stock goes down; "Import from GRN" header action auto-imports GRN lines)
+
+**Sales Group** (`NavigationGroup::Sales`):
+- QuotationResource (sort 1, with QuotationItemsRelationManager; actions: Send, Accept, Reject, Convert to SO with warehouse picker modal, Cancel, Print as Offer PDF, Print as Proforma PDF)
+- SalesOrderResource (sort 2, with SalesOrderItemsRelationManager; Confirm triggers stock reservation; Import to PO action; Cancel cascades to draft DNs/invoices)
+- DeliveryNoteResource (sort 3, label 'Delivery Notes', with DeliveryNoteItemsRelationManager; Confirm Delivery calls DeliveryNoteService::confirm() — issues reserved stock; Print PDF action)
 
 ---
 
@@ -848,6 +854,147 @@ All Purchases group resources use `NavigationGroup::Purchases` for `$navigationG
 - `afterStateUpdated` auto-fills `product_variant_id`, `unit_price`, `vat_rate_id`, `description`
 - `quantity` — Validated against `remainingCreditableQuantity()` using `lockForUpdate()` to prevent race conditions
 - `after()` hooks call `$creditNote->recalculateTotals()`
+
+---
+
+## 5c. Admin Panel: Sales Group
+
+All Sales group resources use `NavigationGroup::Sales` for `$navigationGroup`.
+
+### 5c.1 QuotationResource
+
+**Model:** `App\Models\Quotation`
+**Navigation Sort:** 1
+**Record Title Attribute:** `quotation_number`
+**Pages:** List, Create, View, Edit
+
+#### Form Schema (QuotationForm)
+
+**Quotation Section:**
+- `partner_id` — Select from active customers (`Partner::customers()->where('is_active', true)`), required
+- `document_series_id` — Optional
+- `quotation_number` — Auto-filled from `SeriesType::Quote` series; disabled + dehydrated
+- `pricing_mode` — Select VatExclusive/VatInclusive, required
+- `currency_code`, `exchange_rate`
+- `issued_at` — DatePicker, required
+- `valid_until` — DatePicker, optional
+- `notes`, `internal_notes`
+
+#### Table Schema (QuotationsTable)
+
+**Columns:** quotation_number (searchable), partner.name, status (badge), total, valid_until, issued_at (default sort desc)
+
+**Filters:** SelectFilter status (QuotationStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Mark as Sent** — Draft → Sent
+- **Accept** — Sent → Accepted
+- **Reject** — Sent → Rejected
+- **Convert to Sales Order** — Accepted only; opens warehouse picker modal; calls `QuotationService::convertToSalesOrder()`; redirects to the new SO
+- **Cancel**
+- **Print as Offer** (PDF) — visible when Sent; streams `pdf/quotation-offer.blade.php` via DomPDF
+- **Print as Proforma Invoice** (PDF) — visible when Sent or Accepted; streams `pdf/quotation-proforma.blade.php`
+
+#### QuotationItemsRelationManager
+
+- `product_variant_id` — Select with `afterStateUpdated` auto-filling `unit_price` from variant `sale_price`
+- `quantity`, `unit_price`, `discount_percent`, `vat_rate_id`
+- Computed: `line_total`, `line_total_with_vat` (disabled)
+- `after()` hooks call `QuotationService::recalculateItemTotals()` and `recalculateDocumentTotals()`
+
+---
+
+### 5c.2 SalesOrderResource
+
+**Model:** `App\Models\SalesOrder`
+**Navigation Sort:** 2
+**Record Title Attribute:** `so_number`
+**Pages:** List, Create, View, Edit
+
+#### Form Schema (SalesOrderForm)
+
+**Sales Order Section:**
+- `partner_id` — Select from active customers, required
+- `warehouse_id` — **Required** (needed for stock reservation)
+- `quotation_id` — Optional; live; `afterStateUpdated` auto-fills currency/pricing_mode from the quotation
+- `so_number` — Auto-filled from `SeriesType::SalesOrder` series; disabled + dehydrated
+- `pricing_mode`, `currency_code`, `exchange_rate`
+- `issued_at`, `expected_delivery_date`
+- `notes`, `internal_notes`
+
+#### Table Schema (SalesOrdersTable)
+
+**Columns:** so_number (searchable), partner.name, status (badge), total, expected_delivery_date, issued_at
+
+**Filters:** SelectFilter status (SalesOrderStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Order** — Draft → Confirmed; triggers `SalesOrderService::reserveAllItems()` (stock reservation)
+- **Create Delivery Note** — URL link to DeliveryNotes create page with `?sales_order_id=` pre-fill; visible when Confirmed/PartiallyDelivered
+- **Create Invoice** — URL link to CustomerInvoices create page with `?sales_order_id=` pre-fill; visible when Confirmed/PartiallyDelivered/Delivered (placeholder until 3.2.6)
+- **Import to PO** — Modal with supplier select + optional existing Draft PO; creates PO items with `sales_order_item_id` linkage; does not advance PO status
+- **Cancel** — Modal warns about draft DN/invoice cascade and unreservation; calls `SalesOrderService::transitionStatus(Cancelled)`
+
+#### Mount Behaviour
+
+`CreateSalesOrder::mount()` reads `?quotation_id=` from URL query string and pre-fills partner, currency, exchange_rate, pricing_mode, warehouse from the quotation (used by Quotation → "Convert to SO" action).
+
+#### SalesOrderItemsRelationManager
+
+- `product_variant_id` — Select with `afterStateUpdated` auto-filling `unit_price` from variant `sale_price`
+- `qty_delivered`, `qty_invoiced` — Read-only progress columns (disabled)
+- Computed: `line_total`, `line_total_with_vat` (disabled)
+- `after()` hooks call `SalesOrderService::recalculateItemTotals()` and `recalculateDocumentTotals()`
+
+---
+
+### 5c.3 DeliveryNoteResource
+
+**Model:** `App\Models\DeliveryNote`
+**Navigation Sort:** 3
+**Navigation Label:** `'Delivery Notes'`
+**Record Title Attribute:** `dn_number`
+**Pages:** List, Create, View, Edit (Edit redirects to View if DN is confirmed)
+
+#### Form Schema (DeliveryNoteForm)
+
+- `sales_order_id` — Optional, live; `afterStateUpdated` auto-fills `partner_id` and `warehouse_id` from the SO; options filtered to Confirmed + PartiallyDelivered SOs only
+- `partner_id` — Required, select from active customers; disabled (read-only) when `sales_order_id` is set
+- `warehouse_id` — **Required** (stock must be issued from a specific warehouse)
+- `document_series_id` — Optional
+- `dn_number` — Auto-filled from `SeriesType::DeliveryNote` series; disabled + dehydrated
+- `delivered_at` — DatePicker, default today
+- `notes`
+
+#### Table Schema (DeliveryNotesTable)
+
+**Columns:** dn_number (searchable), partner.name, warehouse.name, status (badge), delivered_at, salesOrder.so_number (toggleable, hidden by default)
+
+**Filters:** SelectFilter status (DeliveryNoteStatus), TrashedFilter
+
+#### View Page Header Actions
+
+- **Edit** — visible when `isEditable()`
+- **Confirm Delivery** — calls `DeliveryNoteService::confirm()`; irreversible; catches both `InvalidArgumentException` and `InsufficientStockException` and shows danger notifications
+- **Print Delivery Note** (PDF) — visible when Confirmed; streams `pdf/delivery-note.blade.php` via DomPDF
+- **Create Sales Return** — URL link to SalesReturns create page with `?delivery_note_id=` pre-fill; visible when Confirmed (placeholder until 3.2.8)
+- **Cancel** — visible for Draft only; calls `DeliveryNoteService::cancel()`
+
+#### Mount Behaviour
+
+`CreateDeliveryNote::mount()` reads `?sales_order_id=` from URL query string and pre-fills `sales_order_id`, `partner_id`, `warehouse_id`, `delivered_at` (used by SO → "Create Delivery Note" action).
+
+#### DeliveryNoteItemsRelationManager
+
+- `isReadOnly()` returns `true` when DN is confirmed (items immutable)
+- **"Import from SO" header action** — visible when DN has a linked SO; bulk-creates items from all SO lines with `remainingDeliverableQuantity() > 0`; auto-fills `sales_order_item_id`, `product_variant_id`, quantity, unit_cost
+- `sales_order_item_id` — Optional; when SO-linked, dropdown shows remaining-deliverable SO items; `afterStateUpdated` auto-fills variant, quantity, unit_cost
+- `product_variant_id` — Required; visible when no SO is linked
+- `quantity`, `unit_cost` — Required (decimal)
 
 ---
 

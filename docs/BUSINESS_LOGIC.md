@@ -12,11 +12,11 @@ All roles are registered in tenant databases via `RolesAndPermissionsSeeder` (re
 
 1. **super-admin** — Bypasses all permission gates (via `Gate::before()` in `AppServiceProvider`). No specific permissions assigned.
 2. **admin** — Full CRUD on all models (synced to `$allPermissions` — automatically includes new permissions added in future phases).
-3. **sales-manager** — CRUD partners, view contracts, CRUD tags, view catalog + stock levels.
+3. **sales-manager** — Full CRUD on all sales documents (quotation, sales_order, delivery_note, customer_invoice, customer_credit_note, customer_debit_note, sales_return, advance_payment, and their items) + view catalog/warehouse/partners.
 4. **sales-agent** — Create/update partners (no delete), view contracts, view tags.
-5. **accountant** — View partners/contracts, CRUD currencies/VAT rates, view number series; view POs + GRNs; full CRUD on supplier invoices + credit notes.
+5. **accountant** — View partners/contracts, CRUD currencies/VAT rates, view number series; view POs + GRNs; full CRUD on supplier invoices + credit notes. Phase 3.2 extension: view+CRUD on customer_invoice, customer_credit_note, customer_debit_note, advance_payment and their items; view on quotation, sales_order, delivery_note, sales_return.
 6. **viewer** — View-only access to all models.
-7. **warehouse-manager** — Full CRUD on warehouses/locations/movements/stock items; view catalog; full CRUD on GRNs + purchase returns; view POs.
+7. **warehouse-manager** — Full CRUD on warehouses/locations/movements/stock items; view catalog; full CRUD on GRNs + purchase returns; view POs. Phase 3.2 extension: full CRUD on delivery_note, delivery_note_item, sales_return, sales_return_item; view on sales_order.
 8. **field-technician** — Minimal access (reserved for field service phase).
 9. **finance-manager** — View-only on all models.
 10. **purchasing-manager** — Full CRUD on all purchase documents (PO, GRN, supplier invoice, supplier credit note, purchase return) + view catalog/warehouse/partners.
@@ -40,8 +40,9 @@ All permissions follow the pattern: `{action}_{model}`
 | Phase 1 | partner, contract, currency, exchange_rate, vat_rate, number_series, tenant_user, tag, company_settings, role | 50 |
 | Phase 2 | category, unit, product, product_variant, warehouse, stock_location, stock_item, stock_movement | +40 |
 | Phase 3.1 | purchase_order, purchase_order_item, goods_received_note, goods_received_note_item, supplier_invoice, supplier_invoice_item, supplier_credit_note, supplier_credit_note_item, purchase_return, purchase_return_item | +50 |
+| Phase 3.2 | quotation, quotation_item, sales_order, sales_order_item, delivery_note, delivery_note_item, customer_invoice, customer_invoice_item, customer_credit_note, customer_credit_note_item, customer_debit_note, customer_debit_note_item, sales_return, sales_return_item, advance_payment, advance_payment_application | +80 |
 
-**Total: ~140 permissions per tenant**
+**Total: ~220 permissions per tenant**
 
 ### Gate::before Super-Admin Bypass
 
@@ -235,6 +236,23 @@ All methods are wrapped in `DB::transaction()` and use `bcmath` for decimal prec
 - `transfer(ProductVariant $variant, Warehouse $from, Warehouse $to, string $quantity, ?StockLocation $fromLoc, ?StockLocation $toLoc): array`
   - Issues from source (TransferOut), receives at destination (TransferIn). Returns `[StockMovement, StockMovement]`.
 
+- `reserve(ProductVariant $variant, Warehouse $warehouse, string $quantity, Model $reference): void`
+  - Books stock for a future issue: increments `stock_items.reserved_quantity`.
+  - Throws `InsufficientStockException` if `available_quantity (= quantity - reserved_quantity) < $quantity`.
+  - Does **not** create a `StockMovement` — reservations are bookings, not physical movements.
+  - Called by `SalesOrderService::reserveAllItems()` when an SO is confirmed.
+
+- `unreserve(ProductVariant $variant, Warehouse $warehouse, string $quantity, Model $reference): void`
+  - Releases a prior reservation: decrements `reserved_quantity` (floor at 0).
+  - Does **not** create a `StockMovement`.
+  - Called by `SalesOrderService::unreserveRemainingItems()` when an SO is cancelled.
+
+- `issueReserved(ProductVariant $variant, Warehouse $warehouse, string $quantity, Model $reference, ?User $by = null): StockMovement`
+  - **Single atomic SQL UPDATE** for race-condition safety: decrements both `quantity` AND `reserved_quantity` in one statement, guarded by `reserved_quantity >= qty AND quantity >= qty`.
+  - If 0 rows affected, throws `InsufficientStockException`.
+  - Creates `StockMovement` with `MovementType::Sale` and negative quantity.
+  - Called by `DeliveryNoteService::confirm()` per stock-type item.
+
 **Design Notes:**
 - `StockItem` is upserted (create-or-update) on every mutation — no pre-creation needed.
 - `StockMovement` rows are immutable (boot throws `RuntimeException` on update/delete).
@@ -337,6 +355,91 @@ Handles arithmetic for supplier credit notes.
 
 - `recalculateDocumentTotals(SupplierCreditNote $creditNote): void`
   - Sums all items → sets `subtotal`, `tax_amount`, `total` on the credit note.
+
+---
+
+### QuotationService
+
+Location: `/app/Services/QuotationService.php`
+
+Handles arithmetic and state transitions for quotations.
+
+**Methods:**
+
+- `recalculateItemTotals(QuotationItem $item): void`
+  - Computes `discount_amount`, `vat_amount`, `line_total`, `line_total_with_vat` from `quantity × unit_price`, discount, and VAT rate. Delegates VAT math to `VatCalculationService`.
+
+- `recalculateDocumentTotals(Quotation $quotation): void`
+  - Sums all items → sets `subtotal`, `discount_amount`, `tax_amount`, `total`.
+
+- `transitionStatus(Quotation $quotation, QuotationStatus $newStatus): void`
+  - Valid transitions: Draft → {Sent, Cancelled}; Sent → {Accepted, Rejected, Expired, Cancelled}; Accepted → {Cancelled}.
+  - Throws `InvalidArgumentException` on invalid transition; also blocks Sent→Accepted when quotation has no items.
+
+- `convertToSalesOrder(Quotation $quotation, Warehouse $warehouse): SalesOrder`
+  - Creates a `SalesOrder` copying partner, currency, exchange_rate, pricing_mode, and all items (with `quotation_item_id` back-link).
+  - Generates `so_number` from `SeriesType::SalesOrder` NumberSeries (falls back to `SO-{random8}`).
+  - Does NOT change quotation status (stays Accepted even after conversion).
+
+---
+
+### SalesOrderService
+
+Location: `/app/Services/SalesOrderService.php`
+
+Handles arithmetic, state transitions, and stock operations for sales orders.
+
+**Methods:**
+
+- `recalculateItemTotals(SalesOrderItem $item): void` — standard pattern (mirrors PO service)
+
+- `recalculateDocumentTotals(SalesOrder $order): void` — standard pattern
+
+- `transitionStatus(SalesOrder $order, SalesOrderStatus $newStatus): void`
+  - Valid transitions: Draft → {Confirmed, Cancelled}; Confirmed → {PartiallyDelivered, Delivered, Invoiced, Cancelled}; PartiallyDelivered → {Delivered, Cancelled}; Delivered → {Invoiced, Cancelled}.
+  - On **Confirmed**: calls `reserveAllItems()` (stock reservation).
+  - On **Cancelled**: calls `unreserveRemainingItems()` + cascades cancellation to draft DNs and draft invoices.
+
+- `reserveAllItems(SalesOrder $order): void`
+  - Iterates stock-type items only (skips Service/Bundle types).
+  - Calls `StockService::reserve()` per item inside `DB::transaction`.
+
+- `unreserveRemainingItems(SalesOrder $order): void`
+  - For each stock-type item: unreserves `qty - qty_delivered` (only undelivered portion remains reserved).
+
+- `updateDeliveredQuantities(SalesOrder $order): void`
+  - Sums confirmed DN item quantities per SO item → updates `qty_delivered`.
+  - Auto-transitions SO to `PartiallyDelivered` (some items partially delivered) or `Delivered` (all items fully delivered).
+  - Called by `DeliveryNoteService::confirm()` when DN has a linked SO.
+
+- `updateInvoicedQuantities(SalesOrder $order): void`
+  - Sums confirmed customer invoice item quantities per SO item → updates `qty_invoiced`.
+  - Auto-transitions SO to `Invoiced` when all items fully invoiced.
+  - Called by `CustomerInvoiceService::confirm()` (Phase 3.2.6).
+
+---
+
+### DeliveryNoteService
+
+Location: `/app/Services/DeliveryNoteService.php`
+
+Orchestrates delivery note confirmation: reserved stock out, SO status update, audit trail.
+
+**Methods:**
+
+- `confirm(DeliveryNote $dn): void`
+  - Pre-checks: `$dn->isEditable()` (throws if not Draft); at least one item.
+  - Loads `items.productVariant.product` and `warehouse` via `loadMissing`.
+  - Inside `DB::transaction()`:
+    1. For each DN item: skips non-stock items (Service/Bundle); calls `StockService::issueReserved($variant, $warehouse, $qty, $dn)`.
+    2. Sets `$dn->status = Confirmed`, `$dn->delivered_at = today`.
+    3. If DN has a linked SO: calls `SalesOrderService::updateDeliveredQuantities($so)`.
+  - Throws `InvalidArgumentException` if preconditions fail; lets `InsufficientStockException` bubble to the UI handler.
+
+- `cancel(DeliveryNote $dn): void`
+  - Sets status to Cancelled. Only valid from Draft — confirmed DNs cannot be cancelled (stock already issued).
+
+**Key difference from GoodsReceiptService:** Uses `issueReserved()` (atomic decrement of both `quantity` and `reserved_quantity`) rather than `receive()`. Also skips service-type items.
 
 ---
 
@@ -806,6 +909,9 @@ Location: `/app/Console/Commands/SyncEuVatRatesCommand.php`
 
 | Artifact | Location | Purpose |
 |----------|----------|---------|
+| **QuotationService** | `/app/Services/QuotationService.php` | Quotation item/document totals, status transitions, convertToSalesOrder |
+| **SalesOrderService** | `/app/Services/SalesOrderService.php` | SO item/document totals, status transitions, stock reservation/unreservation, qty tracking |
+| **DeliveryNoteService** | `/app/Services/DeliveryNoteService.php` | DN confirmation: issueReserved per stock item, SO qty update |
 | **VatCalculationService** | `/app/Services/VatCalculationService.php` | VAT math (net/gross) |
 | **ViesValidationService** | `/app/Services/ViesValidationService.php` | EU VAT number validation + 24h cache |
 | **PlanLimitService** | `/app/Services/PlanLimitService.php` | User/document limit enforcement |

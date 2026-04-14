@@ -8,6 +8,7 @@ use App\Enums\PurchaseOrderStatus;
 use App\Enums\SalesOrderStatus;
 use App\Enums\SeriesType;
 use App\Exceptions\InsufficientStockException;
+use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\NumberSeries;
 use App\Models\Partner;
@@ -42,7 +43,7 @@ class ViewSalesOrder extends ViewRecord
                     'number' => $dn->dn_number,
                     'status' => $dn->status->getLabel(),
                     'color' => $dn->status->getColor(),
-                    'url' => '#', // updated in 3.2.5 when DeliveryNoteResource exists
+                    'url' => DeliveryNoteResource::getUrl('view', ['record' => $dn]),
                 ])->all(),
             ],
             [
@@ -91,7 +92,7 @@ class ViewSalesOrder extends ViewRecord
                     SalesOrderStatus::Confirmed,
                     SalesOrderStatus::PartiallyDelivered,
                 ]))
-                ->url(fn (SalesOrder $record): string => '#'), // updated in 3.2.5 when DeliveryNoteResource exists
+                ->url(fn (SalesOrder $record): string => DeliveryNoteResource::getUrl('create').'?sales_order_id='.$record->id),
 
             Action::make('create_invoice')
                 ->label('Create Invoice')
