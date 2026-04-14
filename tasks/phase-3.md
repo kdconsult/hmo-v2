@@ -292,20 +292,20 @@ One per document model. Register in `AuthServiceProvider`.
 
 ### Sub-Task Breakdown
 
-| Sub-task | Scope |
-|---|---|
-| **3.2.1** | Enums + Models + Migrations + Factories (all documents + pivots + OSS table + `InvoiceType` enum) |
-| **3.2.2** | Infrastructure (StockService 3 new methods, SeriesType, NavigationGroup, InvoiceType, morph map, RBAC, Policies) |
-| **3.2.3** | `Quotation` resource (CRUD, status pipeline, print actions, Create SO action) |
-| **3.2.4** | `SalesOrder` resource (CRUD, status pipeline, reserve on confirm, SO→PO import action) |
-| **3.2.5** | `DeliveryNote` resource (CRUD, confirm → `issueReserved()`, service line skip, SO qty update) |
-| **3.2.6** | `CustomerInvoice` resource (Standard + Advance types, advance deduction rows with VAT, reverse charge, OSS VAT logic) |
-| **3.2.7** | `CustomerCreditNote` + `CustomerDebitNote` resources |
-| **3.2.8** | `SalesReturn` resource (confirm → `receive()`, prompt CN modal) |
-| **3.2.9** | `AdvancePayment` resource (CRUD, applications pivot, open advances surfaced on invoice creation) |
-| **3.2.10** | Tests — cover: stock reservation + `issueReserved()` atomicity, OSS threshold crossing, reverse charge, advance deduction with correct VAT, SalesReturn→CN prompt, partial delivery SO status transitions |
-| **3.2.11** | Docs update (`docs/STATUS.md`, `docs/UI_PANELS.md`) + Pint + final test run |
-| **3.2.12** | **Refactor phase** — structured review → `tasks/phase-3.2-refactor.md` |
+| Sub-task | Scope | Status |
+|---|---|---|
+| **3.2.1** | Enums + Models + Migrations + Factories (all documents + pivots + OSS table + `InvoiceType` enum) | ✅ |
+| **3.2.2** | Infrastructure (StockService 3 new methods, SeriesType, NavigationGroup, InvoiceType, morph map, RBAC, Policies) | ✅ |
+| **3.2.3** | `Quotation` resource (CRUD, status pipeline, print actions, Create SO action) | ✅ |
+| **3.2.4** | `SalesOrder` resource (CRUD, status pipeline, reserve on confirm, SO→PO import action) | |
+| **3.2.5** | `DeliveryNote` resource (CRUD, confirm → `issueReserved()`, service line skip, SO qty update) | |
+| **3.2.6** | `CustomerInvoice` resource (Standard + Advance types, advance deduction rows with VAT, reverse charge, OSS VAT logic) | |
+| **3.2.7** | `CustomerCreditNote` + `CustomerDebitNote` resources | |
+| **3.2.8** | `SalesReturn` resource (confirm → `receive()`, prompt CN modal) | |
+| **3.2.9** | `AdvancePayment` resource (CRUD, applications pivot, open advances surfaced on invoice creation) | |
+| **3.2.10** | Tests — cover: stock reservation + `issueReserved()` atomicity, OSS threshold crossing, reverse charge, advance deduction with correct VAT, SalesReturn→CN prompt, partial delivery SO status transitions | |
+| **3.2.11** | Docs update (`docs/STATUS.md`, `docs/UI_PANELS.md`) + Pint + final test run | |
+| **3.2.12** | **Refactor phase** — structured review → `tasks/phase-3.2-refactor.md` | |
 
 ---
 

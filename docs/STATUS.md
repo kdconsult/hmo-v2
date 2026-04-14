@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.2 complete (morph map, FiscalReceiptRequested event, StockService reserve/unreserve/issueReserved, 8 new Policies, RBAC seeder extended, EU VAT Rates seeder).** 406/406 tests pass. Next: Phase 3.2.3 — Quotation Resource.
+**Phase 3.2.3 complete (QuotationResource, QuotationService, PDF templates — offer + proforma, 12 new tests).** 418/418 tests pass. Next: Phase 3.2.4 — SalesOrder Resource.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -97,6 +97,29 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 - `PurchaseOrderItem::invoicedQuantity()` / `remainingInvoiceableQuantity()` — computed (no migration); mirrors `creditedQuantity()` pattern; used to filter SI import and suggest quantities.
 - Express Purchasing tenant setting (`purchasing.express_purchasing`, default off) — when on, "Confirm & Receive" button visible on `ViewSupplierInvoice`.
 
+### Phase 3.2 Sales / Invoicing (in progress)
+
+**Data layer (3.2.1):**
+- All enums: `QuotationStatus`, `SalesOrderStatus`, `DeliveryNoteStatus`, `SalesReturnStatus`, `AdvancePaymentStatus`, `InvoiceType`. `SeriesType` + `MovementType` extended.
+- 20 tenant migrations covering the full outbound pipeline: `quotations`, `quotation_items`, `sales_orders`, `sales_order_items`, `delivery_notes`, `delivery_note_items`, `customer_invoices`, `customer_invoice_items`, `customer_credit_notes`, `customer_credit_note_items`, `customer_debit_notes`, `customer_debit_note_items`, `sales_returns`, `sales_return_items`, `advance_payments`, `advance_payment_applications`, `eu_country_vat_rates`, `eu_oss_accumulations`.
+- 18 models + 15 factories for all of the above.
+
+**Infrastructure (3.2.2):**
+- Morph map extended (+8 entries): `quotation`, `sales_order`, `delivery_note`, `customer_invoice`, `customer_credit_note`, `customer_debit_note`, `sales_return`, `advance_payment`.
+- `FiscalReceiptRequested` event.
+- `StockService::reserve()`, `unreserve()`, `issueReserved()`.
+- 8 new policy files for all Phase 3.2 models.
+- `RolesAndPermissionsSeeder` extended (+16 models, ~80 new permissions); `sales-manager`/`accountant`/`warehouse-manager` roles updated.
+- `EuCountryVatRatesSeeder` (27 EU member states) wired into tenant onboarding.
+
+**Quotation Resource (3.2.3):**
+- `QuotationResource` — full CRUD, `NavigationGroup::Sales`, sort 1.
+- `QuotationService` — item total recalc (VAT + discount via `VatCalculationService`), document total aggregation, status transition guard (no-items check + valid-transition check), `convertToSalesOrder(Quotation, Warehouse): SalesOrder` (copies all items with `quotation_item_id` back-link, generates `so_number` from `SeriesType::SalesOrder` with `Str::random(8)` fallback).
+- Status pipeline: Draft → Sent → Accepted / Rejected / Expired / Cancelled.
+- `ViewQuotation` header actions: Edit (if editable), Mark as Sent, Accept, Reject, Convert to SO (warehouse picker modal), Cancel, Print as Offer (Sent only), Print as Proforma (Sent + Accepted).
+- PDF templates: `quotation-offer.blade.php` + `quotation-proforma.blade.php` (DomPDF via `streamDownload`).
+- `QuotationItemsRelationManager` — auto-fills `sale_price` on variant select, `isReadOnly()` tied to `isEditable()`, after hooks call `QuotationService` to recalculate totals.
+
 ---
 
 ## Deferred / Not Done
@@ -130,7 +153,9 @@ Sub-task 3.2.1 complete: all enums, migrations (20), models (18), factories (15)
 
 Sub-task 3.2.2 complete: morph map extended (+8 entries), `FiscalReceiptRequested` event, `StockService::reserve()/unreserve()/issueReserved()`, 8 new policy files, `RolesAndPermissionsSeeder` extended (+16 models, sales-manager/accountant/warehouse-manager role updates), `EuCountryVatRatesSeeder` (27 EU member states) wired into tenant onboarding.
 
-Next: Sub-task 3.2.3 — Quotation Resource
+Sub-task 3.2.3 complete: `QuotationResource` (full CRUD, status pipeline: Draft→Sent→Accepted/Rejected/Expired/Cancelled, PDF actions, Convert to SO action). `QuotationService` mirrors `PurchaseOrderService` (item + document total recalc, status transition guard with no-items check, `convertToSalesOrder(Quotation, Warehouse): SalesOrder`). PDF templates: `quotation-offer.blade.php` + `quotation-proforma.blade.php`. `QuotationItemsRelationManager` auto-fills `sale_price` on variant select. 12 new tests.
+
+Next: Sub-task 3.2.4 — SalesOrder Resource
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -199,3 +224,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | CATALOG-3 (Category inheritable defaults — vat_rate + unit auto-fill on product create) | **398** |
 | Phase 3.2.1 (enums + 20 migrations + 18 models + 15 factories — full outbound pipeline data layer) | **398** |
 | Phase 3.2.2 (morph map, FiscalReceiptRequested, StockService reserve/unreserve/issueReserved, 8 policies, RBAC + EU VAT seeder) | **406** |
+| Phase 3.2.3 (QuotationResource, QuotationService, PDF templates — offer + proforma) | **418** |

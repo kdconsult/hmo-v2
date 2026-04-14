@@ -344,7 +344,12 @@ All mirror `app/Policies/PurchaseOrderPolicy.php` exactly — each method delega
 
 ---
 
-## Sub-task 3.2.3 — Quotation Resource
+## Sub-task 3.2.3 — Quotation Resource ✅ DONE (2026-04-14, 418 tests)
+
+### Implementation notes (deviations from plan)
+- `convertToSalesOrder()` takes a `Warehouse` parameter — `sales_orders.warehouse_id` is NOT NULL in the migration, so the ViewQuotation "Convert to SO" action shows a warehouse picker modal before creating the SO.
+- SO number generated via `NumberSeries::getDefault(SeriesType::SalesOrder)` if available, falls back to `SO-{random}`. The redirect after conversion currently points back to the quotation view; will be updated to redirect to the SO in 3.2.4.
+- PDF print actions use `response()->streamDownload()` inside the Filament action closure (Livewire 4 native support).
 
 ### QuotationService
 
@@ -359,7 +364,7 @@ Methods:
    - Draft → Sent, Cancelled
    - Sent → Accepted, Rejected, Expired, Cancelled
    - Accepted → Cancelled (Accepted stays Accepted even after SO creation)
-4. `convertToSalesOrder(Quotation): SalesOrder` — creates SO copying: partner, currency, exchange_rate, pricing_mode, warehouse (null), items (with quotation_item_id linkage). Returns the new SO. Does NOT change quotation status.
+4. `convertToSalesOrder(Quotation, Warehouse): SalesOrder` — creates SO copying: partner, currency, exchange_rate, pricing_mode, warehouse (required via modal), items (with quotation_item_id linkage). Returns the new SO. Does NOT change quotation status.
 
 ### Filament Resource
 
