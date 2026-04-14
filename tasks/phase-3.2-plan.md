@@ -624,7 +624,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.9 — AdvancePayment Resource
+## Sub-task 3.2.9 — AdvancePayment Resource ✅ DONE (2026-04-14, 476 tests)
 
 ### AdvancePaymentService (no purchase mirror)
 

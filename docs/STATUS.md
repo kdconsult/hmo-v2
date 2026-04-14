@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.8 complete (SalesReturnResource, SalesReturnService, SalesReturnItemsRelationManager, ViewDeliveryNote wired to real SalesReturn URLs).** 460/460 tests pass. Next: Phase 3.2.9 — AdvancePayment Resource.
+**Phase 3.2.9 complete (AdvancePaymentResource, AdvancePaymentService, view-document.blade.php template).** 476/476 tests pass. Next: Phase 3.2.10 — Tests (policy test, remaining service tests).
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -182,7 +182,9 @@ Sub-task 3.2.6 complete: `CustomerInvoiceResource` (full CRUD, Draft→Confirmed
 
 Sub-task 3.2.7 complete: `CustomerCreditNoteResource` (NavigationGroup::Sales sort 5, items RM with `lockForUpdate()` quantity guard on `remainingCreditableQuantity()`). `CustomerDebitNoteResource` (sort 6, free-form items — invoice item link optional). `CustomerCreditNoteService` + `CustomerDebitNoteService` (mirror SupplierCreditNoteService). `ViewCustomerInvoice` Credit/Debit Note action URLs and related-document links wired to real resource routes. Migration `200022` adds `default(0)` to note items computed columns. 8 new tests.
 
-Next: Sub-task 3.2.9 — AdvancePayment Resource
+Sub-task 3.2.9 complete: `AdvancePaymentResource` (NavigationGroup::Sales sort 8, no items RM). `AdvancePaymentService` (3 methods: `createAdvanceInvoice` — confirmed CustomerInvoice with invoice_type=Advance, auto-calculates totals, links back via customer_invoice_id; `applyToFinalInvoice` — negative deduction row with same vat_rate_id as advance invoice item; `refund`). `ViewAdvancePayment` header actions: Issue Advance Invoice, Apply to Invoice (modal picker), Refund. `view-document.blade.php` — reusable related-documents template for single-amount documents. 16 new tests.
+
+Next: Sub-task 3.2.10 — Tests (SalesPolicyTest + remaining coverage per plan)
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -258,3 +260,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.6 (CustomerInvoiceResource, CustomerInvoiceService, EuOssService, PDF template, ViewSalesOrder wired) | **445** |
 | Phase 3.2.7 (CustomerCreditNoteResource, CustomerDebitNoteResource, both services, ViewCustomerInvoice wired) | **453** |
 | Phase 3.2.8 (SalesReturnResource, SalesReturnService, SalesReturnItemsRelationManager, ViewDeliveryNote wired) | **460** |
+| Phase 3.2.9 (AdvancePaymentResource, AdvancePaymentService, view-document.blade.php template) | **476** |
