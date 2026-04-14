@@ -650,7 +650,7 @@ Methods:
 
 ---
 
-## Sub-task 3.2.10 — Tests
+## Sub-task 3.2.10 — Tests ✅ DONE (2026-04-14, 513 tests)
 
 All tests use Pest syntax in `tests/Feature/`. Mirror patterns from `tests/Feature/PurchaseOrderTest.php` and `tests/Feature/GoodsReceivedNoteTest.php`.
 

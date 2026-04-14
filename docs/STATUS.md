@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.9 complete (AdvancePaymentResource, AdvancePaymentService, view-document.blade.php template).** 476/476 tests pass. Next: Phase 3.2.10 — Tests (policy test, remaining service tests).
+**Phase 3.2.10 complete (SalesPolicyTest, EuOssTest, CustomerInvoiceTest, CustomerCreditNoteTest, CustomerDebitNoteTest).** 513/513 tests pass. Note: ReverseChargeTest skipped — `is_reverse_charge` is a manual-only toggle with no auto-detection logic in the codebase. Next: Phase 3.2.11 — Docs Update + Pint + Final Test Run.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
