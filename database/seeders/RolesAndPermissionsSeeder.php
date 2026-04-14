@@ -43,6 +43,23 @@ class RolesAndPermissionsSeeder extends Seeder
         // Phase 3.1 — Purchase Returns
         'purchase_return',
         'purchase_return_item',
+        // Phase 3.2 — Sales / Invoicing
+        'quotation',
+        'quotation_item',
+        'sales_order',
+        'sales_order_item',
+        'delivery_note',
+        'delivery_note_item',
+        'customer_invoice',
+        'customer_invoice_item',
+        'customer_credit_note',
+        'customer_credit_note_item',
+        'customer_debit_note',
+        'customer_debit_note_item',
+        'sales_return',
+        'sales_return_item',
+        'advance_payment',
+        'advance_payment_application',
     ];
 
     /** @var string[] */
@@ -68,17 +85,33 @@ class RolesAndPermissionsSeeder extends Seeder
         $admin = Role::firstOrCreate(['name' => 'admin']);
         $admin->syncPermissions($allPermissions);
 
-        // sales-manager — CRUD partners, view contracts, view catalog + stock
+        // sales-manager — full CRUD on all sales documents + view catalog/warehouse/partners
         $salesManager = Role::firstOrCreate(['name' => 'sales-manager']);
         $salesManager->syncPermissions([
-            'view_any_partner', 'view_partner', 'create_partner', 'update_partner', 'delete_partner',
-            'view_any_contract', 'view_contract',
-            'view_any_tag', 'view_tag', 'create_tag', 'update_tag', 'delete_tag',
-            // Phase 2 catalog view
+            // Full CRUD on all sales documents
+            'view_any_quotation', 'view_quotation', 'create_quotation', 'update_quotation', 'delete_quotation',
+            'view_any_quotation_item', 'view_quotation_item', 'create_quotation_item', 'update_quotation_item', 'delete_quotation_item',
+            'view_any_sales_order', 'view_sales_order', 'create_sales_order', 'update_sales_order', 'delete_sales_order',
+            'view_any_sales_order_item', 'view_sales_order_item', 'create_sales_order_item', 'update_sales_order_item', 'delete_sales_order_item',
+            'view_any_delivery_note', 'view_delivery_note', 'create_delivery_note', 'update_delivery_note', 'delete_delivery_note',
+            'view_any_delivery_note_item', 'view_delivery_note_item', 'create_delivery_note_item', 'update_delivery_note_item', 'delete_delivery_note_item',
+            'view_any_customer_invoice', 'view_customer_invoice', 'create_customer_invoice', 'update_customer_invoice', 'delete_customer_invoice',
+            'view_any_customer_invoice_item', 'view_customer_invoice_item', 'create_customer_invoice_item', 'update_customer_invoice_item', 'delete_customer_invoice_item',
+            'view_any_customer_credit_note', 'view_customer_credit_note', 'create_customer_credit_note', 'update_customer_credit_note', 'delete_customer_credit_note',
+            'view_any_customer_credit_note_item', 'view_customer_credit_note_item', 'create_customer_credit_note_item', 'update_customer_credit_note_item', 'delete_customer_credit_note_item',
+            'view_any_customer_debit_note', 'view_customer_debit_note', 'create_customer_debit_note', 'update_customer_debit_note', 'delete_customer_debit_note',
+            'view_any_customer_debit_note_item', 'view_customer_debit_note_item', 'create_customer_debit_note_item', 'update_customer_debit_note_item', 'delete_customer_debit_note_item',
+            'view_any_sales_return', 'view_sales_return', 'create_sales_return', 'update_sales_return', 'delete_sales_return',
+            'view_any_sales_return_item', 'view_sales_return_item', 'create_sales_return_item', 'update_sales_return_item', 'delete_sales_return_item',
+            'view_any_advance_payment', 'view_advance_payment', 'create_advance_payment', 'update_advance_payment', 'delete_advance_payment',
+            'view_any_advance_payment_application', 'view_advance_payment_application', 'create_advance_payment_application', 'update_advance_payment_application', 'delete_advance_payment_application',
+            // View-only on catalog, warehouse, partners
+            'view_any_partner', 'view_partner',
             'view_any_product', 'view_product',
             'view_any_product_variant', 'view_product_variant',
             'view_any_category', 'view_category',
             'view_any_unit', 'view_unit',
+            'view_any_warehouse', 'view_warehouse',
             'view_any_stock_item', 'view_stock_item',
         ]);
 
@@ -112,6 +145,24 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_supplier_invoice_item', 'view_supplier_invoice_item', 'create_supplier_invoice_item', 'update_supplier_invoice_item', 'delete_supplier_invoice_item',
             'view_any_supplier_credit_note', 'view_supplier_credit_note', 'create_supplier_credit_note', 'update_supplier_credit_note', 'delete_supplier_credit_note',
             'view_any_supplier_credit_note_item', 'view_supplier_credit_note_item', 'create_supplier_credit_note_item', 'update_supplier_credit_note_item', 'delete_supplier_credit_note_item',
+            // Phase 3.2 — view sales pipeline
+            'view_any_quotation', 'view_quotation',
+            'view_any_quotation_item', 'view_quotation_item',
+            'view_any_sales_order', 'view_sales_order',
+            'view_any_sales_order_item', 'view_sales_order_item',
+            'view_any_delivery_note', 'view_delivery_note',
+            'view_any_delivery_note_item', 'view_delivery_note_item',
+            'view_any_sales_return', 'view_sales_return',
+            'view_any_sales_return_item', 'view_sales_return_item',
+            // Phase 3.2 — full CRUD on financial sales documents
+            'view_any_customer_invoice', 'view_customer_invoice', 'create_customer_invoice', 'update_customer_invoice', 'delete_customer_invoice',
+            'view_any_customer_invoice_item', 'view_customer_invoice_item', 'create_customer_invoice_item', 'update_customer_invoice_item', 'delete_customer_invoice_item',
+            'view_any_customer_credit_note', 'view_customer_credit_note', 'create_customer_credit_note', 'update_customer_credit_note', 'delete_customer_credit_note',
+            'view_any_customer_credit_note_item', 'view_customer_credit_note_item', 'create_customer_credit_note_item', 'update_customer_credit_note_item', 'delete_customer_credit_note_item',
+            'view_any_customer_debit_note', 'view_customer_debit_note', 'create_customer_debit_note', 'update_customer_debit_note', 'delete_customer_debit_note',
+            'view_any_customer_debit_note_item', 'view_customer_debit_note_item', 'create_customer_debit_note_item', 'update_customer_debit_note_item', 'delete_customer_debit_note_item',
+            'view_any_advance_payment', 'view_advance_payment', 'create_advance_payment', 'update_advance_payment', 'delete_advance_payment',
+            'view_any_advance_payment_application', 'view_advance_payment_application', 'create_advance_payment_application', 'update_advance_payment_application', 'delete_advance_payment_application',
         ]);
 
         // viewer — view all Phase 1 models
@@ -141,6 +192,13 @@ class RolesAndPermissionsSeeder extends Seeder
             // Phase 3.1 — full CRUD on purchase returns
             'view_any_purchase_return', 'view_purchase_return', 'create_purchase_return', 'update_purchase_return', 'delete_purchase_return',
             'view_any_purchase_return_item', 'view_purchase_return_item', 'create_purchase_return_item', 'update_purchase_return_item', 'delete_purchase_return_item',
+            // Phase 3.2 — view sales orders + full CRUD on delivery notes + sales returns
+            'view_any_sales_order', 'view_sales_order',
+            'view_any_sales_order_item', 'view_sales_order_item',
+            'view_any_delivery_note', 'view_delivery_note', 'create_delivery_note', 'update_delivery_note', 'delete_delivery_note',
+            'view_any_delivery_note_item', 'view_delivery_note_item', 'create_delivery_note_item', 'update_delivery_note_item', 'delete_delivery_note_item',
+            'view_any_sales_return', 'view_sales_return', 'create_sales_return', 'update_sales_return', 'delete_sales_return',
+            'view_any_sales_return_item', 'view_sales_return_item', 'create_sales_return_item', 'update_sales_return_item', 'delete_sales_return_item',
         ]);
 
         // field-technician — minimal Phase 1 access (expanded in later phases)

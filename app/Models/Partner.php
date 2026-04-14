@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PartnerType;
 use App\Enums\PaymentMethod;
+use App\Support\EuCountries;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,6 +39,7 @@ class Partner extends Model
         'discount_percent',
         'notes',
         'is_active',
+        'country_code',
     ];
 
     protected function casts(): array
@@ -68,6 +70,18 @@ class Partner extends Model
     public function scopeSuppliers($query): mixed
     {
         return $query->where('is_supplier', true);
+    }
+
+    public function scopeCustomers($query): mixed
+    {
+        return $query->where('is_customer', true);
+    }
+
+    public function hasValidEuVat(): bool
+    {
+        return ! empty($this->vat_number)
+            && ! empty($this->country_code)
+            && in_array($this->country_code, EuCountries::codes(), true);
     }
 
     public function defaultVatRate(): BelongsTo

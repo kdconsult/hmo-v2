@@ -10,6 +10,7 @@ use App\Models\TenantUser;
 use App\Models\User;
 use App\Models\Warehouse;
 use Database\Seeders\CurrencySeeder;
+use Database\Seeders\EuCountryVatRatesSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\UnitSeeder;
 use Database\Seeders\VatRateSeeder;
@@ -29,6 +30,7 @@ class TenantOnboardingService
             $this->runSeeder(CurrencySeeder::class);
             $this->runSeeder(VatRateSeeder::class);
             $this->runSeeder(UnitSeeder::class);
+            $this->runSeeder(EuCountryVatRatesSeeder::class);
 
             // Create the TenantUser for the owner if it doesn't exist yet
             TenantUser::firstOrCreate(

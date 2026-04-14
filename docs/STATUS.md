@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Backlog Session 1 complete (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8). CATALOG-3 complete.** 398/398 tests pass. Next: Phase 3.2 (Sales/Invoicing).
+**Phase 3.2.2 complete (morph map, FiscalReceiptRequested event, StockService reserve/unreserve/issueReserved, 8 new Policies, RBAC seeder extended, EU VAT Rates seeder).** 406/406 tests pass. Next: Phase 3.2.3 — Quotation Resource.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -124,12 +124,15 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 ## What's Next
 
-**Phase 3.2 — Sales/Invoicing (not yet planned)**
+**Phase 3.2 — Sales/Invoicing (in progress)**
 
-See `tasks/phase-3.md` for the sub-phase breakdown:
-- Sales module: Quote → SalesOrder → Invoice → CreditNote (Phase 3.2)
-- SUPTO/fiscal: ErpNet.FP REST API for Bulgarian fiscal printer compliance (Phase 3.3)
-- Document generation: Blade + DomPDF, NumberSeries for sequential numbering
+Sub-task 3.2.1 complete: all enums, migrations (20), models (18), factories (15) for the full outbound pipeline — Quotation → SalesOrder → DeliveryNote → CustomerInvoice → CreditNote/DebitNote → SalesReturn → AdvancePayment + EU OSS helpers. `PurchaseOrderItemsRelationManager` extended with `sales_order_item_id` selector.
+
+Sub-task 3.2.2 complete: morph map extended (+8 entries), `FiscalReceiptRequested` event, `StockService::reserve()/unreserve()/issueReserved()`, 8 new policy files, `RolesAndPermissionsSeeder` extended (+16 models, sales-manager/accountant/warehouse-manager role updates), `EuCountryVatRatesSeeder` (27 EU member states) wired into tenant onboarding.
+
+Next: Sub-task 3.2.3 — Quotation Resource
+
+See `tasks/phase-3.2-plan.md` for full spec.
 
 ---
 
@@ -194,3 +197,5 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 3.1.12 PR-1 (Purchase Return — full document stack) | **377** |
 | Backlog Session 1 (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8) | **391** |
 | CATALOG-3 (Category inheritable defaults — vat_rate + unit auto-fill on product create) | **398** |
+| Phase 3.2.1 (enums + 20 migrations + 18 models + 15 factories — full outbound pipeline data layer) | **398** |
+| Phase 3.2.2 (morph map, FiscalReceiptRequested, StockService reserve/unreserve/issueReserved, 8 policies, RBAC + EU VAT seeder) | **406** |

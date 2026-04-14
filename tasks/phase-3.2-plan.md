@@ -8,7 +8,7 @@ Phase 3.1 (Purchases) is complete (398 tests). Phase 3.2 builds the outbound sal
 
 ---
 
-## Sub-task 3.2.1 — Enums + Models + Migrations + Factories
+## Sub-task 3.2.1 — Enums + Models + Migrations + Factories ✅ DONE (2026-04-14, 398 tests)
 
 ### Enum Changes
 
@@ -261,7 +261,7 @@ Mirror the pattern in `database/factories/PurchaseOrderFactory.php`. Each factor
 
 ---
 
-## Sub-task 3.2.2 — Infrastructure
+## Sub-task 3.2.2 — Infrastructure ✅ DONE (2026-04-14, 406 tests)
 
 ### StockService — 3 New Methods
 

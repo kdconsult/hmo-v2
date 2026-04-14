@@ -26,6 +26,7 @@ class PurchaseOrderItem extends Model
         'line_total',
         'line_total_with_vat',
         'sort_order',
+        'sales_order_item_id',
     ];
 
     protected function casts(): array
@@ -65,6 +66,11 @@ class PurchaseOrderItem extends Model
     public function supplierInvoiceItems(): HasMany
     {
         return $this->hasMany(SupplierInvoiceItem::class);
+    }
+
+    public function salesOrderItem(): BelongsTo
+    {
+        return $this->belongsTo(SalesOrderItem::class);
     }
 
     public function remainingQuantity(): string

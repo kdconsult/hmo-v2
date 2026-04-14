@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PurchaseOrders\RelationManagers;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\SalesOrderItem;
 use App\Models\VatRate;
 use App\Services\PurchaseOrderService;
 use Filament\Actions\BulkActionGroup;
@@ -62,6 +63,29 @@ class PurchaseOrderItemsRelationManager extends RelationManager
                             }
                         }
                     })
+                    ->columnSpanFull(),
+
+                Select::make('sales_order_item_id')
+                    ->label('Linked Sales Order Item')
+                    ->options(function (Get $get): array {
+                        $variantId = $get('product_variant_id');
+                        if (! $variantId) {
+                            return [];
+                        }
+
+                        return SalesOrderItem::query()
+                            ->with('salesOrder')
+                            ->where('product_variant_id', $variantId)
+                            ->get()
+                            ->mapWithKeys(fn (SalesOrderItem $item): array => [
+                                $item->id => $item->salesOrder->so_number.' — '.($item->description ?: '#'.$item->id).' (qty: '.$item->quantity.')',
+                            ])
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->nullable()
+                    ->placeholder('None')
+                    ->visible(fn (Get $get): bool => (bool) $get('product_variant_id'))
                     ->columnSpanFull(),
 
                 Textarea::make('description')

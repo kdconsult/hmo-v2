@@ -3,13 +3,21 @@
 namespace App\Providers;
 
 use App\Listeners\StripeWebhookListener;
+use App\Models\AdvancePayment;
 use App\Models\Contract;
+use App\Models\CustomerCreditNote;
+use App\Models\CustomerDebitNote;
+use App\Models\CustomerInvoice;
+use App\Models\DeliveryNote;
 use App\Models\GoodsReceivedNote;
 use App\Models\Partner;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseReturn;
+use App\Models\Quotation;
+use App\Models\SalesOrder;
+use App\Models\SalesReturn;
 use App\Models\StockMovement;
 use App\Models\SupplierCreditNote;
 use App\Models\SupplierInvoice;
@@ -44,6 +52,15 @@ class AppServiceProvider extends ServiceProvider
             'supplier_credit_note' => SupplierCreditNote::class,
             // Phase 3.1 — Purchase Returns
             'purchase_return' => PurchaseReturn::class,
+            // Phase 3.2 — Sales / Invoicing
+            'quotation' => Quotation::class,
+            'sales_order' => SalesOrder::class,
+            'delivery_note' => DeliveryNote::class,
+            'customer_invoice' => CustomerInvoice::class,
+            'customer_credit_note' => CustomerCreditNote::class,
+            'customer_debit_note' => CustomerDebitNote::class,
+            'sales_return' => SalesReturn::class,
+            'advance_payment' => AdvancePayment::class,
         ]);
 
         // Explicit Stripe webhook listener registration — ensures the listener is bound

@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\StockItem;
 use App\Models\StockLocation;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -128,6 +129,111 @@ class StockService
             $this->createMovement($variant, $toWarehouse, $toLocation, MovementType::TransferIn, $quantity);
 
             return [$source, $destination];
+        });
+    }
+
+    /**
+     * Reserve stock for a future outbound movement (e.g. confirmed sales order).
+     * Increases reserved_quantity without creating a StockMovement.
+     *
+     * @throws InsufficientStockException
+     */
+    public function reserve(
+        ProductVariant $variant,
+        Warehouse $warehouse,
+        string $quantity,
+        Model $reference,
+    ): void {
+        DB::transaction(function () use ($variant, $warehouse, $quantity) {
+            $stockItem = $this->findOrCreateStockItem($variant, $warehouse, null);
+
+            $available = bcsub((string) $stockItem->quantity, (string) $stockItem->reserved_quantity, 4);
+
+            if (bccomp($available, $quantity, 4) < 0) {
+                throw new InsufficientStockException($variant, $warehouse, $quantity, $available);
+            }
+
+            $stockItem->reserved_quantity = bcadd((string) $stockItem->reserved_quantity, $quantity, 4);
+            $stockItem->save();
+        });
+    }
+
+    /**
+     * Release a previously reserved quantity (e.g. cancelled sales order).
+     * Decreases reserved_quantity without creating a StockMovement. Floors at 0.
+     */
+    public function unreserve(
+        ProductVariant $variant,
+        Warehouse $warehouse,
+        string $quantity,
+        Model $reference,
+    ): void {
+        DB::transaction(function () use ($variant, $warehouse, $quantity) {
+            $stockItem = $this->findOrCreateStockItem($variant, $warehouse, null);
+
+            $newReserved = bcsub((string) $stockItem->reserved_quantity, $quantity, 4);
+
+            // Floor at zero to handle over-unreservation gracefully
+            if (bccomp($newReserved, '0', 4) < 0) {
+                $newReserved = '0.0000';
+            }
+
+            $stockItem->reserved_quantity = $newReserved;
+            $stockItem->save();
+        });
+    }
+
+    /**
+     * Atomically issue stock that was previously reserved (e.g. confirmed delivery note).
+     * Uses a single SQL UPDATE with guards to prevent race conditions.
+     * Creates a StockMovement with MovementType::Sale.
+     *
+     * @throws InsufficientStockException
+     */
+    public function issueReserved(
+        ProductVariant $variant,
+        Warehouse $warehouse,
+        string $quantity,
+        Model $reference,
+        ?User $by = null,
+    ): StockMovement {
+        return DB::transaction(function () use ($variant, $warehouse, $quantity, $reference, $by) {
+            $affected = DB::update(
+                'UPDATE stock_items
+                 SET quantity = quantity - ?,
+                     reserved_quantity = reserved_quantity - ?
+                 WHERE product_variant_id = ?
+                   AND warehouse_id = ?
+                   AND stock_location_id IS NULL
+                   AND reserved_quantity >= ?
+                   AND quantity >= ?',
+                [$quantity, $quantity, $variant->id, $warehouse->id, $quantity, $quantity]
+            );
+
+            if ($affected !== 1) {
+                $stockItem = StockItem::where('product_variant_id', $variant->id)
+                    ->where('warehouse_id', $warehouse->id)
+                    ->whereNull('stock_location_id')
+                    ->first();
+
+                $available = $stockItem
+                    ? (string) $stockItem->reserved_quantity
+                    : '0.0000';
+
+                throw new InsufficientStockException($variant, $warehouse, $quantity, $available);
+            }
+
+            return StockMovement::create([
+                'product_variant_id' => $variant->id,
+                'warehouse_id' => $warehouse->id,
+                'stock_location_id' => null,
+                'type' => MovementType::Sale,
+                'quantity' => '-'.$quantity,
+                'reference_type' => $reference->getMorphClass(),
+                'reference_id' => $reference->id,
+                'notes' => null,
+                'moved_by' => $by?->id ?? Auth::id(),
+            ]);
         });
     }
 

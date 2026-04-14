@@ -18,6 +18,8 @@ enum SeriesType: string implements HasLabel
     case SupplierCreditNote = 'supplier_credit_note';
     case GoodsReceivedNote = 'goods_received_note';
     case PurchaseReturn = 'purchase_return';
+    case SalesReturn = 'sales_return';
+    case AdvancePayment = 'advance_payment';
     case InternalConsumptionNote = 'internal_consumption_note';
     case Product = 'product';
     case Partner = 'partner';
@@ -37,6 +39,8 @@ enum SeriesType: string implements HasLabel
             self::SupplierCreditNote => __('Supplier Credit Note'),
             self::GoodsReceivedNote => __('Goods Received Note'),
             self::PurchaseReturn => __('Purchase Return'),
+            self::SalesReturn => __('Sales Return'),
+            self::AdvancePayment => __('Advance Payment'),
             self::InternalConsumptionNote => __('Internal Consumption Note'),
             self::Product => __('Product Code'),
             self::Partner => __('Partner Code'),
