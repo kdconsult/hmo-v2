@@ -2,6 +2,7 @@
 
 use App\Models\Tenant;
 use Illuminate\Foundation\Testing\DatabaseTruncation;
+use Tests\Support\TenantTemplateManager;
 use Tests\TestCase;
 
 /*
@@ -17,6 +18,11 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)
     ->use(DatabaseTruncation::class)
+    ->beforeEach(function () {
+        // Ensure the pre-seeded template DB exists before the first test in this
+        // worker process. Subsequent calls are no-ops (static flag).
+        TenantTemplateManager::ensureOnce();
+    })
     ->afterEach(function () {
         // Drop each tenant's PostgreSQL database before the central table is truncated.
         // Without this step, orphaned tenant databases accumulate in PostgreSQL.

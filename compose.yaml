@@ -98,6 +98,7 @@ services:
     postgres:
         image: postgres:17-alpine
         container_name: hmo-postgres
+        command: postgres -N 300
         environment:
             POSTGRES_DB: hmo_central
             POSTGRES_USER: hmo

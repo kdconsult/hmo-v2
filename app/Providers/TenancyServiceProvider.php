@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Database\Testing\TemplatedPostgreSQLDatabaseManager;
 use App\Services\TenantDeletionGuard;
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Support\Facades\Event;
@@ -26,15 +27,13 @@ class TenancyServiceProvider extends ServiceProvider
             // Tenant events
             Events\CreatingTenant::class => [],
             Events\TenantCreated::class => [
-                JobPipeline::make([
-                    Jobs\CreateDatabase::class,
-                    Jobs\MigrateDatabase::class,
-                    // Jobs\SeedDatabase::class,
-
-                    // Your own jobs to prepare the tenant.
-                    // Provision API keys, create S3 buckets, anything you want!
-
-                ])->send(function (Events\TenantCreated $event) {
+                JobPipeline::make(
+                    // In testing, tenant DBs are cloned from a pre-seeded template — MigrateDatabase
+                    // is redundant (the template already has all migrations) and is skipped for speed.
+                    app()->environment('testing')
+                        ? [Jobs\CreateDatabase::class]
+                        : [Jobs\CreateDatabase::class, Jobs\MigrateDatabase::class],
+                )->send(function (Events\TenantCreated $event) {
                     return $event->tenant;
                 })->shouldBeQueued(app()->environment('production')),
             ],
@@ -104,9 +103,13 @@ class TenancyServiceProvider extends ServiceProvider
         ];
     }
 
-    public function register()
+    public function register(): void
     {
-        //
+        if (app()->environment('testing')) {
+            // Swap the PostgreSQL database manager for one that clones from the
+            // pre-seeded template instead of creating a blank DB + running migrations.
+            config(['tenancy.database.managers.pgsql' => TemplatedPostgreSQLDatabaseManager::class]);
+        }
     }
 
     public function boot()
