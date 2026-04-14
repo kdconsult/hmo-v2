@@ -13,6 +13,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
@@ -47,7 +48,33 @@ class ProductForm
                             ->label('Category')
                             ->options(fn () => Category::active()->get()->pluck('name', 'id'))
                             ->searchable()
-                            ->required(fn () => (bool) CompanySettings::get('catalog', 'require_product_category', false)),
+                            ->required(fn () => (bool) CompanySettings::get('catalog', 'require_product_category', false))
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get, ?string $state, string $operation): void {
+                                if ($operation !== 'create' || ! $state) {
+                                    return;
+                                }
+
+                                $category = Category::with('parent.parent')->find($state);
+
+                                if (! $category) {
+                                    return;
+                                }
+
+                                if (empty($get('vat_rate_id'))) {
+                                    $resolved = $category->resolveDefault('default_vat_rate_id');
+                                    if ($resolved !== null) {
+                                        $set('vat_rate_id', (string) $resolved);
+                                    }
+                                }
+
+                                if (empty($get('unit_id'))) {
+                                    $resolved = $category->resolveDefault('default_unit_id');
+                                    if ($resolved !== null) {
+                                        $set('unit_id', (string) $resolved);
+                                    }
+                                }
+                            }),
                         Select::make('unit_id')
                             ->label('Unit')
                             ->options(fn () => Unit::active()->get()->pluck('name', 'id'))

@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Category;
+use App\Models\Unit;
+use App\Models\VatRate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -23,6 +25,8 @@ class CategoryFactory extends Factory
             'parent_id' => null,
             'description' => ['en' => fake()->sentence()],
             'is_active' => true,
+            'default_vat_rate_id' => null,
+            'default_unit_id' => null,
         ];
     }
 
@@ -48,5 +52,24 @@ class CategoryFactory extends Factory
     public function inactive(): static
     {
         return $this->state(fn () => ['is_active' => false]);
+    }
+
+    public function withDefaultVatRate(?VatRate $vatRate = null): static
+    {
+        return $this->state(fn () => [
+            'default_vat_rate_id' => $vatRate?->id ?? VatRate::factory(),
+        ]);
+    }
+
+    public function withDefaultUnit(?Unit $unit = null): static
+    {
+        return $this->state(fn () => [
+            'default_unit_id' => $unit?->id ?? Unit::factory(),
+        ]);
+    }
+
+    public function withDefaults(?VatRate $vatRate = null, ?Unit $unit = null): static
+    {
+        return $this->withDefaultVatRate($vatRate)->withDefaultUnit($unit);
     }
 }

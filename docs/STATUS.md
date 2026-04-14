@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Backlog Session 1 complete (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8).** 391/391 tests pass. Next: Phase 3.2 (Sales/Invoicing).
+**Backlog Session 1 complete (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8). CATALOG-3 complete.** 398/398 tests pass. Next: Phase 3.2 (Sales/Invoicing).
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -27,7 +27,7 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 ### Phase 2 Catalog + Warehouse (complete)
 
 **Catalog (NavigationGroup::Catalog):**
-- `Category` — hierarchical product categories, max 3 levels deep (enforced in model boot). Translatable name/description. Soft deletes. `CategoryResource` with full CRUD.
+- `Category` — hierarchical product categories, max 3 levels deep (enforced in model boot). Translatable name/description. Soft deletes. `CategoryResource` with full CRUD. Supports `default_vat_rate_id` and `default_unit_id` (CATALOG-3): selecting a category on the product create form auto-fills VAT rate and unit via parent-chain resolution.
 - `Unit` — units of measure (Mass/Volume/Length/Area/Time/Piece/Other). Translatable name. Seeded with 13 standard units (pcs, kg, g, t, l, ml, m, cm, mm, m², h, day, month). `UnitResource` (simple ManageRecords page).
 - `Product` — goods and services. Translatable name/description. Types: Stock/Service/Bundle. Status: Draft/Active/Discontinued (`ProductStatus` enum, replaces `is_active`). Auto-creates default `ProductVariant` on creation. `ProductResource` with `ProductVariantsRelationManager`. Soft deletes. ActivityLog on key fields.
 - `ProductVariant` — named variants (size/color/material etc.). Each variant tracks own SKU, prices (falls back to product), barcode. Default variant is hidden in UI. Translatable name. Soft deletes.
@@ -193,3 +193,4 @@ See `tasks/phase-3.md` for the sub-phase breakdown:
 | Phase 3.1.12 SI-3 (Express Purchasing — Confirm & Receive) | **368** |
 | Phase 3.1.12 PR-1 (Purchase Return — full document stack) | **377** |
 | Backlog Session 1 (CATALOG-2, CATALOG-5, WAREHOUSE-3, WAREHOUSE-6, WAREHOUSE-8) | **391** |
+| CATALOG-3 (Category inheritable defaults — vat_rate + unit auto-fill on product create) | **398** |

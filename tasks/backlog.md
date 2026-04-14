@@ -2,7 +2,7 @@
 
 Items identified during design review and brainstorming. Not yet scheduled to a phase.
 
-> Items completed in Phase 2.5 (CATALOG-7, WAREHOUSE-1, WAREHOUSE-5, CORE-1) and Phase 3.1 (WAREHOUSE-4) have been removed — they are tracked in their respective phase task files.
+> Items completed in Phase 2.5 (CATALOG-7, WAREHOUSE-1, WAREHOUSE-5, CORE-1) and Phase 3.1 (WAREHOUSE-4) have been removed — they are tracked in their respective phase task files. CATALOG-3 completed 2026-04-14 and removed.
 
 ---
 
@@ -52,26 +52,13 @@ Add a responsible person field to warehouses. Depends on WAREHOUSE-7 (which adds
 ## Medium — Multi-file, some design needed
 
 ### CATALOG-1: Brands / Manufacturers resource
+
 Add a `Brand` entity to the Catalog navigation group.
 
 - Model: `Brand` — `name` (translatable), `description`, `is_active`, soft deletes
 - Relationship: `Product` belongs to `Brand` (nullable FK `brand_id`)
 - Filament resource: `BrandResource` under `NavigationGroup::Catalog`
 - RBAC: add `brand` permissions to seeder and roles
-
----
-
-### CATALOG-3: Category inheritable defaults
-Categories carry default values for product attributes. Products inherit at creation time only (not live inheritance).
-
-**Attributes stored on Category:**
-- `vat_rate_id` (FK, nullable) — default VAT rate for products in this category
-- `unit_id` (FK, nullable) — default unit of measure
-
-**Nested inheritance:**
-- Child category inherits from parent if its own value is null
-- Resolution order at product creation: Product form → Category value → Parent Category value → null
-- Resolved defaults are copied onto the product; product then owns its values independently
 
 ---
 
@@ -82,7 +69,7 @@ Product codes auto-generated from a configurable series, per `ProductType`.
 - Configured per ProductType (Stock, Service, Bundle get separate series if desired)
 - Auto-generates on product creation; user can always manually override
 - Company setting `product_code_auto` (default: `true`) — when `false`, code field is fully manual
-- Depends on CATALOG-3 for category-driven VAT/unit auto-fill on product form
+- CATALOG-3 dependency is met (category defaults implemented 2026-04-14)
 
 ---
 

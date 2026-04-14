@@ -8,6 +8,8 @@ use App\Filament\Resources\Categories\Pages\EditCategory;
 use App\Filament\Resources\Categories\Pages\ListCategories;
 use App\Filament\Resources\Categories\Pages\ViewCategory;
 use App\Models\Category;
+use App\Models\Unit;
+use App\Models\VatRate;
 use App\Support\TranslatableLocales;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -23,6 +25,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -72,6 +75,27 @@ class CategoryResource extends Resource
                     ->columnSpanFull(),
                 Toggle::make('is_active')
                     ->default(true),
+                Section::make('Product Defaults')
+                    ->description('Default values inherited by products created in this category.')
+                    ->collapsible()
+                    ->collapsed()
+                    ->columns(2)
+                    ->schema([
+                        Select::make('default_vat_rate_id')
+                            ->label('Default VAT Rate')
+                            ->options(fn () => VatRate::active()->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->nullable()
+                            ->helperText('Products will inherit this VAT rate if not specified.'),
+                        Select::make('default_unit_id')
+                            ->label('Default Unit')
+                            ->options(fn () => Unit::active()->get()->pluck('name', 'id'))
+                            ->searchable()
+                            ->preload()
+                            ->nullable()
+                            ->helperText('Products will inherit this unit if not specified.'),
+                    ]),
             ]);
     }
 
@@ -83,6 +107,14 @@ class CategoryResource extends Resource
                     ->searchable(),
                 TextColumn::make('parent.name')
                     ->placeholder('Root'),
+                TextColumn::make('defaultVatRate.name')
+                    ->label('Default VAT')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('defaultUnit.name')
+                    ->label('Default Unit')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 IconColumn::make('is_active')
                     ->boolean()
                     ->sortable(),

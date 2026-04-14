@@ -25,6 +25,8 @@ class Category extends Model
         'parent_id',
         'description',
         'is_active',
+        'default_vat_rate_id',
+        'default_unit_id',
     ];
 
     protected function casts(): array
@@ -56,6 +58,16 @@ class Category extends Model
     public function parent(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'parent_id');
+    }
+
+    public function defaultVatRate(): BelongsTo
+    {
+        return $this->belongsTo(VatRate::class, 'default_vat_rate_id');
+    }
+
+    public function defaultUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'default_unit_id');
     }
 
     public function children(): HasMany
@@ -112,5 +124,33 @@ class Category extends Model
         }
 
         return $depth;
+    }
+
+    /**
+     * Resolve a default attribute by walking up the parent chain.
+     * Returns the first non-null value found, or null.
+     *
+     * Caller should eager-load parent.parent to avoid N+1 queries.
+     *
+     * @param  string  $attribute  One of: default_vat_rate_id, default_unit_id
+     */
+    public function resolveDefault(string $attribute): mixed
+    {
+        $allowed = ['default_vat_rate_id', 'default_unit_id'];
+
+        if (! in_array($attribute, $allowed, true)) {
+            throw new InvalidArgumentException("Cannot resolve default for attribute: {$attribute}");
+        }
+
+        $category = $this;
+
+        while ($category !== null) {
+            if ($category->{$attribute} !== null) {
+                return $category->{$attribute};
+            }
+            $category = $category->parent;
+        }
+
+        return null;
     }
 }
