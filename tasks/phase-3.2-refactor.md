@@ -84,7 +84,7 @@ Tiers define implementation order. Tier 0 runs first (schema), Tier 5 last (view
 | DN-L2 | Add delivered_at column to DeliveryNotes table | [x] |
 | DN-V1 | Add "Create Invoice" button on confirmed DN view page | [x] |
 | CI-L1 | Add due_date column with overdue highlighting to CustomerInvoices table | [x] |
-| CI-1 | Show advance payment deductions in CI total display | [ ] |
+| CI-1 | Show advance payment deductions in CI total display | [x] |
 | CI-V1 | Show applied advance payments in CI related documents | [x] |
 | SR-V1 | "Create CCN" action must pass sales_return_id (needs SR-CCN-1) | [x] |
 | SR-V2 | Show linked CCN in SalesReturn related documents | [x] |
@@ -96,19 +96,19 @@ Tiers define implementation order. Tier 0 runs first (schema), Tier 5 last (view
 
 | Item | Description | Status |
 |------|-------------|--------|
-| INFRA-V1-QUO | Replace Blade view with infolist in ViewQuotation | [ ] |
-| INFRA-V1-SO | Replace Blade view with infolist in ViewSalesOrder | [ ] |
-| INFRA-V1-DN | Replace Blade view with infolist in ViewDeliveryNote | [ ] |
-| INFRA-V1-CI | Replace Blade view with infolist in ViewCustomerInvoice | [ ] |
-| INFRA-V1-CCN | Replace Blade view with infolist in ViewCustomerCreditNote | [ ] |
-| INFRA-V1-CDN | Replace Blade view with infolist in ViewCustomerDebitNote | [ ] |
-| INFRA-V1-SR | Replace Blade view with infolist in ViewSalesReturn | [ ] |
-| INFRA-V1-AP | Replace Blade view with infolist in ViewAdvancePayment | [ ] |
-| CI-V3 | Tax breakdown section in CI view infolist | [ ] |
-| CI-V4 | Payment status timeline in CI view infolist | [ ] |
-| CCN-V1 | Proper infolist sections for CCN view | [ ] |
-| CDN-V1 | Proper infolist sections for CDN view | [ ] |
-| DELETE-BLADE | Delete view-document-with-items.blade.php + view-document.blade.php | [ ] |
+| INFRA-V1-QUO | Replace Blade view with infolist in ViewQuotation | [x] |
+| INFRA-V1-SO | Replace Blade view with infolist in ViewSalesOrder | [x] |
+| INFRA-V1-DN | Replace Blade view with infolist in ViewDeliveryNote | [x] |
+| INFRA-V1-CI | Replace Blade view with infolist in ViewCustomerInvoice | [x] |
+| INFRA-V1-CCN | Replace Blade view with infolist in ViewCustomerCreditNote | [x] |
+| INFRA-V1-CDN | Replace Blade view with infolist in ViewCustomerDebitNote | [x] |
+| INFRA-V1-SR | Replace Blade view with infolist in ViewSalesReturn | [x] |
+| INFRA-V1-AP | Replace Blade view with infolist in ViewAdvancePayment | [x] |
+| CI-V3 | Tax breakdown section in CI view infolist | [x] |
+| CI-V4 | Payment status timeline in CI view infolist | [x] |
+| CCN-V1 | Proper infolist sections for CCN view | [x] |
+| CDN-V1 | Proper infolist sections for CDN view | [x] |
+| DELETE-BLADE | Delete view-document-with-items.blade.php + view-document.blade.php | [x] |
 
 ---
 

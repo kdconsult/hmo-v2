@@ -4,7 +4,6 @@ namespace App\Filament\Resources\CustomerCreditNotes\Pages;
 
 use App\Enums\DocumentStatus;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
-use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CustomerCreditNote;
 use App\Services\CustomerCreditNoteService;
 use Filament\Actions\Action;
@@ -16,32 +15,6 @@ use Filament\Support\Icons\Heroicon;
 class ViewCustomerCreditNote extends ViewRecord
 {
     protected static string $resource = CustomerCreditNoteResource::class;
-
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var CustomerCreditNote $record */
-        $record = $this->getRecord();
-        $record->loadMissing('customerInvoice');
-        $invoice = $record->customerInvoice;
-
-        return [
-            [
-                'label' => 'Customer Invoice',
-                'items' => [[
-                    'number' => $invoice->invoice_number,
-                    'status' => $invoice->status->getLabel(),
-                    'color' => match ($invoice->status) {
-                        DocumentStatus::Confirmed, DocumentStatus::Paid => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerInvoiceResource::getUrl('view', ['record' => $invoice]),
-                ]],
-            ],
-        ];
-    }
 
     protected function getHeaderActions(): array
     {

@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.11 complete (docs/UI_PANELS.md updated with 5c.4–5c.8, Pint clean).** 513/513 tests pass. Next: Phase 3.2.12 — Refactor phase (structured review → tasks/phase-3.2-refactor.md).
+**Phase 3.2.12 complete (all 5 tiers of structured refactor done — Tier 5 infolist conversions, Blade templates deleted, Pint clean).** 513/513 tests pass. Next: Phase 3.3 — Purchases pipeline refactor or next backlog item.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -184,7 +184,11 @@ Sub-task 3.2.7 complete: `CustomerCreditNoteResource` (NavigationGroup::Sales so
 
 Sub-task 3.2.9 complete: `AdvancePaymentResource` (NavigationGroup::Sales sort 8, no items RM). `AdvancePaymentService` (3 methods: `createAdvanceInvoice` — confirmed CustomerInvoice with invoice_type=Advance, auto-calculates totals, links back via customer_invoice_id; `applyToFinalInvoice` — negative deduction row with same vat_rate_id as advance invoice item; `refund`). `ViewAdvancePayment` header actions: Issue Advance Invoice, Apply to Invoice (modal picker), Refund. `view-document.blade.php` — reusable related-documents template for single-amount documents. 16 new tests.
 
-Next: Sub-task 3.2.10 — Tests (SalesPolicyTest + remaining coverage per plan)
+Sub-task 3.2.10–3.2.11 complete: 513 tests passing (SalesPolicyTest + resource coverage + docs update).
+
+Sub-task 3.2.12 complete: Full structured refactor — 5 tiers, 50+ items. Key changes: infolist() added to all 8 Sales Resources (Quotation, SalesOrder, DeliveryNote, CustomerInvoice, CustomerCreditNote, CustomerDebitNote, SalesReturn, AdvancePayment), shared Blade view templates deleted, `getRelatedDocuments()` bridge methods removed, plus form fixes, service hardening, and table improvements. CI-1 advance deductions, CI-V3 tax breakdown, CI-V4 payment status all in infolist.
+
+Next: Phase 3.3 or next backlog item (see tasks/backlog.md)
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -261,3 +265,5 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.7 (CustomerCreditNoteResource, CustomerDebitNoteResource, both services, ViewCustomerInvoice wired) | **453** |
 | Phase 3.2.8 (SalesReturnResource, SalesReturnService, SalesReturnItemsRelationManager, ViewDeliveryNote wired) | **460** |
 | Phase 3.2.9 (AdvancePaymentResource, AdvancePaymentService, view-document.blade.php template) | **476** |
+| Phase 3.2.10–3.2.11 (tests: SalesPolicyTest, remaining resource coverage; docs update) | **513** |
+| Phase 3.2.12 refactor (Tiers 0–5: migrations, service hardening, form fixes, view actions, infolist conversions — Blade deleted) | **513** |

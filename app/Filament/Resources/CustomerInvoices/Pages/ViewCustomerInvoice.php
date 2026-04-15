@@ -2,14 +2,10 @@
 
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
-use App\Enums\AdvancePaymentStatus;
 use App\Enums\DocumentStatus;
-use App\Enums\SalesOrderStatus;
-use App\Filament\Resources\AdvancePayments\AdvancePaymentResource;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
-use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\CustomerInvoice;
 use App\Services\CustomerInvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -24,90 +20,6 @@ use InvalidArgumentException;
 class ViewCustomerInvoice extends ViewRecord
 {
     protected static string $resource = CustomerInvoiceResource::class;
-
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var CustomerInvoice $record */
-        $record = $this->getRecord();
-        $record->loadMissing(['salesOrder', 'creditNotes', 'debitNotes', 'advancePaymentApplications.advancePayment']);
-
-        $groups = [];
-
-        if ($record->sales_order_id) {
-            $so = $record->salesOrder;
-            $groups[] = [
-                'label' => 'Sales Order',
-                'items' => [[
-                    'number' => $so->so_number,
-                    'status' => $so->status->getLabel(),
-                    'color' => match ($so->status) {
-                        SalesOrderStatus::Confirmed, SalesOrderStatus::Delivered, SalesOrderStatus::Invoiced => 'success',
-                        SalesOrderStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => SalesOrderResource::getUrl('view', ['record' => $so]),
-                ]],
-            ];
-        }
-
-        if ($record->creditNotes->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Credit Notes',
-                'items' => $record->creditNotes->map(fn ($cn) => [
-                    'number' => $cn->credit_note_number,
-                    'status' => $cn->status->getLabel(),
-                    'color' => match ($cn->status) {
-                        DocumentStatus::Confirmed => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerCreditNoteResource::getUrl('view', ['record' => $cn]),
-                ])->all(),
-            ];
-        }
-
-        if ($record->debitNotes->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Debit Notes',
-                'items' => $record->debitNotes->map(fn ($dn) => [
-                    'number' => $dn->debit_note_number,
-                    'status' => $dn->status->getLabel(),
-                    'color' => match ($dn->status) {
-                        DocumentStatus::Confirmed => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerDebitNoteResource::getUrl('view', ['record' => $dn]),
-                ])->all(),
-            ];
-        }
-
-        $appliedAdvances = $record->advancePaymentApplications
-            ->filter(fn ($app) => $app->advancePayment !== null)
-            ->map(fn ($app) => $app->advancePayment)
-            ->unique('id');
-
-        if ($appliedAdvances->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Applied Advances',
-                'items' => $appliedAdvances->map(fn ($ap) => [
-                    'number' => $ap->ap_number,
-                    'status' => $ap->status->getLabel(),
-                    'color' => match ($ap->status) {
-                        AdvancePaymentStatus::FullyApplied => 'success',
-                        AdvancePaymentStatus::PartiallyApplied => 'warning',
-                        AdvancePaymentStatus::Refunded => 'danger',
-                        default => 'gray',
-                    },
-                    'url' => AdvancePaymentResource::getUrl('view', ['record' => $ap]),
-                ])->values()->all(),
-            ];
-        }
-
-        return $groups;
-    }
 
     protected function getHeaderActions(): array
     {

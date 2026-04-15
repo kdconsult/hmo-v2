@@ -4,10 +4,8 @@ namespace App\Filament\Resources\AdvancePayments\Pages;
 
 use App\Enums\AdvancePaymentStatus;
 use App\Enums\DocumentStatus;
-use App\Enums\SalesOrderStatus;
 use App\Filament\Resources\AdvancePayments\AdvancePaymentResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
-use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\AdvancePayment;
 use App\Models\CustomerInvoice;
 use App\Services\AdvancePaymentService;
@@ -22,76 +20,6 @@ use Filament\Support\Icons\Heroicon;
 class ViewAdvancePayment extends ViewRecord
 {
     protected static string $resource = AdvancePaymentResource::class;
-
-    protected string $view = 'filament.pages.view-document';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var AdvancePayment $record */
-        $record = $this->getRecord();
-        $groups = [];
-
-        if ($record->customer_invoice_id) {
-            $record->loadMissing('advanceInvoice');
-            $ai = $record->advanceInvoice;
-            if ($ai) {
-                $groups[] = [
-                    'label' => 'Advance Invoice',
-                    'items' => [[
-                        'number' => $ai->invoice_number,
-                        'status' => $ai->status->getLabel(),
-                        'color' => match ($ai->status) {
-                            DocumentStatus::Confirmed => 'success',
-                            DocumentStatus::Cancelled => 'danger',
-                            default => 'warning',
-                        },
-                        'url' => CustomerInvoiceResource::getUrl('view', ['record' => $ai]),
-                    ]],
-                ];
-            }
-        }
-
-        $record->loadMissing('applications.customerInvoice');
-        if ($record->applications->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Applied to Invoices',
-                'items' => $record->applications->map(fn ($app) => [
-                    'number' => "{$app->customerInvoice->invoice_number} (€{$app->amount_applied})",
-                    'status' => $app->customerInvoice->status->getLabel(),
-                    'color' => match ($app->customerInvoice->status) {
-                        DocumentStatus::Confirmed => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerInvoiceResource::getUrl('view', ['record' => $app->customerInvoice]),
-                ])->all(),
-            ];
-        }
-
-        if ($record->sales_order_id) {
-            $record->loadMissing('salesOrder');
-            $so = $record->salesOrder;
-            if ($so) {
-                $groups[] = [
-                    'label' => 'Sales Order',
-                    'items' => [[
-                        'number' => $so->so_number,
-                        'status' => $so->status->getLabel(),
-                        'color' => match ($so->status) {
-                            SalesOrderStatus::Confirmed,
-                            SalesOrderStatus::Delivered,
-                            SalesOrderStatus::Invoiced => 'success',
-                            SalesOrderStatus::Cancelled => 'danger',
-                            default => 'warning',
-                        },
-                        'url' => SalesOrderResource::getUrl('view', ['record' => $so]),
-                    ]],
-                ];
-            }
-        }
-
-        return $groups;
-    }
 
     protected function getHeaderActions(): array
     {

@@ -20,26 +20,6 @@ class ViewQuotation extends ViewRecord
 {
     protected static string $resource = QuotationResource::class;
 
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        $record = $this->getRecord();
-        $record->loadMissing(['salesOrders']);
-
-        return [
-            [
-                'label' => 'Sales Orders',
-                'items' => $record->salesOrders->map(fn ($so) => [
-                    'number' => $so->so_number,
-                    'status' => $so->status->getLabel(),
-                    'color' => $so->status->getColor(),
-                    'url' => SalesOrderResource::getUrl('view', ['record' => $so]),
-                ])->all(),
-            ],
-        ];
-    }
-
     protected function getHeaderActions(): array
     {
         return [

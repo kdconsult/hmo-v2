@@ -2,11 +2,9 @@
 
 namespace App\Filament\Resources\SalesReturns\Pages;
 
-use App\Enums\DeliveryNoteStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\SalesReturnStatus;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
-use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
 use App\Filament\Resources\SalesReturns\SalesReturnResource;
 use App\Models\SalesReturn;
 use App\Services\SalesReturnService;
@@ -20,52 +18,6 @@ use Filament\Support\Icons\Heroicon;
 class ViewSalesReturn extends ViewRecord
 {
     protected static string $resource = SalesReturnResource::class;
-
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var SalesReturn $record */
-        $record = $this->getRecord();
-
-        $record->loadMissing(['deliveryNote', 'customerCreditNotes']);
-        $groups = [];
-
-        if ($record->delivery_note_id) {
-            $dn = $record->deliveryNote;
-            $groups[] = [
-                'label' => 'Delivery Note',
-                'items' => [[
-                    'number' => $dn->dn_number,
-                    'status' => $dn->status->getLabel(),
-                    'color' => match ($dn->status) {
-                        DeliveryNoteStatus::Confirmed => 'success',
-                        DeliveryNoteStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => DeliveryNoteResource::getUrl('view', ['record' => $dn]),
-                ]],
-            ];
-        }
-
-        if ($record->customerCreditNotes->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Credit Notes',
-                'items' => $record->customerCreditNotes->map(fn ($cn) => [
-                    'number' => $cn->credit_note_number,
-                    'status' => $cn->status->getLabel(),
-                    'color' => match ($cn->status) {
-                        DocumentStatus::Confirmed => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerCreditNoteResource::getUrl('view', ['record' => $cn]),
-                ])->all(),
-            ];
-        }
-
-        return $groups;
-    }
 
     protected function getHeaderActions(): array
     {

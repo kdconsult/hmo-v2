@@ -4,7 +4,6 @@ namespace App\Filament\Resources\CustomerDebitNotes\Pages;
 
 use App\Enums\DocumentStatus;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
-use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CustomerDebitNote;
 use App\Services\CustomerDebitNoteService;
 use Filament\Actions\Action;
@@ -16,37 +15,6 @@ use Filament\Support\Icons\Heroicon;
 class ViewCustomerDebitNote extends ViewRecord
 {
     protected static string $resource = CustomerDebitNoteResource::class;
-
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var CustomerDebitNote $record */
-        $record = $this->getRecord();
-        $record->loadMissing('customerInvoice');
-
-        if (! $record->customerInvoice) {
-            return [];
-        }
-
-        $invoice = $record->customerInvoice;
-
-        return [
-            [
-                'label' => 'Customer Invoice',
-                'items' => [[
-                    'number' => $invoice->invoice_number,
-                    'status' => $invoice->status->getLabel(),
-                    'color' => match ($invoice->status) {
-                        DocumentStatus::Confirmed, DocumentStatus::Paid => 'success',
-                        DocumentStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => CustomerInvoiceResource::getUrl('view', ['record' => $invoice]),
-                ]],
-            ],
-        ];
-    }
 
     protected function getHeaderActions(): array
     {

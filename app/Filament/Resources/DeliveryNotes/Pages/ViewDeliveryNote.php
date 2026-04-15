@@ -3,12 +3,9 @@
 namespace App\Filament\Resources\DeliveryNotes\Pages;
 
 use App\Enums\DeliveryNoteStatus;
-use App\Enums\SalesOrderStatus;
-use App\Enums\SalesReturnStatus;
 use App\Exceptions\InsufficientStockException;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
-use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Filament\Resources\SalesReturns\SalesReturnResource;
 use App\Models\DeliveryNote;
 use App\Services\DeliveryNoteService;
@@ -22,54 +19,6 @@ use Filament\Support\Icons\Heroicon;
 class ViewDeliveryNote extends ViewRecord
 {
     protected static string $resource = DeliveryNoteResource::class;
-
-    protected string $view = 'filament.pages.view-document-with-items';
-
-    public function getRelatedDocuments(): array
-    {
-        /** @var DeliveryNote $record */
-        $record = $this->getRecord();
-        $groups = [];
-
-        if ($record->sales_order_id) {
-            $record->loadMissing('salesOrder');
-            $so = $record->salesOrder;
-
-            $groups[] = [
-                'label' => 'Sales Order',
-                'items' => [[
-                    'number' => $so->so_number,
-                    'status' => $so->status->getLabel(),
-                    'color' => match ($so->status) {
-                        SalesOrderStatus::Confirmed, SalesOrderStatus::Delivered => 'success',
-                        SalesOrderStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => SalesOrderResource::getUrl('view', ['record' => $so]),
-                ]],
-            ];
-        }
-
-        $record->loadMissing('salesReturns');
-
-        if ($record->salesReturns->isNotEmpty()) {
-            $groups[] = [
-                'label' => 'Sales Returns',
-                'items' => $record->salesReturns->map(fn ($sr) => [
-                    'number' => $sr->sr_number,
-                    'status' => $sr->status->getLabel(),
-                    'color' => match ($sr->status) {
-                        SalesReturnStatus::Confirmed => 'success',
-                        SalesReturnStatus::Cancelled => 'danger',
-                        default => 'warning',
-                    },
-                    'url' => SalesReturnResource::getUrl('view', ['record' => $sr]),
-                ])->toArray(),
-            ];
-        }
-
-        return $groups;
-    }
 
     protected function getHeaderActions(): array
     {
