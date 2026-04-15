@@ -69,6 +69,11 @@ class SalesReturn extends Model
         return $this->hasMany(SalesReturnItem::class);
     }
 
+    public function customerCreditNotes(): HasMany
+    {
+        return $this->hasMany(CustomerCreditNote::class);
+    }
+
     public function stockMovements(): MorphMany
     {
         return $this->morphMany(StockMovement::class, 'reference');

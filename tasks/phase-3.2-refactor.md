@@ -19,20 +19,20 @@ Tiers define implementation order. Tier 0 runs first (schema), Tier 5 last (view
 
 | Item | Description | Status |
 |------|-------------|--------|
-| SR-CCN-1 | Add `sales_return_id` FK to `customer_credit_notes` | [ ] |
+| SR-CCN-1 | Add `sales_return_id` FK to `customer_credit_notes` | [x] |
 
 ### Tier 1 — Cross-Cutting (all/most resources)
 
 | Item | Description | Status |
 |------|-------------|--------|
-| INFRA-L1 | Partner filter + date range filter on all 8 list pages | [ ] |
-| INFRA-L2 | Fix NULL-first sort on issued_at across all 8 tables | [ ] |
-| INFRA-L3 | Add `items_count` column to all 8 tables | [ ] |
-| EDIT-GUARD | isEditable() mount guard on 5 missing Edit pages | [ ] |
-| TABLE-EDIT | Guard edit table action with isEditable() on all 8 tables | [ ] |
-| TABLE-BULK | Guard bulk delete to Draft-only on all 8 tables | [ ] |
-| ENUM-FIX | Replace raw string status filters with enum values in 6 forms | [ ] |
-| MONEY-FIX | Replace hardcoded `->money('EUR')` with dynamic currency in 6 tables | [ ] |
+| INFRA-L1 | Partner filter + date range filter on all 8 list pages | [x] |
+| INFRA-L2 | Fix NULL-first sort on issued_at across all 8 tables | [x] |
+| INFRA-L3 | Add `items_count` column to all 8 tables | [x] |
+| EDIT-GUARD | isEditable() mount guard on 5 missing Edit pages | [x] |
+| TABLE-EDIT | Guard edit table action with isEditable() on all 8 tables | [x] |
+| TABLE-BULK | Guard bulk delete to Draft-only on all 8 tables | [x] |
+| ENUM-FIX | Replace raw string status filters with enum values in 6 forms | [x] |
+| MONEY-FIX | Replace hardcoded `->money('EUR')` with dynamic currency in 6 tables | [x] |
 
 ### Tier 2 — Service Layer Hardening
 

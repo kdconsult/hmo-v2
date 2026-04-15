@@ -21,6 +21,7 @@ class CustomerCreditNote extends Model
         'credit_note_number',
         'document_series_id',
         'customer_invoice_id',
+        'sales_return_id',
         'partner_id',
         'status',
         'currency_code',
@@ -59,6 +60,11 @@ class CustomerCreditNote extends Model
     public function customerInvoice(): BelongsTo
     {
         return $this->belongsTo(CustomerInvoice::class);
+    }
+
+    public function salesReturn(): BelongsTo
+    {
+        return $this->belongsTo(SalesReturn::class);
     }
 
     public function partner(): BelongsTo

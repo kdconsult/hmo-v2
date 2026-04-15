@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SalesOrders\Schemas;
 
 use App\Enums\PricingMode;
+use App\Enums\QuotationStatus;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\Quotation;
@@ -45,7 +46,7 @@ class SalesOrderForm
                             ->label('Linked Quotation')
                             ->options(fn (Get $get): array => $get('partner_id')
                                 ? Quotation::where('partner_id', $get('partner_id'))
-                                    ->whereIn('status', ['accepted', 'sent'])
+                                    ->whereIn('status', [QuotationStatus::Accepted->value, QuotationStatus::Sent->value])
                                     ->orderByDesc('issued_at')
                                     ->pluck('quotation_number', 'id')
                                     ->all()

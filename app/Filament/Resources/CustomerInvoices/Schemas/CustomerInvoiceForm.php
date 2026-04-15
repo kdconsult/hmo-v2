@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CustomerInvoices\Schemas;
 use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
+use App\Enums\SalesOrderStatus;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\SalesOrder;
@@ -49,7 +50,11 @@ class CustomerInvoiceForm
                         Select::make('sales_order_id')
                             ->label('Sales Order (optional)')
                             ->options(
-                                SalesOrder::whereIn('status', ['confirmed', 'partially_delivered', 'delivered'])
+                                SalesOrder::whereIn('status', [
+                                    SalesOrderStatus::Confirmed->value,
+                                    SalesOrderStatus::PartiallyDelivered->value,
+                                    SalesOrderStatus::Delivered->value,
+                                ])
                                     ->with('partner')
                                     ->get()
                                     ->mapWithKeys(fn (SalesOrder $so) => [

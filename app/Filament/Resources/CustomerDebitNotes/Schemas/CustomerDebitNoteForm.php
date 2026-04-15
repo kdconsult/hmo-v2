@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\CustomerDebitNotes\Schemas;
 
 use App\Enums\DebitNoteReason;
+use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
 use App\Models\Currency;
 use App\Models\CustomerInvoice;
@@ -35,7 +36,10 @@ class CustomerDebitNoteForm
                         Select::make('customer_invoice_id')
                             ->label('Customer Invoice (optional)')
                             ->options(
-                                CustomerInvoice::whereIn('status', ['confirmed', 'paid'])
+                                CustomerInvoice::whereIn('status', [
+                                    DocumentStatus::Confirmed->value,
+                                    DocumentStatus::Paid->value,
+                                ])
                                     ->with('partner')
                                     ->get()
                                     ->mapWithKeys(fn (CustomerInvoice $inv) => [

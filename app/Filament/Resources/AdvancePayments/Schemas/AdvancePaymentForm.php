@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AdvancePayments\Schemas;
 
 use App\Enums\PaymentMethod;
+use App\Enums\SalesOrderStatus;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\SalesOrder;
@@ -35,7 +36,7 @@ class AdvancePaymentForm
                         Select::make('sales_order_id')
                             ->label('Sales Order (optional)')
                             ->options(
-                                SalesOrder::whereNotIn('status', ['cancelled', 'invoiced'])
+                                SalesOrder::whereNotIn('status', [SalesOrderStatus::Cancelled->value, SalesOrderStatus::Invoiced->value])
                                     ->with('partner')
                                     ->get()
                                     ->mapWithKeys(fn (SalesOrder $so) => [

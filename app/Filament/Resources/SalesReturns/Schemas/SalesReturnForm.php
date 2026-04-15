@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SalesReturns\Schemas;
 
+use App\Enums\DeliveryNoteStatus;
 use App\Models\DeliveryNote;
 use App\Models\Partner;
 use App\Models\Warehouse;
@@ -33,7 +34,7 @@ class SalesReturnForm
                         Select::make('delivery_note_id')
                             ->label('Delivery Note (optional)')
                             ->options(
-                                DeliveryNote::where('status', 'confirmed')
+                                DeliveryNote::where('status', DeliveryNoteStatus::Confirmed->value)
                                     ->with('partner')
                                     ->get()
                                     ->mapWithKeys(fn (DeliveryNote $dn) => [

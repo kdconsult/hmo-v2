@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\CustomerCreditNotes\Pages;
 
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
+use App\Models\CustomerCreditNote;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
@@ -12,6 +13,18 @@ use Filament\Resources\Pages\EditRecord;
 class EditCustomerCreditNote extends EditRecord
 {
     protected static string $resource = CustomerCreditNoteResource::class;
+
+    public function mount(int|string $record): void
+    {
+        parent::mount($record);
+
+        /** @var CustomerCreditNote $ccn */
+        $ccn = $this->getRecord();
+
+        if (! $ccn->isEditable()) {
+            $this->redirect(CustomerCreditNoteResource::getUrl('view', ['record' => $ccn]));
+        }
+    }
 
     protected function getHeaderActions(): array
     {
