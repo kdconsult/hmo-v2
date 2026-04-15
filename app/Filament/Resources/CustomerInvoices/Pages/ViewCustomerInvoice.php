@@ -3,11 +3,15 @@
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
 use App\Enums\DocumentStatus;
+use App\Enums\VatScenario;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
+use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Services\CustomerInvoiceService;
+use App\Services\ViesValidationService;
+use App\Support\EuCountries;
 use Barryvdh\DomPDF\Facade\Pdf;
 use DomainException;
 use Filament\Actions\Action;
@@ -35,6 +39,32 @@ class ViewCustomerInvoice extends ViewRecord
                 ->visible(fn (CustomerInvoice $record): bool => $record->status === DocumentStatus::Draft)
                 ->action(function (CustomerInvoice $record): void {
                     try {
+                        $record->loadMissing('partner');
+                        $tenantCountry = CompanySettings::get('company', 'country_code');
+
+                        if ($tenantCountry && $record->partner) {
+                            $scenario = VatScenario::determine($record->partner, $tenantCountry);
+
+                            if ($scenario === VatScenario::EuB2bReverseCharge) {
+                                $vatNumber = EuCountries::extractMainVatNumber(
+                                    $record->partner->country_code,
+                                    $record->partner->vat_number
+                                );
+                                $viesResult = app(ViesValidationService::class)->validate(
+                                    $record->partner->country_code,
+                                    $vatNumber
+                                );
+
+                                if (! $viesResult['valid']) {
+                                    Notification::make()
+                                        ->title('VIES validation warning')
+                                        ->body("The partner's EU VAT number could not be confirmed via VIES. Reverse charge will still be applied based on the stored VAT number.")
+                                        ->warning()
+                                        ->send();
+                                }
+                            }
+                        }
+
                         app(CustomerInvoiceService::class)->confirm($record);
                         Notification::make()->title('Invoice confirmed')->success()->send();
                         $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));

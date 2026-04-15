@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\NavigationGroup;
 use App\Models\CompanySettings;
 use App\Models\Currency;
+use App\Support\EuCountries;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -58,6 +59,7 @@ class CompanySettingsPage extends Page implements HasForms
 
         $this->form->fill([
             'general' => CompanySettings::getGroup('general'),
+            'company' => CompanySettings::getGroup('company'),
             'invoicing' => CompanySettings::getGroup('invoicing'),
             'purchasing' => CompanySettings::getGroup('purchasing'),
             'catalog' => CompanySettings::getGroup('catalog'),
@@ -82,6 +84,11 @@ class CompanySettingsPage extends Page implements HasForms
                                     ->email(),
                                 TextInput::make('general.company_phone')
                                     ->label('Phone'),
+                                Select::make('company.country_code')
+                                    ->label('Company Country')
+                                    ->options(EuCountries::forSelect())
+                                    ->searchable()
+                                    ->helperText('Used for EU VAT determination (domestic vs reverse charge vs OSS).'),
                                 Select::make('general.default_currency')
                                     ->label('Default Currency')
                                     ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
