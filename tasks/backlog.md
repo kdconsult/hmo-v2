@@ -8,6 +8,58 @@ Items identified during design review and brainstorming. Not yet scheduled to a 
 
 ## Easy — Quick wins, isolated changes
 
+### SALES-1: Quotation auto-expiry scheduler
+
+When `valid_until` passes and a quotation is still in `Draft` or `Sent` status, automatically transition it to `QuotationStatus::Expired`.
+
+- Scheduled job (daily, off-peak) — query quotations where `valid_until < today` and `status IN (draft, sent)`
+- Transition to `Expired` in bulk
+- Notify the `created_by` user (the sales rep who issued it) — one notification per expired quotation, or a daily digest if multiple expire on the same day
+- If the `created_by` user is no longer active (deleted/deactivated), skip the notification — the reassignment flow (SYSTEM-1) should have already moved the document to an active rep
+
+**Note:** The visual indicator on `valid_until` (QUO-L3 in the refactor plan) is a separate, immediate fix. This job is the background complement.
+
+---
+
+### SALES-2: Document-level discount field on sales documents
+
+Allow a header-level discount amount to be entered on Quotations (and, by extension, Sales Orders and Customer Invoices).
+
+**Why this is non-trivial — EU VAT Directive 2006/112/EC, Article 79:**
+Article 79(b) states that the taxable base does NOT include price reductions and rebates granted to the customer at the time of supply. This means a discount reduces the **taxable base** (net amount) before VAT is calculated — VAT must be computed on `net - discount`, not `net`.
+
+**The multi-VAT-rate problem:**
+A typical SME sales document mixes standard-rate items (e.g. 20% VAT) and zero-rate items (e.g. exported goods, 0%). A single discount amount entered at document level cannot be applied uniformly — it must be **proportionally allocated per VAT rate group** (the discount reduces each group's taxable base in proportion to that group's share of the total net). The same arithmetic applies to the item rows: each `QuotationItem.discount_amount` must be recomputed from the header-level allocation.
+
+This is the approach used by SAP Business One and Microsoft Dynamics Business Central.
+
+**Compound model (correct approach when eventually implemented):**
+1. User enters `discount_amount` at document level (or `discount_percent` — both should be supported)
+2. Service layer distributes the discount proportionally across VAT groups
+3. Per-item `discount_amount` is recomputed: `item_share = item_line_total / document_subtotal * header_discount`
+4. `recalculateItemTotals()` runs on each item with the new per-item discount
+5. `recalculateDocumentTotals()` aggregates the result
+
+**Long-term answer:** Customer price lists with contract prices per product/customer combination. A price list eliminates most use cases for header discounts because each line already carries the negotiated price.
+
+**Constraint:** Do NOT implement as a simple `total - discount` deduction at document level without redistributing to items — that approach produces wrong VAT amounts and is non-compliant with Article 79.
+
+**Scope when implemented:** Quotation → Sales Order → Customer Invoice (all three, atomically — same service-layer pattern).
+
+---
+
+### SALES-3: Clone / Duplicate quotation action
+
+Add a "Clone to New Draft" header action on the Quotation View page, visible for all statuses.
+
+- Creates a new `Quotation` in `Draft` status with the same `partner_id`, `currency_code`, `exchange_rate`, `pricing_mode`, `valid_until` (reset to null or today + 30 days), and `notes`
+- Copies all `QuotationItem` rows (same variant, quantity, unit_price, discount_percent, vat_rate_id) — totals recalculated fresh by `QuotationService`
+- A new `quotation_number` is generated from the default series
+- Redirects to the new quotation's Edit page immediately after creation
+- Primary use case: expired or rejected quotation where the customer calls back — historical record is preserved, new process starts clean
+
+---
+
 ### WAREHOUSE-8: Warehouse — assign responsible person *(nav links + transfer done in Backlog Session 1)*
 
 Add a responsible person field to warehouses. Depends on WAREHOUSE-7 (which adds `WarehouseType` enum and `assigned_to` FK to the `warehouses` table).
@@ -49,7 +101,111 @@ Add a responsible person field to warehouses. Depends on WAREHOUSE-7 (which adds
 
 ---
 
+### SALES-4: Quick Sale ⚠️ PLACEHOLDER — fill after full Sales module review
+
+Similar in concept to Express Purchasing. Details TBD — discuss once all 8 Sales nav items have been reviewed.
+
+---
+
+### SALES-5: Express Delivery tenant setting
+
+A tenant setting `sales.express_delivery` (off by default) that issues stock directly on Customer Invoice confirmation, skipping the standalone Delivery Note document.
+
+**Use case:** Counter sales, retail, or any business model where delivery and invoicing happen simultaneously at the point of sale.
+
+**Constraint:** Bulgarian Счетоводен закон requires a delivery document for goods transport. This setting must be opt-in, clearly labelled as non-default, and should display a warning on activation. It is NOT appropriate for B2B goods deliveries that require a separate delivery document.
+
+**Mirror:** Mirrors the `purchases.express_receiving` setting introduced for Express Purchasing (`SupplierInvoiceService::confirmAndReceive()`).
+
+**Dependency:** CI-1 (the warning + "Create DN" button) is the prerequisite — implement CI-1 first. SALES-5 adds the escape hatch for tenants that want to skip the DN entirely.
+
+---
+
+### SALES-CURRENCY-1: Customer Invoice — Art. 91 EU VAT compliance for foreign-currency invoices
+
+EU VAT Directive 2006/112/EC, Article 91 requires that when an invoice is issued in a currency other than the Member State's functional currency (EUR), the VAT amounts **must be expressed in EUR** on the invoice using the exchange rate published by the European Central Bank (or equivalent national bank) applicable on the date of the chargeable event (`issued_at`).
+
+This applies to **Customer Invoice only** — not Quotations, Sales Orders, or Delivery Notes (commercial documents, not tax documents).
+
+**Exchange rate convention confirmed:** `exchange_rate` is stored as "1 EUR = X document_currency" (ECB convention). Conversion: `amount_EUR = amount_document_currency / exchange_rate`. Confirmed from `EuOssService::calculateOssLiability()` line 67.
+
+**What needs changing when implemented:**
+- Customer Invoice PDF: when `currency_code ≠ EUR`, show a "VAT in EUR" column or footer alongside the document-currency column — `vat_amount_eur = vat_amount / exchange_rate`, `total_eur = total / exchange_rate`.
+- Customer Invoice view page (infolist): show EUR-equivalent totals in the Financial Summary section when foreign currency.
+- The `exchange_rate` on the invoice must be the rate for `issued_at`, not the current rate. The existing `issued_at`-scoped rate lookup in `CurrencyRateService::getRate()` already handles this correctly.
+
+**SUPTO fiscal printers note:** Bulgarian fiscal printers (SUPTO) always issue receipts in local currency (EUR). For foreign-currency sales, the fiscal receipt is always in EUR at the stored `exchange_rate`. No change to the document data model is needed for this — it is a fiscal receipt rendering concern. Tag this for the Fiscal module when SUPTO integration is implemented.
+
+**Constraint:** Do NOT implement for Quotations or Sales Orders — they are commercial, not tax, documents.
+
+---
+
 ## Medium — Multi-file, some design needed
+
+### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation ⚡ APP-BREAKING
+
+`is_reverse_charge` on `CustomerInvoice` is never set by any code path. Every invoice confirms with `is_reverse_charge = false`, so EU B2B cross-border invoices incorrectly charge standard VAT instead of 0% + reverse charge notation. Violates EU VAT Directive 2006/112/EC, Article 196.
+
+**Five VAT scenarios to handle at confirmation:**
+
+| Scenario | Condition | Tax treatment |
+|----------|-----------|---------------|
+| 1. Domestic | Partner country = tenant country | Standard VAT rate per item |
+| 2. EU B2B (reverse charge) | Partner EU country ≠ tenant country + valid VAT number | 0% VAT, `is_reverse_charge = true`, reverse charge notation on PDF |
+| 3. EU B2C — under OSS threshold | Partner EU country ≠ tenant country, no valid VAT, cumulative B2C < €10,000 | Tenant's domestic VAT rate |
+| 4. EU B2C — over OSS threshold | Same, cumulative B2C ≥ €10,000 | Destination country VAT rate (via `EuOssService`) |
+| 5. Non-EU export | Partner country outside EU | 0% VAT, no reverse charge |
+
+**Design decisions (agreed 2026-04-15):**
+
+- **No `is_vat_registered` boolean on Tenant** — non-empty `vat_number` is the fact. Add `hasValidVatNumber(): bool` accessor on `Tenant` (mirrors `Partner::hasValidEuVat()`).
+- **Determination at confirmation only** — legally binding moment (НАП, printed document). `is_reverse_charge` and applied VAT rates are locked then, never re-computed on edit.
+- **UX hint on partner select** — informational badge during create/edit using local `Partner::hasValidEuVat()` (no live VIES). Non-blocking.
+- **VIES at confirmation** — extract `TenantForm::checkVies()` into `ViesValidationService::validate(string $countryCode, string $vatNumber): ViesResult`. On timeout/unavailable: fall back to local `hasValidEuVat()` + warning notification, do not block.
+- **VAT rate override** — `determineVatType()` inside `confirm()`, before totals are locked. Scenarios 2 and 5: replace all item `vat_rate_id` with zero-rate. Scenario 4: use `EuOssService::getDestinationVatRate()`.
+
+**Files to create/modify:**
+- `app/Services/ViesValidationService.php` — new, extracted from `TenantForm::checkVies()`
+- `app/Models/Tenant.php` — add `hasValidVatNumber()` accessor
+- `app/Services/CustomerInvoiceService.php` — add `determineVatType()` called inside `confirm()`
+- `app/Filament/Resources/CustomerInvoices/Schemas/CustomerInvoiceForm.php` — UX hint badge on partner select
+- Customer Invoice PDF template — render reverse charge notation when `is_reverse_charge = true`
+
+**Prerequisite:** None. Can be implemented as a Phase 3.2 refactor sub-task or standalone hotfix before any real invoices are issued.
+
+---
+
+### CI-PAID-1: Customer Invoice `Paid` status + Advance Payment module — Phase 4 forward reference
+
+`DocumentStatus::Paid` is already referenced in `ViewCustomerInvoice` action visibility conditions (Create Credit Note, Create Debit Note show on `Confirmed | Paid`). The status itself is defined on the enum but is currently unreachable — there is no payment workflow in Phase 3.2.
+
+The full payment module (Phase 4 — Payments/Reconciliation) will introduce: `Payment` model, `PaymentAllocation` (morphMany on invoices), `InstallmentSchedule`, bank import/reconciliation, and the `amount_paid` update path that transitions a CI to `Paid` status.
+
+**Advance Payment module — items to address in Phase 4:**
+
+1. **Bank account + payment reference field on AdvancePayment.** For `PaymentMethod::BankTransfer`, НАП and ЗДДС Art. 72(1)(6) require a reference that allows matching the advance to a bank statement. Add `bank_reference` (nullable text) shown only when `payment_method = BankTransfer`. Needed for bank reconciliation in Phase 4.
+
+2. **Advance invoice VAT determination blocked on VAT-DETERMINATION-1.** `AdvancePaymentService::createAdvanceInvoice()` currently uses the default system VAT rate, not the scenario-aware determination from VAT-DETERMINATION-1 (reverse charge, OSS, non-EU export). Do NOT fix this in isolation — implement VAT-DETERMINATION-1 first, then wire the same `determineVatType()` call into `createAdvanceInvoice()`. Tag as a dependency when VAT-DETERMINATION-1 is scheduled.
+
+3. **Percentage-based advance shortcut on SO-linked advances.** When `sales_order_id` is set, allow the user to enter an advance as X% of the SO total (e.g. "30% deposit") rather than a raw amount. The service computes `amount = so.total * percent / 100`. Common in B2B contracts. SAP Business One calls this a "Percentage Advance."
+
+4. **Refund flow design — confirmed advance invoice must be credited first.** If an advance has a confirmed advance invoice (VAT declared to НАП), the refund cannot simply flip `status = Refunded`. The correct flow: (a) user issues a CCN on the advance invoice to reverse the VAT, (b) advance invoice transitions to Credited, (c) then and only then `refund()` may proceed. This is the legal requirement under ЗДДС — VAT declared must be reversed before the money is returned. See AP-V1 in `tasks/phase-3.2-plan.md` for the implementation detail.
+
+**No action needed in Phase 3.2 beyond the refactor findings already documented.** The visibility conditions in ViewCustomerInvoice are correct future-proofing. Revisit when Phase 4 is planned.
+
+---
+
+### PURCH-1: Apply infolist + `content()` pattern to all Purchases view pages
+
+The `view-document-with-items.blade.php` pattern was introduced in Phase 3.1 (Purchases). After Phase 3.2 establishes the correct pattern (INFRA-V1 — proper `infolist()` + `content()` override on all 8 Sales resources), review all Purchases view pages and apply the same treatment.
+
+**Scope:** PurchaseOrderResource, GoodsReceivedNoteResource, SupplierInvoiceResource, SupplierCreditNoteResource, PurchaseReturnResource.
+
+**Work:** Add `infolist()` to each resource following the same section order (Identity → Related Documents → Financial Summary → Secondary Details → Notes), override `content()` on each view page, remove the shared Blade template if no other resources still use it.
+
+**Dependency:** Complete INFRA-V1 in Phase 3.2 first — use the Sales infolists as the reference implementation.
+
+---
 
 ### CATALOG-1: Brands / Manufacturers resource
 
@@ -91,6 +247,25 @@ Product codes auto-generated from a configurable series, per `ProductType`.
 ---
 
 ## Complex / Design-heavy
+
+### SYSTEM-1: Global "Reassign user documents" tool
+
+When a user is deactivated or removed from the system, their open (non-terminal) documents across all modules need to be reassigned to another user.
+
+**Scope:** Every document with a `created_by` FK — Quotations, Sales Orders, Delivery Notes, Customer Invoices, Credit Notes, Debit Notes, Sales Returns, Advance Payments, Purchase Orders, GRNs, Supplier Invoices, Credit Notes, Purchase Returns.
+
+**Rule:** Only reassign documents in non-terminal statuses. Terminal documents (Confirmed invoices, Received GRNs, Cancelled orders, etc.) keep their original `created_by` forever — this is the audit trail, legally required in EU jurisdictions.
+
+**Implementation:**
+- Trigger point: User deactivation action in Settings → Users (or Landlord panel)
+- Confirmation modal shows count of open documents per type
+- "Reassign to" user selector — target user may be different from the person doing the deactivation
+- Single transaction — all document types updated atomically
+- Activity log entry on each reassigned document: "Reassigned from [old user] to [new user] by [admin]"
+
+**Prerequisite:** `created_by` filter on document list views (needed for daily management — "show me what Sales Rep X has open") — add this filter to all Sales and Purchases list views.
+
+---
 
 ### CATALOG-4: Category "force cascade" action
 An explicit bulk-update action on a Category record that pushes attribute values down to all children and products in the entire subtree.

@@ -13,24 +13,22 @@ class CreatePurchaseOrder extends CreateRecord
 {
     protected static string $resource = PurchaseOrderResource::class;
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::PurchaseOrder)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Purchase Orders.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['po_number'])) {
             $series = NumberSeries::getDefault(SeriesType::PurchaseOrder);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Purchase Orders.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['po_number'] = $series->generateNumber();
         }

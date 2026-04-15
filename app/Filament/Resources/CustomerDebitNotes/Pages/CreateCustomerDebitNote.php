@@ -33,24 +33,22 @@ class CreateCustomerDebitNote extends CreateRecord
         }
     }
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::DebitNote)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Debit Notes.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['debit_note_number'])) {
             $series = NumberSeries::getDefault(SeriesType::DebitNote);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Debit Notes.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['debit_note_number'] = $series->generateNumber();
         }

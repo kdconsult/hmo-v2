@@ -31,24 +31,22 @@ class CreatePurchaseReturn extends CreateRecord
         }
     }
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::PurchaseReturn)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Purchase Returns.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['pr_number'])) {
             $series = NumberSeries::getDefault(SeriesType::PurchaseReturn);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Purchase Returns.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['pr_number'] = $series->generateNumber();
         }

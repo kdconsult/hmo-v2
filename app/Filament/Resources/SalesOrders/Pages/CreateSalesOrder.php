@@ -33,24 +33,22 @@ class CreateSalesOrder extends CreateRecord
         }
     }
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::SalesOrder)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Sales Orders.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['so_number'])) {
             $series = NumberSeries::getDefault(SeriesType::SalesOrder);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Sales Orders.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['so_number'] = $series->generateNumber();
         }

@@ -31,24 +31,22 @@ class CreateGoodsReceivedNote extends CreateRecord
         }
     }
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::GoodsReceivedNote)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Goods Receipts.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['grn_number'])) {
             $series = NumberSeries::getDefault(SeriesType::GoodsReceivedNote);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Goods Receipts.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['grn_number'] = $series->generateNumber();
         }

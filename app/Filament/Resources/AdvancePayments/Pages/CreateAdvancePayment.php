@@ -13,24 +13,22 @@ class CreateAdvancePayment extends CreateRecord
 {
     protected static string $resource = AdvancePaymentResource::class;
 
-    protected function beforeCreate(): void
-    {
-        if (! NumberSeries::getDefault(SeriesType::AdvancePayment)) {
-            Notification::make()
-                ->title('No number series configured')
-                ->body('Go to Settings → Number Series and create one for Advance Payments.')
-                ->danger()
-                ->persistent()
-                ->send();
-
-            $this->halt();
-        }
-    }
-
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         if (empty($data['ap_number'])) {
             $series = NumberSeries::getDefault(SeriesType::AdvancePayment);
+
+            if (! $series) {
+                Notification::make()
+                    ->title('No number series configured')
+                    ->body('Go to Settings → Number Series and create one for Advance Payments.')
+                    ->danger()
+                    ->persistent()
+                    ->send();
+
+                $this->halt();
+            }
+
             $data['document_series_id'] = $series->id;
             $data['ap_number'] = $series->generateNumber();
         }
