@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CustomerDebitNote;
+use App\Services\CustomerDebitNoteService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -60,8 +61,7 @@ class ViewCustomerDebitNote extends ViewRecord
                 ->requiresConfirmation()
                 ->visible(fn (CustomerDebitNote $record): bool => $record->status === DocumentStatus::Draft)
                 ->action(function (CustomerDebitNote $record): void {
-                    $record->status = DocumentStatus::Confirmed;
-                    $record->save();
+                    app(CustomerDebitNoteService::class)->confirm($record);
                     Notification::make()->title('Debit note confirmed')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
@@ -76,8 +76,7 @@ class ViewCustomerDebitNote extends ViewRecord
                     DocumentStatus::Confirmed,
                 ]))
                 ->action(function (CustomerDebitNote $record): void {
-                    $record->status = DocumentStatus::Cancelled;
-                    $record->save();
+                    app(CustomerDebitNoteService::class)->cancel($record);
                     Notification::make()->title('Debit note cancelled')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),

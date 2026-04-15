@@ -6,6 +6,7 @@ use App\Enums\DocumentStatus;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CustomerCreditNote;
+use App\Services\CustomerCreditNoteService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -55,8 +56,7 @@ class ViewCustomerCreditNote extends ViewRecord
                 ->requiresConfirmation()
                 ->visible(fn (CustomerCreditNote $record): bool => $record->status === DocumentStatus::Draft)
                 ->action(function (CustomerCreditNote $record): void {
-                    $record->status = DocumentStatus::Confirmed;
-                    $record->save();
+                    app(CustomerCreditNoteService::class)->confirm($record);
                     Notification::make()->title('Credit note confirmed')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
@@ -71,8 +71,7 @@ class ViewCustomerCreditNote extends ViewRecord
                     DocumentStatus::Confirmed,
                 ]))
                 ->action(function (CustomerCreditNote $record): void {
-                    $record->status = DocumentStatus::Cancelled;
-                    $record->save();
+                    app(CustomerCreditNoteService::class)->cancel($record);
                     Notification::make()->title('Credit note cancelled')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),

@@ -11,6 +11,7 @@ use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\CustomerInvoice;
 use App\Services\CustomerInvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use DomainException;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -101,7 +102,7 @@ class ViewCustomerInvoice extends ViewRecord
                         app(CustomerInvoiceService::class)->confirm($record);
                         Notification::make()->title('Invoice confirmed')->success()->send();
                         $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
-                    } catch (InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException|DomainException $e) {
                         Notification::make()
                             ->title('Cannot confirm invoice')
                             ->body($e->getMessage())
@@ -157,8 +158,7 @@ class ViewCustomerInvoice extends ViewRecord
                     DocumentStatus::Confirmed,
                 ]))
                 ->action(function (CustomerInvoice $record): void {
-                    $record->status = DocumentStatus::Cancelled;
-                    $record->save();
+                    app(CustomerInvoiceService::class)->cancel($record);
                     Notification::make()->title('Invoice cancelled')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),

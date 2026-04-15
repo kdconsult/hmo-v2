@@ -135,6 +135,9 @@ class SalesOrderService
         }
 
         if ($newStatus === SalesOrderStatus::Confirmed) {
+            if ($order->issued_at === null) {
+                $order->issued_at = now();
+            }
             $this->reserveAllItems($order);
         }
 

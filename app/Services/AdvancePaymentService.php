@@ -186,6 +186,7 @@ class AdvancePaymentService
 
     /**
      * Refund an advance payment (Open or PartiallyApplied only).
+     * Blocked if a confirmed advance invoice already exists for this payment.
      *
      * @throws InvalidArgumentException
      */
@@ -197,7 +198,47 @@ class AdvancePaymentService
             );
         }
 
+        if ($ap->advanceInvoice?->status === DocumentStatus::Confirmed) {
+            throw new InvalidArgumentException(
+                'Cannot refund: a confirmed advance invoice exists. Cancel or credit the invoice first.'
+            );
+        }
+
         $ap->status = AdvancePaymentStatus::Refunded;
         $ap->save();
+    }
+
+    /**
+     * Reverse a previously applied advance payment application.
+     * Only allowed when the linked invoice is still in Draft status.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function reverseApplication(AdvancePaymentApplication $application): void
+    {
+        $application->loadMissing(['advancePayment', 'customerInvoice']);
+
+        if ($application->customerInvoice?->status === DocumentStatus::Confirmed) {
+            throw new InvalidArgumentException(
+                'Cannot reverse application: the linked invoice is already confirmed. Issue a Credit Note instead.'
+            );
+        }
+
+        DB::transaction(function () use ($application): void {
+            $ap = $application->advancePayment;
+
+            $ap->amount_applied = bcsub((string) $ap->amount_applied, (string) $application->amount_applied, 2);
+
+            if (bccomp((string) $ap->amount_applied, '0.00', 2) <= 0) {
+                $ap->status = AdvancePaymentStatus::Open;
+                $ap->amount_applied = '0.00';
+            } else {
+                $ap->status = AdvancePaymentStatus::PartiallyApplied;
+            }
+
+            $ap->save();
+
+            $application->delete();
+        });
     }
 }

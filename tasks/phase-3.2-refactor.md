@@ -38,13 +38,13 @@ Tiers define implementation order. Tier 0 runs first (schema), Tier 5 last (view
 
 | Item | Description | Status |
 |------|-------------|--------|
-| SO-B1 | Auto-set issued_at on Draft→Confirmed in SalesOrderService | [ ] |
-| CI-2 | Over-invoice guard in CustomerInvoiceService::confirm() | [ ] |
-| CI-V2 | Extract inline cancel into CustomerInvoiceService::cancel() | [ ] |
-| CCN-V2 | Add confirm() + cancel() to CustomerCreditNoteService | [ ] |
-| CDN-V2 | Add confirm() + cancel() to CustomerDebitNoteService | [ ] |
-| AP-V1 | Gate AdvancePaymentService::refund() — check no confirmed advance invoice | [ ] |
-| AP-V2 | Add AdvancePaymentService::reverseApplication() | [ ] |
+| SO-B1 | Auto-set issued_at on Draft→Confirmed in SalesOrderService | [x] |
+| CI-2 | Over-invoice guard in CustomerInvoiceService::confirm() | [x] |
+| CI-V2 | Extract inline cancel into CustomerInvoiceService::cancel() | [x] |
+| CCN-V2 | Add confirm() + cancel() to CustomerCreditNoteService | [x] |
+| CDN-V2 | Add confirm() + cancel() to CustomerDebitNoteService | [x] |
+| AP-V1 | Gate AdvancePaymentService::refund() — check no confirmed advance invoice | [x] |
+| AP-V2 | Add AdvancePaymentService::reverseApplication() | [x] |
 
 ### Tier 3 — Form-Level Fixes
 

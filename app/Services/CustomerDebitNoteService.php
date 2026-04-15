@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
 use App\Models\CustomerDebitNote;
 use App\Models\CustomerDebitNoteItem;
+use Illuminate\Support\Facades\DB;
 
 class CustomerDebitNoteService
 {
@@ -53,5 +55,27 @@ class CustomerDebitNoteService
         $debitNote->tax_amount = $taxAmount;
         $debitNote->total = bcadd($subtotal, $taxAmount, 2);
         $debitNote->save();
+    }
+
+    /**
+     * Confirm a debit note, wrapped in a transaction.
+     * Future: update parent invoice balance if applicable.
+     */
+    public function confirm(CustomerDebitNote $cdn): void
+    {
+        DB::transaction(function () use ($cdn): void {
+            $cdn->update(['status' => DocumentStatus::Confirmed]);
+        });
+    }
+
+    /**
+     * Cancel a debit note, wrapped in a transaction.
+     * Future: reverse any balance changes applied on confirm.
+     */
+    public function cancel(CustomerDebitNote $cdn): void
+    {
+        DB::transaction(function () use ($cdn): void {
+            $cdn->update(['status' => DocumentStatus::Cancelled]);
+        });
     }
 }

@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
 use App\Models\CustomerCreditNote;
 use App\Models\CustomerCreditNoteItem;
+use Illuminate\Support\Facades\DB;
 
 class CustomerCreditNoteService
 {
@@ -53,5 +55,27 @@ class CustomerCreditNoteService
         $creditNote->tax_amount = $taxAmount;
         $creditNote->total = bcadd($subtotal, $taxAmount, 2);
         $creditNote->save();
+    }
+
+    /**
+     * Confirm a credit note, wrapped in a transaction.
+     * Future: update parent invoice balance, adjust OSS if applicable.
+     */
+    public function confirm(CustomerCreditNote $ccn): void
+    {
+        DB::transaction(function () use ($ccn): void {
+            $ccn->update(['status' => DocumentStatus::Confirmed]);
+        });
+    }
+
+    /**
+     * Cancel a credit note, wrapped in a transaction.
+     * Future: reverse any balance or OSS changes applied on confirm.
+     */
+    public function cancel(CustomerCreditNote $ccn): void
+    {
+        DB::transaction(function () use ($ccn): void {
+            $ccn->update(['status' => DocumentStatus::Cancelled]);
+        });
     }
 }

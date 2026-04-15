@@ -10,6 +10,7 @@ use App\Enums\SalesOrderStatus;
 use App\Events\FiscalReceiptRequested;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
+use DomainException;
 use Illuminate\Support\Facades\DB;
 
 class CustomerInvoiceService
@@ -72,13 +73,39 @@ class CustomerInvoiceService
 
     /**
      * Confirm a customer invoice.
+     * - Guards against over-invoicing SO items
      * - Updates SO qty_invoiced if linked (and transitions SO to Invoiced when fully invoiced)
      * - For service-type SO items: sets qty_delivered = qty_invoiced (services are delivered on invoicing)
      * - Dispatches FiscalReceiptRequested on cash payment
      * - Accumulates EU OSS totals if applicable
+     *
+     * @throws DomainException when an item would over-invoice its SO line
      */
     public function confirm(CustomerInvoice $invoice): void
     {
+        $invoice->loadMissing(['items.salesOrderItem']);
+
+        foreach ($invoice->items as $item) {
+            if (! $item->sales_order_item_id || ! $item->salesOrderItem) {
+                continue;
+            }
+
+            $soItem = $item->salesOrderItem;
+            $alreadyInvoiced = CustomerInvoiceItem::whereHas('customerInvoice', fn ($q) => $q
+                ->where('sales_order_id', $invoice->sales_order_id)
+                ->where('status', DocumentStatus::Confirmed)
+                ->where('id', '!=', $invoice->id)
+            )
+                ->where('sales_order_item_id', $item->sales_order_item_id)
+                ->sum('quantity');
+
+            if (bccomp(bcadd((string) $alreadyInvoiced, (string) $item->quantity, 4), (string) $soItem->quantity, 4) > 0) {
+                throw new DomainException(
+                    "Over-invoice: item qty exceeds ordered qty for SO line #{$soItem->id}."
+                );
+            }
+        }
+
         DB::transaction(function () use ($invoice): void {
             $invoice->status = DocumentStatus::Confirmed;
             $invoice->save();
@@ -130,5 +157,29 @@ class CustomerInvoiceService
         // Accumulate EU OSS amounts for cross-border B2C tracking
         $invoice->loadMissing('partner');
         app(EuOssService::class)->accumulate($invoice);
+    }
+
+    /**
+     * Cancel a customer invoice.
+     * - Reverses qty_invoiced on linked SO items
+     * - Reverses EU OSS accumulation if applicable
+     * - Sets status to Cancelled
+     */
+    public function cancel(CustomerInvoice $invoice): void
+    {
+        DB::transaction(function () use ($invoice): void {
+            $invoice->loadMissing(['items.salesOrderItem']);
+
+            foreach ($invoice->items as $item) {
+                if ($item->salesOrderItem) {
+                    $item->salesOrderItem->decrement('qty_invoiced', (float) $item->quantity);
+                }
+            }
+
+            $invoice->loadMissing('partner');
+            app(EuOssService::class)->reverseAccumulation($invoice);
+
+            $invoice->update(['status' => DocumentStatus::Cancelled]);
+        });
     }
 }

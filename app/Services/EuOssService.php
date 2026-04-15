@@ -75,6 +75,42 @@ class EuOssService
     }
 
     /**
+     * Reverse the OSS accumulation for a cancelled invoice.
+     * Mirrors the same eligibility checks as accumulate() — non-qualifying invoices are silently skipped.
+     */
+    public function reverseAccumulation(CustomerInvoice $invoice): void
+    {
+        $partner = $invoice->partner;
+
+        if (! $partner || empty($partner->country_code)) {
+            return;
+        }
+
+        if (! in_array($partner->country_code, EuCountries::codes(), true)) {
+            return;
+        }
+
+        $tenantCountry = CompanySettings::get('company', 'country_code');
+        if ($partner->country_code === $tenantCountry) {
+            return;
+        }
+
+        if ($partner->hasValidEuVat()) {
+            return;
+        }
+
+        $totalEur = bccomp((string) $invoice->exchange_rate, '0', 6) > 0
+            ? bcdiv((string) $invoice->total, (string) $invoice->exchange_rate, 2)
+            : (string) $invoice->total;
+
+        EuOssAccumulation::accumulate(
+            $partner->country_code,
+            (int) now()->year,
+            -(float) $totalEur
+        );
+    }
+
+    /**
      * Get the standard VAT rate for a destination EU country.
      */
     public function getDestinationVatRate(string $countryCode): float
