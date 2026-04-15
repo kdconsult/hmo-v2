@@ -6,6 +6,7 @@ use App\Enums\DeliveryNoteStatus;
 use App\Enums\SalesOrderStatus;
 use App\Enums\SalesReturnStatus;
 use App\Exceptions\InsufficientStockException;
+use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Filament\Resources\SalesReturns\SalesReturnResource;
@@ -123,6 +124,13 @@ class ViewDeliveryNote extends ViewRecord
                         "delivery-note-{$record->dn_number}.pdf"
                     );
                 }),
+
+            Action::make('create_invoice')
+                ->label('Create Invoice')
+                ->icon(Heroicon::OutlinedDocumentText)
+                ->color('info')
+                ->visible(fn (DeliveryNote $record): bool => $record->status === DeliveryNoteStatus::Confirmed && $record->sales_order_id !== null)
+                ->url(fn (DeliveryNote $record): string => CustomerInvoiceResource::getUrl('create').'?sales_order_id='.$record->sales_order_id),
 
             Action::make('create_return')
                 ->label('Create Sales Return')

@@ -41,7 +41,9 @@ class SalesOrderForm
                             )
                             ->searchable()
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->disabled(fn (Get $get) => filled($get('quotation_id')))
+                            ->dehydrated(),
                         Select::make('quotation_id')
                             ->label('Linked Quotation')
                             ->options(fn (Get $get): array => $get('partner_id')

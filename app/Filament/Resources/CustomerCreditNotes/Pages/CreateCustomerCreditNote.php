@@ -21,14 +21,20 @@ class CreateCustomerCreditNote extends CreateRecord
         if ($invoiceId = request()->query('customer_invoice_id')) {
             $invoice = CustomerInvoice::find($invoiceId);
             if ($invoice) {
-                $this->form->fill([
+                $fill = [
                     'customer_invoice_id' => $invoice->id,
                     'partner_id' => $invoice->partner_id,
                     'currency_code' => $invoice->currency_code,
                     'exchange_rate' => $invoice->exchange_rate,
                     'pricing_mode' => $invoice->pricing_mode->value,
                     'issued_at' => now()->toDateString(),
-                ]);
+                ];
+
+                if ($salesReturnId = request()->query('sales_return_id')) {
+                    $fill['sales_return_id'] = $salesReturnId;
+                }
+
+                $this->form->fill($fill);
             }
         }
     }

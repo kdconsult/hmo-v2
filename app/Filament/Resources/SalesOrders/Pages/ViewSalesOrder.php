@@ -10,6 +10,7 @@ use App\Enums\SeriesType;
 use App\Exceptions\InsufficientStockException;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Filament\Resources\DeliveryNotes\DeliveryNoteResource;
+use App\Filament\Resources\Quotations\QuotationResource;
 use App\Filament\Resources\SalesOrders\SalesOrderResource;
 use App\Models\NumberSeries;
 use App\Models\Partner;
@@ -35,28 +36,44 @@ class ViewSalesOrder extends ViewRecord
     public function getRelatedDocuments(): array
     {
         $record = $this->getRecord();
-        $record->loadMissing(['deliveryNotes', 'customerInvoices']);
+        $record->loadMissing(['quotation', 'deliveryNotes', 'customerInvoices']);
 
-        return [
-            [
-                'label' => 'Delivery Notes',
-                'items' => $record->deliveryNotes->map(fn ($dn) => [
-                    'number' => $dn->dn_number,
-                    'status' => $dn->status->getLabel(),
-                    'color' => $dn->status->getColor(),
-                    'url' => DeliveryNoteResource::getUrl('view', ['record' => $dn]),
-                ])->all(),
-            ],
-            [
-                'label' => 'Customer Invoices',
-                'items' => $record->customerInvoices->map(fn ($inv) => [
-                    'number' => $inv->invoice_number,
-                    'status' => $inv->status->getLabel(),
-                    'color' => $inv->status->getColor(),
-                    'url' => CustomerInvoiceResource::getUrl('view', ['record' => $inv]),
-                ])->all(),
-            ],
+        $groups = [];
+
+        if ($record->quotation) {
+            $quo = $record->quotation;
+            $groups[] = [
+                'label' => 'Source Quotation',
+                'items' => [[
+                    'number' => $quo->quotation_number,
+                    'status' => $quo->status->getLabel(),
+                    'color' => $quo->status->getColor(),
+                    'url' => QuotationResource::getUrl('view', ['record' => $quo]),
+                ]],
+            ];
+        }
+
+        $groups[] = [
+            'label' => 'Delivery Notes',
+            'items' => $record->deliveryNotes->map(fn ($dn) => [
+                'number' => $dn->dn_number,
+                'status' => $dn->status->getLabel(),
+                'color' => $dn->status->getColor(),
+                'url' => DeliveryNoteResource::getUrl('view', ['record' => $dn]),
+            ])->all(),
         ];
+
+        $groups[] = [
+            'label' => 'Customer Invoices',
+            'items' => $record->customerInvoices->map(fn ($inv) => [
+                'number' => $inv->invoice_number,
+                'status' => $inv->status->getLabel(),
+                'color' => $inv->status->getColor(),
+                'url' => CustomerInvoiceResource::getUrl('view', ['record' => $inv]),
+            ])->all(),
+        ];
+
+        return $groups;
     }
 
     protected function getHeaderActions(): array

@@ -44,6 +44,7 @@ class QuotationsTable
                     ->sortable(),
                 TextColumn::make('valid_until')
                     ->date()
+                    ->color(fn ($state) => $state && $state->isPast() ? 'danger' : null)
                     ->sortable(),
                 TextColumn::make('issued_at')
                     ->date()

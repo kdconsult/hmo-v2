@@ -69,9 +69,11 @@ class DeliveryNoteForm
                             ->label('Dispatch Warehouse')
                             ->options(Warehouse::where('is_active', true)->orderBy('name')->pluck('name', 'id'))
                             ->searchable()
-                            ->required(),
+                            ->required()
+                            ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
+                            ->dehydrated(),
                         DatePicker::make('delivered_at')
-                            ->default(now()->toDateString()),
+                            ->nullable(),
                     ]),
 
                 Section::make('Notes')

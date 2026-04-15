@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SalesOrders\Tables;
 
 use App\Enums\SalesOrderStatus;
+use App\Models\SalesOrder;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -46,6 +47,11 @@ class SalesOrdersTable
                 TextColumn::make('total')
                     ->money(fn ($record) => $record->currency_code ?? 'EUR')
                     ->sortable(),
+                TextColumn::make('fulfillment_pct')
+                    ->label('Fulfillment')
+                    ->state(fn (SalesOrder $record): string => $record->fulfillmentPercentage().'%')
+                    ->sortable(false)
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('expected_delivery_date')
                     ->label('Expected Delivery')
                     ->date()

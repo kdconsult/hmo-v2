@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AdvancePaymentStatus;
 use App\Enums\PricingMode;
 use App\Enums\SalesOrderStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -124,5 +125,41 @@ class SalesOrder extends Model
     public function isFullyInvoiced(): bool
     {
         return $this->items->every(fn (SalesOrderItem $item) => $item->isFullyInvoiced());
+    }
+
+    /**
+     * Returns the percentage of ordered quantity that has been delivered (0–100).
+     */
+    public function fulfillmentPercentage(): int
+    {
+        $this->loadMissing('items');
+
+        $ordered = $this->items->sum(fn (SalesOrderItem $item) => (float) $item->quantity);
+
+        if ($ordered <= 0) {
+            return 0;
+        }
+
+        $delivered = $this->items->sum(fn (SalesOrderItem $item) => (float) $item->qty_delivered);
+
+        return (int) min(100, round(($delivered / $ordered) * 100));
+    }
+
+    public function advancePayments(): HasMany
+    {
+        return $this->hasMany(AdvancePayment::class);
+    }
+
+    /**
+     * Returns the remaining balance available for additional advance payments.
+     * = SO total minus all non-refunded advance payment amounts.
+     */
+    public function remainingBalance(): string
+    {
+        $advancesTotal = (string) $this->advancePayments()
+            ->whereNotIn('status', [AdvancePaymentStatus::Refunded->value])
+            ->sum('amount');
+
+        return bcsub((string) $this->total, $advancesTotal, 2);
     }
 }

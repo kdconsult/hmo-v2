@@ -28,15 +28,12 @@ class ViewSalesReturn extends ViewRecord
         /** @var SalesReturn $record */
         $record = $this->getRecord();
 
-        if (! $record->delivery_note_id) {
-            return [];
-        }
+        $record->loadMissing(['deliveryNote', 'customerCreditNotes']);
+        $groups = [];
 
-        $record->loadMissing('deliveryNote');
-        $dn = $record->deliveryNote;
-
-        return [
-            [
+        if ($record->delivery_note_id) {
+            $dn = $record->deliveryNote;
+            $groups[] = [
                 'label' => 'Delivery Note',
                 'items' => [[
                     'number' => $dn->dn_number,
@@ -48,8 +45,26 @@ class ViewSalesReturn extends ViewRecord
                     },
                     'url' => DeliveryNoteResource::getUrl('view', ['record' => $dn]),
                 ]],
-            ],
-        ];
+            ];
+        }
+
+        if ($record->customerCreditNotes->isNotEmpty()) {
+            $groups[] = [
+                'label' => 'Credit Notes',
+                'items' => $record->customerCreditNotes->map(fn ($cn) => [
+                    'number' => $cn->credit_note_number,
+                    'status' => $cn->status->getLabel(),
+                    'color' => match ($cn->status) {
+                        DocumentStatus::Confirmed => 'success',
+                        DocumentStatus::Cancelled => 'danger',
+                        default => 'warning',
+                    },
+                    'url' => CustomerCreditNoteResource::getUrl('view', ['record' => $cn]),
+                ])->all(),
+            ];
+        }
+
+        return $groups;
     }
 
     protected function getHeaderActions(): array
@@ -94,8 +109,8 @@ class ViewSalesReturn extends ViewRecord
                         ->options($this->getLinkedInvoiceOptions($record))
                         ->required(),
                 ])
-                ->action(fn (array $data): mixed => $this->redirect(
-                    CustomerCreditNoteResource::getUrl('create').'?customer_invoice_id='.$data['customer_invoice_id']
+                ->action(fn (SalesReturn $record, array $data): mixed => $this->redirect(
+                    CustomerCreditNoteResource::getUrl('create').'?customer_invoice_id='.$data['customer_invoice_id'].'&sales_return_id='.$record->id
                 )),
 
             Action::make('cancel')

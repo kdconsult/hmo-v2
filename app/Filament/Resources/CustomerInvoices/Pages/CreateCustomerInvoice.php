@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
+use App\Enums\InvoiceType;
 use App\Enums\SeriesType;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\NumberSeries;
@@ -24,6 +25,7 @@ class CreateCustomerInvoice extends CreateRecord
                 $this->form->fill([
                     'sales_order_id' => $so->id,
                     'partner_id' => $so->partner_id,
+                    'invoice_type' => InvoiceType::SalesInvoice->value,
                     'currency_code' => $so->currency_code,
                     'exchange_rate' => $so->exchange_rate,
                     'pricing_mode' => $so->pricing_mode->value,

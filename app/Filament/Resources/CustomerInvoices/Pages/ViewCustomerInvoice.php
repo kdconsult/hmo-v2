@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
+use App\Enums\AdvancePaymentStatus;
 use App\Enums\DocumentStatus;
 use App\Enums\SalesOrderStatus;
+use App\Filament\Resources\AdvancePayments\AdvancePaymentResource;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
@@ -29,7 +31,7 @@ class ViewCustomerInvoice extends ViewRecord
     {
         /** @var CustomerInvoice $record */
         $record = $this->getRecord();
-        $record->loadMissing(['salesOrder', 'creditNotes', 'debitNotes']);
+        $record->loadMissing(['salesOrder', 'creditNotes', 'debitNotes', 'advancePaymentApplications.advancePayment']);
 
         $groups = [];
 
@@ -79,6 +81,28 @@ class ViewCustomerInvoice extends ViewRecord
                     },
                     'url' => CustomerDebitNoteResource::getUrl('view', ['record' => $dn]),
                 ])->all(),
+            ];
+        }
+
+        $appliedAdvances = $record->advancePaymentApplications
+            ->filter(fn ($app) => $app->advancePayment !== null)
+            ->map(fn ($app) => $app->advancePayment)
+            ->unique('id');
+
+        if ($appliedAdvances->isNotEmpty()) {
+            $groups[] = [
+                'label' => 'Applied Advances',
+                'items' => $appliedAdvances->map(fn ($ap) => [
+                    'number' => $ap->ap_number,
+                    'status' => $ap->status->getLabel(),
+                    'color' => match ($ap->status) {
+                        AdvancePaymentStatus::FullyApplied => 'success',
+                        AdvancePaymentStatus::PartiallyApplied => 'warning',
+                        AdvancePaymentStatus::Refunded => 'danger',
+                        default => 'gray',
+                    },
+                    'url' => AdvancePaymentResource::getUrl('view', ['record' => $ap]),
+                ])->values()->all(),
             ];
         }
 

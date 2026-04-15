@@ -50,47 +50,47 @@ Tiers define implementation order. Tier 0 runs first (schema), Tier 5 last (view
 
 | Item | Description | Status |
 |------|-------------|--------|
-| QUO-C2 | Filter inactive partners in Quotation form | [ ] |
-| QUO-C3 | Add minDate(now()) to valid_until in Quotation form | [ ] |
-| QUO-C5 | Lock pricing_mode when items exist | [ ] |
-| SO-C2 | Remove dead mount() quotation pre-fill from CreateSalesOrder | [ ] |
-| SO-C3 | Lock partner_id when quotation_id is set | [ ] |
-| DN-C1 | Lock warehouse_id when sales_order_id is set | [ ] |
-| DN-C2 | Change delivered_at default from now() to null | [ ] |
-| CI-C2 | Lock invoice_type when sales_order_id is set; include in fill() | [ ] |
-| CCN-F2 | Add required reason textarea to CustomerCreditNote form | [ ] |
-| CCN-F3 | Auto-fill items from parent invoice on CCN create | [ ] |
-| CCN-F4 | Validate credit qty ≤ invoiced qty | [ ] |
-| CDN-F2 | Add required reason textarea to CustomerDebitNote form | [ ] |
-| CDN-F3 | Auto-fill items from parent invoice on CDN create | [ ] |
-| CDN-F4 | Validate debit qty ≤ invoiced qty | [ ] |
-| SR-F1 | Auto-fill items from parent delivery note on SalesReturn create | [ ] |
-| SR-F2 | Validate return qty ≤ delivered qty | [ ] |
-| AP-F1 | Make received_at required in AdvancePayment form | [ ] |
-| AP-F2 | Make payment_method required (not nullable) | [ ] |
-| AP-F3 | Add amount validation (> 0, ≤ SO remaining balance) | [ ] |
+| QUO-C2 | Filter inactive partners in Quotation form | [x] |
+| QUO-C3 | Add minDate(now()) to valid_until in Quotation form | [x] |
+| QUO-C5 | Lock pricing_mode when items exist | [x] |
+| SO-C2 | Remove dead mount() quotation pre-fill from CreateSalesOrder | [x] |
+| SO-C3 | Lock partner_id when quotation_id is set | [x] |
+| DN-C1 | Lock warehouse_id when sales_order_id is set | [x] |
+| DN-C2 | Change delivered_at default from now() to null | [x] |
+| CI-C2 | Lock invoice_type when sales_order_id is set; include in fill() | [x] |
+| CCN-F2 | Add required reason textarea to CustomerCreditNote form | [x] |
+| CCN-F3 | Auto-fill items from parent invoice on CCN create | [x] |
+| CCN-F4 | Validate credit qty ≤ invoiced qty | [x] |
+| CDN-F2 | Add required reason textarea to CustomerDebitNote form | [x] |
+| CDN-F3 | Auto-fill items from parent invoice on CDN create | [x] |
+| CDN-F4 | Validate debit qty ≤ invoiced qty | [x] |
+| SR-F1 | Auto-fill items from parent delivery note on SalesReturn create | [x] |
+| SR-F2 | Validate return qty ≤ delivered qty | [x] |
+| AP-F1 | Make received_at required in AdvancePayment form | [x] |
+| AP-F2 | Make payment_method required (not nullable) | [x] |
+| AP-F3 | Add amount validation (> 0, ≤ SO remaining balance) | [x] |
 
 ### Tier 4 — View Actions + Related Documents
 
 | Item | Description | Status |
 |------|-------------|--------|
-| QUO-L5 | Add status badge column to Quotations table | [ ] |
-| QUO-L6 | Add valid_until column with expired highlighting | [ ] |
-| QUO-V1 | Guard "Convert to SO" — hide if SO already exists | [ ] |
-| QUO-V2 | Show linked SO in Quotation related documents | [ ] |
-| SO-L1 | Add fulfillment % column to SalesOrders table | [ ] |
-| SO-V1 | Show linked Quotation in SalesOrder related documents | [ ] |
-| DN-L1 | Add warehouse column to DeliveryNotes table | [ ] |
-| DN-L2 | Add delivered_at column to DeliveryNotes table | [ ] |
-| DN-V1 | Add "Create Invoice" button on confirmed DN view page | [ ] |
-| CI-L1 | Add due_date column with overdue highlighting to CustomerInvoices table | [ ] |
+| QUO-L5 | Add status badge column to Quotations table | [x] |
+| QUO-L6 | Add valid_until column with expired highlighting | [x] |
+| QUO-V1 | Guard "Convert to SO" — hide if SO already exists | [x] |
+| QUO-V2 | Show linked SO in Quotation related documents | [x] |
+| SO-L1 | Add fulfillment % column to SalesOrders table | [x] |
+| SO-V1 | Show linked Quotation in SalesOrder related documents | [x] |
+| DN-L1 | Add warehouse column to DeliveryNotes table | [x] |
+| DN-L2 | Add delivered_at column to DeliveryNotes table | [x] |
+| DN-V1 | Add "Create Invoice" button on confirmed DN view page | [x] |
+| CI-L1 | Add due_date column with overdue highlighting to CustomerInvoices table | [x] |
 | CI-1 | Show advance payment deductions in CI total display | [ ] |
-| CI-V1 | Show applied advance payments in CI related documents | [ ] |
-| SR-V1 | "Create CCN" action must pass sales_return_id (needs SR-CCN-1) | [ ] |
-| SR-V2 | Show linked CCN in SalesReturn related documents | [ ] |
-| SR-CCN-2 | Pre-fill sales_return_id in CreateCustomerCreditNote mount() | [ ] |
-| AP-T2 | Add status badge column to AdvancePayments table | [ ] |
-| AP-T3 | Add remaining amount computed column to AdvancePayments table | [ ] |
+| CI-V1 | Show applied advance payments in CI related documents | [x] |
+| SR-V1 | "Create CCN" action must pass sales_return_id (needs SR-CCN-1) | [x] |
+| SR-V2 | Show linked CCN in SalesReturn related documents | [x] |
+| SR-CCN-2 | Pre-fill sales_return_id in CreateCustomerCreditNote mount() | [x] |
+| AP-T2 | Add status badge column to AdvancePayments table | [x] |
+| AP-T3 | Add remaining amount computed column to AdvancePayments table | [x] |
 
 ### Tier 5 — Infolist Views (INFRA-V1)
 

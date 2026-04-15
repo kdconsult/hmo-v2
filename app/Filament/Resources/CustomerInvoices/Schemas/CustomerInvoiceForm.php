@@ -37,7 +37,9 @@ class CustomerInvoiceForm
                         Select::make('invoice_type')
                             ->options(InvoiceType::class)
                             ->required()
-                            ->default(InvoiceType::Standard->value),
+                            ->default(InvoiceType::Standard->value)
+                            ->disabled(fn (Get $get) => filled($get('sales_order_id')))
+                            ->dehydrated(),
                         Select::make('partner_id')
                             ->label('Customer')
                             ->options(

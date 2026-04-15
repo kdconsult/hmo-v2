@@ -8,6 +8,7 @@ use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\SalesOrder;
 use App\Services\CurrencyRateService;
+use Closure;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -71,13 +72,30 @@ class AdvancePaymentForm
                             ->numeric()
                             ->minValue(0.01)
                             ->step('0.01')
-                            ->placeholder('0.00'),
+                            ->placeholder('0.00')
+                            ->rules([
+                                fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                    $soId = $get('sales_order_id');
+                                    if (! $soId) {
+                                        return;
+                                    }
+                                    $so = SalesOrder::find($soId);
+                                    if (! $so) {
+                                        return;
+                                    }
+                                    $remaining = $so->remainingBalance();
+                                    if (bccomp((string) $value, $remaining, 2) > 0) {
+                                        $fail("Amount cannot exceed the SO remaining balance of {$remaining}.");
+                                    }
+                                },
+                            ]),
                         Select::make('payment_method')
                             ->label('Payment Method')
                             ->options(PaymentMethod::class)
-                            ->nullable(),
+                            ->required(),
                         DatePicker::make('received_at')
                             ->label('Received Date')
+                            ->required()
                             ->default(now()->toDateString())
                             ->live(onBlur: true)
                             ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),

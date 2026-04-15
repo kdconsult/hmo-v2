@@ -8,6 +8,7 @@ use App\Models\CustomerInvoiceItem;
 use App\Models\ProductVariant;
 use App\Models\VatRate;
 use App\Services\CustomerDebitNoteService;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -16,11 +17,14 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class CustomerDebitNoteItemsRelationManager extends RelationManager
 {
@@ -99,7 +103,26 @@ class CustomerDebitNoteItemsRelationManager extends RelationManager
                     ->numeric()
                     ->minValue(0.0001)
                     ->step('0.0001')
-                    ->default('1.0000'),
+                    ->default('1.0000')
+                    ->rules([
+                        fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                            $invoiceItemId = $get('customer_invoice_item_id');
+                            if (! $invoiceItemId) {
+                                return;
+                            }
+
+                            DB::transaction(function () use ($invoiceItemId, $value, $fail): void {
+                                $invoiceItem = CustomerInvoiceItem::lockForUpdate()->find($invoiceItemId);
+                                if (! $invoiceItem) {
+                                    return;
+                                }
+
+                                if (bccomp((string) $value, (string) $invoiceItem->quantity, 4) > 0) {
+                                    $fail("Quantity exceeds the invoiced quantity ({$invoiceItem->quantity}).");
+                                }
+                            });
+                        },
+                    ]),
 
                 TextInput::make('unit_price')
                     ->required()
@@ -134,6 +157,70 @@ class CustomerDebitNoteItemsRelationManager extends RelationManager
                     ->numeric(2),
             ])
             ->headerActions([
+                Action::make('import_from_invoice')
+                    ->label('Import from Invoice')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('success')
+                    ->visible(function (): bool {
+                        /** @var CustomerDebitNote $debitNote */
+                        $debitNote = $this->getOwnerRecord();
+
+                        return $debitNote->customer_invoice_id !== null && $debitNote->isEditable();
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Import items from Customer Invoice')
+                    ->modalDescription('This will add all invoice items as debit note items. You can edit individual quantities and prices afterward.')
+                    ->action(function (): void {
+                        /** @var CustomerDebitNote $debitNote */
+                        $debitNote = $this->getOwnerRecord();
+
+                        $existingInvoiceItemIds = CustomerDebitNoteItem::where('customer_debit_note_id', $debitNote->id)
+                            ->whereNotNull('customer_invoice_item_id')
+                            ->pluck('customer_invoice_item_id')
+                            ->toArray();
+
+                        $invoiceItems = CustomerInvoiceItem::where('customer_invoice_id', $debitNote->customer_invoice_id)
+                            ->with('vatRate')
+                            ->get()
+                            ->reject(fn (CustomerInvoiceItem $item) => in_array($item->id, $existingInvoiceItemIds));
+
+                        if ($invoiceItems->isEmpty()) {
+                            Notification::make()
+                                ->title('No remaining items to import')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $service = app(CustomerDebitNoteService::class);
+
+                        foreach ($invoiceItems as $invoiceItem) {
+                            $item = CustomerDebitNoteItem::create([
+                                'customer_debit_note_id' => $debitNote->id,
+                                'customer_invoice_item_id' => $invoiceItem->id,
+                                'product_variant_id' => $invoiceItem->product_variant_id,
+                                'description' => $invoiceItem->description,
+                                'quantity' => $invoiceItem->quantity,
+                                'unit_price' => $invoiceItem->unit_price,
+                                'vat_rate_id' => $invoiceItem->vat_rate_id,
+                                'vat_amount' => '0.00',
+                                'line_total' => '0.00',
+                                'line_total_with_vat' => '0.00',
+                                'sort_order' => 0,
+                            ]);
+                            $item->setRelation('customerDebitNote', $debitNote);
+                            $item->setRelation('vatRate', $invoiceItem->vatRate);
+                            $service->recalculateItemTotals($item);
+                        }
+
+                        $service->recalculateDocumentTotals($debitNote);
+
+                        Notification::make()
+                            ->title('Items imported from Invoice')
+                            ->success()
+                            ->send();
+                    }),
                 CreateAction::make()
                     ->after(function (CustomerDebitNoteItem $record): void {
                         $record->loadMissing(['customerDebitNote', 'vatRate']);

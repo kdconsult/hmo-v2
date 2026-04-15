@@ -98,7 +98,7 @@ class ViewQuotation extends ViewRecord
                 ->label('Convert to Sales Order')
                 ->icon(Heroicon::OutlinedArrowRightCircle)
                 ->color('info')
-                ->visible(fn (Quotation $record): bool => $record->status === QuotationStatus::Accepted)
+                ->visible(fn (Quotation $record): bool => $record->status === QuotationStatus::Accepted && ! $record->salesOrders()->exists())
                 ->schema([
                     Select::make('warehouse_id')
                         ->label('Destination Warehouse')

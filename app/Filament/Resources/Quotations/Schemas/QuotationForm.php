@@ -11,6 +11,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class QuotationForm
@@ -44,7 +45,9 @@ class QuotationForm
                         Select::make('pricing_mode')
                             ->options(PricingMode::class)
                             ->required()
-                            ->default(PricingMode::VatExclusive->value),
+                            ->default(PricingMode::VatExclusive->value)
+                            ->disabled(fn (Get $get) => count($get('items') ?? []) > 0)
+                            ->dehydrated(),
                         Select::make('currency_code')
                             ->label('Currency')
                             ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))
@@ -73,7 +76,8 @@ class QuotationForm
                             ->live(onBlur: true)
                             ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
                         DatePicker::make('valid_until')
-                            ->nullable(),
+                            ->nullable()
+                            ->minDate(now()),
                     ]),
 
                 Section::make('Notes')
