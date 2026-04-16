@@ -8,6 +8,12 @@ Items identified during design review and brainstorming. Not yet scheduled to a 
 
 ## Easy — Quick wins, isolated changes
 
+### ~~VAT-VIES-1: VIES lookup button on Partner form~~ → absorbed into `tasks/vat-vies/partner.md`
+
+Superseded by the full VAT/VIES feature redesign (2026-04-16). See `tasks/vat-vies/spec.md` Area 2.
+
+---
+
 ### SALES-1: Quotation auto-expiry scheduler
 
 When `valid_until` passes and a quotation is still in `Draft` or `Sent` status, automatically transition it to `QuotationStatus::Expired`.
@@ -142,11 +148,11 @@ This applies to **Customer Invoice only** — not Quotations, Sales Orders, or D
 
 ## Medium — Multi-file, some design needed
 
-### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation ⚡ APP-BREAKING
+### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation 🔄 IN PROGRESS → `tasks/vat-vies/`
 
-`is_reverse_charge` on `CustomerInvoice` is never set by any code path. Every invoice confirms with `is_reverse_charge = false`, so EU B2B cross-border invoices incorrectly charge standard VAT instead of 0% + reverse charge notation. Violates EU VAT Directive 2006/112/EC, Article 196.
+**Implemented.** All five EU VAT scenarios are now handled at confirmation. Key design decisions below for reference.
 
-**Five VAT scenarios to handle at confirmation:**
+**Five VAT scenarios (implemented):**
 
 | Scenario | Condition | Tax treatment |
 |----------|-----------|---------------|
@@ -156,22 +162,20 @@ This applies to **Customer Invoice only** — not Quotations, Sales Orders, or D
 | 4. EU B2C — over OSS threshold | Same, cumulative B2C ≥ €10,000 | Destination country VAT rate (via `EuOssService`) |
 | 5. Non-EU export | Partner country outside EU | 0% VAT, no reverse charge |
 
-**Design decisions (agreed 2026-04-15):**
+**Final design:**
 
-- **No `is_vat_registered` boolean on Tenant** — non-empty `vat_number` is the fact. Add `hasValidVatNumber(): bool` accessor on `Tenant` (mirrors `Partner::hasValidEuVat()`).
-- **Determination at confirmation only** — legally binding moment (НАП, printed document). `is_reverse_charge` and applied VAT rates are locked then, never re-computed on edit.
-- **UX hint on partner select** — informational badge during create/edit using local `Partner::hasValidEuVat()` (no live VIES). Non-blocking.
-- **VIES at confirmation** — extract `TenantForm::checkVies()` into `ViesValidationService::validate(string $countryCode, string $vatNumber): ViesResult`. On timeout/unavailable: fall back to local `hasValidEuVat()` + warning notification, do not block.
-- **VAT rate override** — `determineVatType()` inside `confirm()`, before totals are locked. Scenarios 2 and 5: replace all item `vat_rate_id` with zero-rate. Scenario 4: use `EuOssService::getDestinationVatRate()`.
+- `VatScenario` enum — `determine(Partner, tenantCountry, ignorePartnerVat: bool = false)`. `ignorePartnerVat = true` skips `hasValidEuVat()` check while still running OSS threshold check (used when VIES rejects the VAT number at confirm time).
+- `CustomerInvoiceService::confirm(bool $treatAsB2c = false)` — passes `ignorePartnerVat: $treatAsB2c` to `VatScenario::determine()`.
+- `ViesValidationService` — returns `available` (reachable) + `valid` (confirmed valid). Transient failures (`available: false`) are NOT cached so next call retries.
+- **Three-way VIES branch at confirm (EU B2B only):**
+  - VIES unavailable → warn + proceed with reverse charge (stored VAT data is the source of truth)
+  - VIES confirms valid → proceed with reverse charge
+  - VIES explicitly invalid → halt, set `$viesInvalidDetected` on page, user sees "Confirm with Standard VAT" action
+- **"Confirm with Standard VAT"** — calls `confirm(treatAsB2c: true)`. Correctly re-runs OSS threshold check; does NOT hardcode under-threshold scenario.
+- Company Settings country_code field + Partner form country_code field added.
+- 20 tests in `tests/Feature/VatDeterminationTest.php`.
 
-**Files to create/modify:**
-- `app/Services/ViesValidationService.php` — new, extracted from `TenantForm::checkVies()`
-- `app/Models/Tenant.php` — add `hasValidVatNumber()` accessor
-- `app/Services/CustomerInvoiceService.php` — add `determineVatType()` called inside `confirm()`
-- `app/Filament/Resources/CustomerInvoices/Schemas/CustomerInvoiceForm.php` — UX hint badge on partner select
-- Customer Invoice PDF template — render reverse charge notation when `is_reverse_charge = true`
-
-**Prerequisite:** None. Can be implemented as a Phase 3.2 refactor sub-task or standalone hotfix before any real invoices are issued.
+**Remaining gap → VAT-VIES-1:** VIES lookup button on Partner form to pre-validate VAT numbers and store `vies_verified_at`/`vies_valid`. See VAT-VIES-1 above.
 
 ---
 

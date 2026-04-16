@@ -12,19 +12,31 @@ class ViesValidationService
     /**
      * Validate an EU VAT number via VIES.
      *
-     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     * `available` distinguishes a definitive VIES "invalid" from a service outage:
+     *   - available=true, valid=true  → VIES confirmed valid
+     *   - available=true, valid=false → VIES explicitly says invalid
+     *   - available=false, valid=false → VIES unreachable / timeout / SOAP error
+     *
+     * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
      */
     public function validate(string $countryCode, string $vatNumber): array
     {
         $cacheKey = "vies_validation_{$countryCode}_{$vatNumber}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryCode, $vatNumber) {
+        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryCode, $vatNumber) {
             return $this->callVies($countryCode, $vatNumber);
         });
+
+        // Transient failures (VIES down/timeout) must not be cached — next call should retry.
+        if (! $result['available']) {
+            Cache::forget($cacheKey);
+        }
+
+        return $result;
     }
 
     /**
-     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
      */
     private function callVies(string $countryCode, string $vatNumber): array
     {
@@ -40,6 +52,7 @@ class ViesValidationService
             ]);
 
             return [
+                'available' => true,
                 'valid' => (bool) $result->valid,
                 'name' => $result->name !== '---' ? $result->name : null,
                 'address' => $result->address !== '---' ? $result->address : null,
@@ -54,6 +67,7 @@ class ViesValidationService
             ]);
 
             return [
+                'available' => false,
                 'valid' => false,
                 'name' => null,
                 'address' => null,

@@ -21,11 +21,16 @@ enum VatScenario: string
      * 1. Empty country_code → treat as non-EU export
      * 2. Same country as tenant → domestic
      * 3. Not in EU → export (0%)
-     * 4. EU + valid VAT → B2B reverse charge (Article 196)
+     * 4. EU + valid VAT (unless $ignorePartnerVat) → B2B reverse charge (Article 196)
      * 5. EU + no valid VAT + OSS threshold exceeded → B2C OSS rate
      * 6. EU + no valid VAT + threshold not exceeded → B2C domestic rate
+     *
+     * @param  bool  $ignorePartnerVat  When true, skip the hasValidEuVat() check so the partner
+     *                                  is treated as a B2C customer regardless of stored VAT data.
+     *                                  Use when VIES has explicitly rejected the VAT number at
+     *                                  confirm time and the user chose to proceed with standard VAT.
      */
-    public static function determine(Partner $partner, string $tenantCountryCode): self
+    public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false): self
     {
         if (empty($partner->country_code)) {
             return self::NonEuExport;
@@ -39,7 +44,7 @@ enum VatScenario: string
             return self::NonEuExport;
         }
 
-        if ($partner->hasValidEuVat()) {
+        if (! $ignorePartnerVat && $partner->hasValidEuVat()) {
             return self::EuB2bReverseCharge;
         }
 

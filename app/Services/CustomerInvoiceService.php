@@ -83,9 +83,13 @@ class CustomerInvoiceService
      * - Dispatches FiscalReceiptRequested on cash payment
      * - Accumulates EU OSS totals if applicable
      *
+     * @param  bool  $treatAsB2c  When true, the partner's stored VAT data is ignored and the
+     *                            invoice is treated as B2C. Use when VIES explicitly rejected the
+     *                            VAT number and the user chose to confirm with standard VAT.
+     *
      * @throws DomainException when an item would over-invoice its SO line
      */
-    public function confirm(CustomerInvoice $invoice): void
+    public function confirm(CustomerInvoice $invoice, bool $treatAsB2c = false): void
     {
         if ($invoice->status !== DocumentStatus::Draft) {
             throw new DomainException('Only draft invoices can be confirmed.');
@@ -114,8 +118,8 @@ class CustomerInvoiceService
             }
         }
 
-        DB::transaction(function () use ($invoice): void {
-            $this->determineVatType($invoice);
+        DB::transaction(function () use ($invoice, $treatAsB2c): void {
+            $this->determineVatType($invoice, $treatAsB2c);
 
             $invoice->status = DocumentStatus::Confirmed;
             $invoice->save();
@@ -179,10 +183,13 @@ class CustomerInvoiceService
      * - Recalculates document-level totals
      * - Sets is_reverse_charge on the invoice
      *
+     * @param  bool  $treatAsB2c  When true, partner VAT data is ignored — OSS threshold check
+     *                            still runs so over-threshold B2C gets the correct OSS rate.
+     *
      * @throws DomainException when company country code is not configured
      * @throws DomainException when OSS destination country has no VAT rate record
      */
-    private function determineVatType(CustomerInvoice $invoice): void
+    private function determineVatType(CustomerInvoice $invoice, bool $treatAsB2c = false): void
     {
         $tenantCountry = CompanySettings::get('company', 'country_code');
 
@@ -193,7 +200,7 @@ class CustomerInvoiceService
         $invoice->loadMissing('partner');
         $partner = $invoice->partner;
 
-        $scenario = VatScenario::determine($partner, $tenantCountry);
+        $scenario = VatScenario::determine($partner, $tenantCountry, ignorePartnerVat: $treatAsB2c);
 
         if (! $scenario->requiresVatRateChange()) {
             $invoice->is_reverse_charge = false;
