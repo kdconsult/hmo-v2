@@ -18,9 +18,16 @@ class ViesValidationService
     {
         $cacheKey = "vies_validation_{$countryCode}_{$vatNumber}";
 
-        return Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryCode, $vatNumber) {
+        $result = Cache::remember($cacheKey, self::CACHE_TTL, function () use ($countryCode, $vatNumber) {
             return $this->callVies($countryCode, $vatNumber);
         });
+
+        // Transient failures (VIES down/timeout) must not be cached — next call should retry.
+        if (! $result['available']) {
+            Cache::forget($cacheKey);
+        }
+
+        return $result;
     }
 
     /**

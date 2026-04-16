@@ -130,6 +130,11 @@ class EuCountries
         return self::get($code)['vat_prefix'] ?? null;
     }
 
+    public static function isEuCountry(string $code): bool
+    {
+        return in_array($code, static::codes(), true);
+    }
+
     /**
      * Full regex (with delimiters) matching a valid VAT number for the given country.
      * Returns null for unknown country codes.

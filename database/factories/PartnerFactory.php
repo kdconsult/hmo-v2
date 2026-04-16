@@ -39,4 +39,31 @@ class PartnerFactory extends Factory
     {
         return $this->state(fn () => ['is_customer' => false, 'is_supplier' => true]);
     }
+
+    public function euWithVat(string $countryCode = 'DE'): static
+    {
+        return $this->state(fn () => [
+            'country_code' => $countryCode,
+            'vat_number' => $countryCode.'123456789',
+            'is_customer' => true,
+        ]);
+    }
+
+    public function euWithoutVat(string $countryCode = 'DE'): static
+    {
+        return $this->state(fn () => [
+            'country_code' => $countryCode,
+            'vat_number' => '',
+            'is_customer' => true,
+        ]);
+    }
+
+    public function nonEu(string $countryCode = 'US'): static
+    {
+        return $this->state(fn () => [
+            'country_code' => $countryCode,
+            'vat_number' => '',
+            'is_customer' => true,
+        ]);
+    }
 }

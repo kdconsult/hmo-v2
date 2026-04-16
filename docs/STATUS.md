@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.12 complete (all 5 tiers of structured refactor done — Tier 5 infolist conversions, Blade templates deleted, Pint clean).** 513/513 tests pass. Next: Phase 3.3 — Purchases pipeline refactor or next backlog item.
+**Phase 3.2.12 complete + VAT-DETERMINATION-1 in progress (redesigned as VAT/VIES feature — full design session completed 2026-04-16).** 533/533 tests pass. Next: implement `tasks/vat-vies/tenant.md` then `partner.md` then `invoice.md` then `blocks.md`. See `tasks/vat-vies/spec.md` for full agreed design.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -122,10 +122,12 @@ The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + s
 
 **CustomerInvoice Resource (3.2.6):**
 - `CustomerInvoiceResource` — full CRUD, `NavigationGroup::Sales`, sort 4.
-- `CustomerInvoiceService` — `recalculateItemTotals` (handles negative advance-deduction rows), `recalculateDocumentTotals` (amount_due = total - amount_paid), `confirm` (updates SO qty_invoiced, sets service-item qty_delivered, dispatches `FiscalReceiptRequested` on cash payment, accumulates EU OSS).
+- `CustomerInvoiceService` — `recalculateItemTotals` (handles negative advance-deduction rows), `recalculateDocumentTotals` (amount_due = total - amount_paid), `confirm(bool $treatAsB2c = false)` (determines EU VAT scenario, overrides item rates, updates SO qty_invoiced, sets service-item qty_delivered, dispatches `FiscalReceiptRequested` on cash payment, accumulates EU OSS).
+- `VatScenario` enum — 5 cases: `Domestic`, `EuB2bReverseCharge`, `EuB2cUnderThreshold`, `EuB2cOverThreshold`, `NonEuExport`. `determine(Partner, tenantCountry, ignorePartnerVat=false)` centralises all branching logic. `requiresVatRateChange()` drives whether item VAT rates are overridden at confirm time.
 - `EuOssService` — `shouldApplyOss` (B2C + cross-border EU + threshold check), `accumulate` (tracks cross-border B2C totals in EUR per country/year), `getDestinationVatRate`.
+- `ViesValidationService` — validates EU VAT via VIES SOAP API. Returns `available` (reachable) + `valid` (confirmed valid). Results cached 24h; transient failures (`available: false`) are NOT cached so next call retries immediately.
 - Status pipeline: Draft → Confirmed / Cancelled.
-- `ViewCustomerInvoice` header actions: Edit (Draft), Confirm, Print Invoice (Confirmed), Create Credit Note, Create Debit Note, Cancel. Credit/Debit Note actions wired to `CustomerCreditNoteResource`/`CustomerDebitNoteResource` (updated in 3.2.7).
+- `ViewCustomerInvoice` header actions: Edit (Draft), Confirm (with three-way VIES check for EU B2B: unavailable → warn + proceed, valid → proceed with reverse charge, explicitly invalid → halt + set `$viesInvalidDetected`), Confirm with Standard VAT (visible when `$viesInvalidDetected` — passes `treatAsB2c: true` so OSS threshold check still runs naturally), Print Invoice (Confirmed), Create Credit Note, Create Debit Note, Cancel.
 - PDF template: `customer-invoice.blade.php` — line items + VAT breakdown + totals + amount due + reverse charge note.
 - `CustomerInvoiceItemsRelationManager` — `sales_order_item_id` selector auto-fills from SO item remaining invoiceable quantity; "Import from SO" header action; `sale_price` for variant auto-fill.
 - `ViewSalesOrder` "Create Invoice" button and invoice list links wired to `CustomerInvoiceResource`.
@@ -178,7 +180,7 @@ Sub-task 3.2.4 complete: `SalesOrderResource` (full CRUD, status pipeline: Draft
 
 Sub-task 3.2.5 complete: `DeliveryNoteResource` (full CRUD, Confirm calls `DeliveryNoteService::confirm()` — issues reserved stock via `StockService::issueReserved()`, updates SO `qty_delivered`, auto-transitions SO to PartiallyDelivered/Delivered, Print Delivery Note PDF). `DeliveryNoteService::confirm/cancel`. `DeliveryNoteItemsRelationManager` with "Import from SO" header action. `ViewSalesOrder` wired to DeliveryNoteResource URLs. 10 new tests.
 
-Sub-task 3.2.6 complete: `CustomerInvoiceResource` (full CRUD, Draft→Confirmed/Cancelled, Confirm calls `CustomerInvoiceService::confirm()` — updates SO qty_invoiced, sets service item qty_delivered, dispatches `FiscalReceiptRequested` on cash payment, accumulates EU OSS totals, Print Invoice PDF, stub Credit/Debit Note actions). `CustomerInvoiceService` (recalculateItemTotals, recalculateDocumentTotals, confirm). `EuOssService` (shouldApplyOss, accumulate, getDestinationVatRate). PDF template `pdf/customer-invoice.blade.php`. `ViewSalesOrder` "Create Invoice" button and invoice list links wired. Migration `200021` adds `default(0)` to `customer_invoice_items` computed columns.
+Sub-task 3.2.6 complete: `CustomerInvoiceResource` (full CRUD, Draft→Confirmed/Cancelled, Confirm calls `CustomerInvoiceService::confirm()` — determines EU VAT scenario via `VatScenario::determine()`, overrides item rates, updates SO qty_invoiced, sets service item qty_delivered, dispatches `FiscalReceiptRequested` on cash payment, accumulates EU OSS totals, Print Invoice PDF, stub Credit/Debit Note actions). `CustomerInvoiceService` (recalculateItemTotals, recalculateDocumentTotals, confirm with `treatAsB2c` flag, determineVatType). `VatScenario` enum (5 scenarios, determine(), requiresVatRateChange()). `ViesValidationService` (VIES SOAP validation, available/valid distinction, transient-safe caching). `EuOssService` (shouldApplyOss, accumulate, getDestinationVatRate). PDF template `pdf/customer-invoice.blade.php`. `ViewSalesOrder` "Create Invoice" button and invoice list links wired. Migration `200021` adds `default(0)` to `customer_invoice_items` computed columns. Company Settings country_code field added. Partner form country_code field added.
 
 Sub-task 3.2.7 complete: `CustomerCreditNoteResource` (NavigationGroup::Sales sort 5, items RM with `lockForUpdate()` quantity guard on `remainingCreditableQuantity()`). `CustomerDebitNoteResource` (sort 6, free-form items — invoice item link optional). `CustomerCreditNoteService` + `CustomerDebitNoteService` (mirror SupplierCreditNoteService). `ViewCustomerInvoice` Credit/Debit Note action URLs and related-document links wired to real resource routes. Migration `200022` adds `default(0)` to note items computed columns. 8 new tests.
 
@@ -267,3 +269,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.9 (AdvancePaymentResource, AdvancePaymentService, view-document.blade.php template) | **476** |
 | Phase 3.2.10–3.2.11 (tests: SalesPolicyTest, remaining resource coverage; docs update) | **513** |
 | Phase 3.2.12 refactor (Tiers 0–5: migrations, service hardening, form fixes, view actions, infolist conversions — Blade deleted) | **513** |
+| VAT-DETERMINATION-1 (VatScenario enum, determineVatType, VIES three-way branch, transient-safe caching, Company Settings + Partner country fields) | **533** |

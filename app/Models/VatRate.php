@@ -43,4 +43,9 @@ class VatRate extends Model
     {
         return $query->where('country_code', $countryCode);
     }
+
+    public function scopeOfType($query, string $type): mixed
+    {
+        return $query->where('type', $type);
+    }
 }

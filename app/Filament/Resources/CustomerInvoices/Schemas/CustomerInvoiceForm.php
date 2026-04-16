@@ -6,6 +6,8 @@ use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
 use App\Enums\SalesOrderStatus;
+use App\Enums\VatScenario;
+use App\Models\CompanySettings;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\SalesOrder;
@@ -47,8 +49,25 @@ class CustomerInvoiceForm
                             )
                             ->searchable()
                             ->required()
+                            ->live()
                             ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->helperText(function (Get $get): ?string {
+                                $partnerId = $get('partner_id');
+                                if (! $partnerId) {
+                                    return null;
+                                }
+                                $partner = Partner::find($partnerId);
+                                if (! $partner) {
+                                    return null;
+                                }
+                                $tenantCountry = CompanySettings::get('company', 'country_code');
+                                if (! $tenantCountry) {
+                                    return null;
+                                }
+
+                                return VatScenario::determine($partner, $tenantCountry)->description();
+                            }),
                         Select::make('sales_order_id')
                             ->label('Sales Order (optional)')
                             ->options(

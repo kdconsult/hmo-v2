@@ -100,6 +100,11 @@ class CompanySettingsPage extends Page implements HasForms
                                     ->email(),
                                 TextInput::make('general.company_phone')
                                     ->label('Phone'),
+                                Select::make('company.country_code')
+                                    ->label('Company Country')
+                                    ->options(EuCountries::forSelect())
+                                    ->searchable()
+                                    ->helperText('Used for EU VAT determination (domestic vs reverse charge vs OSS).'),
                                 Select::make('general.default_currency')
                                     ->label('Default Currency')
                                     ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))

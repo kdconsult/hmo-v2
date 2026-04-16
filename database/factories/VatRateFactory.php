@@ -36,4 +36,15 @@ class VatRateFactory extends Factory
             'is_default' => true,
         ]);
     }
+
+    public function zero(): static
+    {
+        return $this->state(fn () => [
+            'name' => 'Zero Rate',
+            'rate' => 0.00,
+            'type' => 'zero',
+            'is_default' => false,
+            'is_active' => true,
+        ]);
+    }
 }

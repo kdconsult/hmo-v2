@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
 use App\Enums\SalesOrderStatus;
 use App\Events\FiscalReceiptRequested;
+use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
 use App\Models\Partner;
@@ -115,7 +116,11 @@ test('confirm sets invoice status to Confirmed', function () {
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
         $invoice = CustomerInvoice::factory()->create([
+            'partner_id' => $partner->id,
             'payment_method' => PaymentMethod::BankTransfer,
         ]);
 
@@ -131,7 +136,9 @@ test('confirm updates SO qty_invoiced for linked SO items', function () {
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create();
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
         $warehouse = Warehouse::factory()->create();
 
         $so = SalesOrder::factory()->confirmed()->create([
@@ -171,7 +178,9 @@ test('confirm transitions SO to Invoiced when all items are fully invoiced', fun
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create();
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
         $warehouse = Warehouse::factory()->create();
 
         $so = SalesOrder::factory()->confirmed()->create([
@@ -211,7 +220,9 @@ test('confirm with service-type SO sets qty_delivered equal to qty_invoiced', fu
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create();
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
         $warehouse = Warehouse::factory()->create();
 
         $product = Product::factory()->service()->create();
@@ -257,7 +268,9 @@ test('confirm dispatches FiscalReceiptRequested for cash payment', function () {
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create();
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
 
         $invoice = CustomerInvoice::factory()->create([
             'partner_id' => $partner->id,
@@ -278,7 +291,9 @@ test('confirm does not dispatch FiscalReceiptRequested for bank transfer payment
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create();
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'BG']);
 
         $invoice = CustomerInvoice::factory()->create([
             'partner_id' => $partner->id,
