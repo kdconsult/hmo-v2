@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Area 1 (tenant.md) complete.** 541/541 tests pass. Next: implement `tasks/vat-vies/partner.md` then `invoice.md` then `blocks.md`. See `tasks/vat-vies/spec.md` for full agreed design.
+**VAT/VIES Areas 1 + 2 complete.** 554 tests pass. Next: implement `tasks/vat-vies/invoice.md` (Area 3) then `blocks.md` (Area 4). See `tasks/vat-vies/spec.md` for full agreed design.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
