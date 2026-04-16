@@ -12,7 +12,7 @@ Four areas, each with its own task + plan file:
 
 | Area | File | Status |
 |------|------|--------|
-| 1. Tenant company VAT setup | `tenant.md` | ✅ AGREED |
+| 1. Tenant company VAT setup | `tenant.md` | ✅ DONE |
 | 2. Partner VAT setup | `partner.md` | ✅ AGREED |
 | 3. Invoice VAT determination | `invoice.md` | ✅ AGREED |
 | 4. Non-VAT-registered tenant blocks | `blocks.md` | ✅ AGREED |

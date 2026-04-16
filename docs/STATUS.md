@@ -4,7 +4,7 @@
 
 ## Current State
 
-**Phase 3.2.12 complete + VAT-DETERMINATION-1 in progress (redesigned as VAT/VIES feature — full design session completed 2026-04-16).** 533/533 tests pass. Next: implement `tasks/vat-vies/tenant.md` then `partner.md` then `invoice.md` then `blocks.md`. See `tasks/vat-vies/spec.md` for full agreed design.
+**VAT/VIES Area 1 (tenant.md) complete.** 541/541 tests pass. Next: implement `tasks/vat-vies/partner.md` then `invoice.md` then `blocks.md`. See `tasks/vat-vies/spec.md` for full agreed design.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -190,7 +190,9 @@ Sub-task 3.2.10–3.2.11 complete: 513 tests passing (SalesPolicyTest + resource
 
 Sub-task 3.2.12 complete: Full structured refactor — 5 tiers, 50+ items. Key changes: infolist() added to all 8 Sales Resources (Quotation, SalesOrder, DeliveryNote, CustomerInvoice, CustomerCreditNote, CustomerDebitNote, SalesReturn, AdvancePayment), shared Blade view templates deleted, `getRelatedDocuments()` bridge methods removed, plus form fixes, service hardening, and table improvements. CI-1 advance deductions, CI-V3 tax breakdown, CI-V4 payment status all in infolist.
 
-Next: Phase 3.3 or next backlog item (see tasks/backlog.md)
+VAT/VIES Area 1 (tenant.md) complete: Migration adds `is_vat_registered` + `vies_verified_at` to `tenants` table. `CompanyVatService` enforces invariant (registered ↔ VAT number). CompanySettingsPage VAT section: VIES-verified toggle + lookup + confirmed field; country change resets all; save guard blocks unverified VAT. 8 tests (`CompanyVatServiceTest` + `CompanyVatSetupTest`).
+
+Next: `tasks/vat-vies/partner.md` (Area 2 — Partner VAT setup)
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -270,3 +272,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.10–3.2.11 (tests: SalesPolicyTest, remaining resource coverage; docs update) | **513** |
 | Phase 3.2.12 refactor (Tiers 0–5: migrations, service hardening, form fixes, view actions, infolist conversions — Blade deleted) | **513** |
 | VAT-DETERMINATION-1 (VatScenario enum, determineVatType, VIES three-way branch, transient-safe caching, Company Settings + Partner country fields) | **533** |
+| VAT/VIES Area 1 — tenant.md (migration, CompanyVatService, CompanySettingsPage VAT section, TenantFactory, 8 tests) | **541** |

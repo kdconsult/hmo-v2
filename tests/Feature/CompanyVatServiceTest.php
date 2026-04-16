@@ -59,7 +59,7 @@ test('updateVatRegistration throws when is_vat_registered is true but vat_number
             'vat_number' => null,
             'country_code' => 'BG',
         ])
-    )->toThrow(\InvalidArgumentException::class);
+    )->toThrow(InvalidArgumentException::class);
 });
 
 test('updateVatRegistration updates country_code on tenant', function () {

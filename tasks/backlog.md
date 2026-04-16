@@ -148,7 +148,7 @@ This applies to **Customer Invoice only** — not Quotations, Sales Orders, or D
 
 ## Medium — Multi-file, some design needed
 
-### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation 🔄 IN PROGRESS → `tasks/vat-vies/`
+### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation 🔄 IN PROGRESS → `tasks/vat-vies/` (Area 1 done, Area 2 next)
 
 **Implemented.** All five EU VAT scenarios are now handled at confirmation. Key design decisions below for reference.
 
@@ -175,7 +175,7 @@ This applies to **Customer Invoice only** — not Quotations, Sales Orders, or D
 - Company Settings country_code field + Partner form country_code field added.
 - 20 tests in `tests/Feature/VatDeterminationTest.php`.
 
-**Remaining gap → VAT-VIES-1:** VIES lookup button on Partner form to pre-validate VAT numbers and store `vies_verified_at`/`vies_valid`. See VAT-VIES-1 above.
+**Remaining gap → `tasks/vat-vies/partner.md`:** VIES lookup button on Partner form to pre-validate VAT numbers and store `vies_verified_at`/`vies_valid`. Tenant VAT setup (Area 1) is complete.
 
 ---
 

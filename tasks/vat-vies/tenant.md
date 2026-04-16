@@ -2,7 +2,7 @@
 
 > **Spec:** `tasks/vat-vies/spec.md` — Area 1
 > **Plan:** `tasks/vat-vies/tenant-plan.md` (created when ready to build)
-> **Status:** Discussion complete — ready to plan
+> **Status:** ✅ Complete (2026-04-16)
 
 ---
 
@@ -15,12 +15,12 @@ Covers data model, service layer, and UI only. App-wide VAT blocking is a separa
 
 ## What Needs Investigation Before Planning
 
-- [ ] What columns exist today on `company_settings` / `tenants` for VAT? (`vat_number`, `is_vat_registered`, etc.)
-- [ ] Does Company Settings form already have a country selector?
-- [ ] Does the onboarding wizard have a company data step that needs the same treatment?
-- [ ] `ViesValidationService` — confirm it already returns `available`, `valid`, `name`, `address`
-- [ ] What is the current EIK field on company settings — is it already stored?
-- [ ] Country-specific VAT number pattern validation — does any utility exist, or do we build it?
+- [x] What columns exist today on `company_settings` / `tenants` for VAT? — `vat_number` on `tenants`; added `is_vat_registered` + `vies_verified_at`
+- [x] Does Company Settings form already have a country selector? — Yes, `company.country_code`
+- [x] Does the onboarding wizard have a company data step that needs the same treatment? — Yes, but deferred (out of scope)
+- [x] `ViesValidationService` — confirm it already returns `available`, `valid`, `name`, `address` — Confirmed, reused as-is
+- [x] What is the current EIK field on company settings — is it already stored? — `eik` on `tenants` table, not relevant to VAT setup
+- [x] Country-specific VAT number pattern validation — does any utility exist, or do we build it? — `EuCountries::vatNumberRegex()` + `vatNumberExample()` already exist
 
 ---
 
@@ -56,32 +56,35 @@ Covers data model, service layer, and UI only. App-wide VAT blocking is a separa
 
 ## Tests Required
 
-- [ ] Unit: VIES response handling — valid / invalid / unavailable paths
-- [ ] Unit: Country change resets state correctly
-- [ ] Unit: Toggle OFF clears VAT field
-- [ ] Feature: Company Settings — complete happy path (toggle ON → VIES valid → saved)
-- [ ] Feature: VIES invalid response → toggle reset, nothing saved
-- [ ] Feature: VIES unavailable → same as invalid
-- [ ] Feature: Save blocked when toggle ON + no VAT number
-- [ ] Feature: `is_vat_registered = true` invariant — never saved without VAT number
+- [x] Unit: VIES response handling — valid / invalid / unavailable paths → `CompanyVatServiceTest` (register, deregister, invariant)
+- [x] Unit: Country change resets state correctly → covered by `CompanyVatServiceTest` country update test
+- [x] Unit: Toggle OFF clears VAT field → `CompanyVatServiceTest` deregister test
+- [x] Feature: Company Settings — complete happy path (toggle ON → VIES valid → saved) → `CompanyVatSetupTest`
+- [x] Feature: VIES invalid response → toggle reset, nothing saved → `CompanyVatSetupTest`
+- [x] Feature: VIES unavailable → same as invalid → `CompanyVatSetupTest`
+- [x] Feature: Save blocked when toggle ON + no VAT number → `CompanyVatSetupTest`
+- [x] Feature: `is_vat_registered = true` invariant — never saved without VAT number → `CompanyVatServiceTest`
 
 ---
 
 ## Refactor Findings
 
-> Filled during / after implementation.
+- **Registration flow** (`app/Livewire/RegisterTenant.php`) stores user-typed VAT numbers directly to `tenants.vat_number` — violates Principle 5 (VAT numbers must come from VIES). Needs separate cleanup.
+- **Onboarding wizard** has no VIES check — acceptable for now since `is_vat_registered` defaults to `false`.
+- **`company_settings.company.country_code` initial seeding** — `TenantOnboardingService` doesn't seed this KV key. `mount()` fallback to `tenancy()->tenant->country_code` handles it. Could be improved later.
+- **Cross-group `$set`/`$get` fragility** — Filament v5 relative paths across form groups are unreliable. Used `data_set($this->data, ...)` and Livewire methods instead.
 
 ---
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`tenant-plan.md`)
-- [ ] Implementation complete
-- [ ] Automated tests pass
-- [ ] Code review clean
-- [ ] Browser tested (manual)
-- [ ] Refactor findings written
-- [ ] Refactor implemented
-- [ ] Pint clean
-- [ ] Final test run
+- [x] Investigation complete
+- [x] Plan written (`tenant-plan.md`)
+- [x] Implementation complete
+- [x] Automated tests pass — 541/541 (8 VAT-specific)
+- [x] Code review clean — advisor-reviewed, 5 bugs found and fixed
+- [x] Browser tested (manual)
+- [x] Refactor findings written
+- [ ] Refactor implemented — deferred (RegisterTenant.php, onboarding wizard)
+- [x] Pint clean
+- [x] Final test run — 541/541 pass

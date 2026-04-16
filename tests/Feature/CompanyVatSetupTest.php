@@ -46,7 +46,7 @@ test('VIES check confirms valid VAT and save persists to tenants table', functio
     mockVies(available: true, valid: true, vatNumber: '123456789');
 
     Livewire::test(CompanySettingsPage::class)
-        ->set('data.general.country_code', 'BG')
+        ->set('data.company.country_code', 'BG')
         ->set('data.vat.is_vat_registered', true)
         ->set('data.vat.vat_lookup', '123456789')
         ->call('handleViesCheck')
@@ -67,7 +67,7 @@ test('VIES check shows warning and clears VAT fields when number is not valid', 
     mockVies(available: true, valid: false);
 
     Livewire::test(CompanySettingsPage::class)
-        ->set('data.general.country_code', 'BG')
+        ->set('data.company.country_code', 'BG')
         ->set('data.vat.is_vat_registered', true)
         ->set('data.vat.vat_lookup', '000000000')
         ->call('handleViesCheck')
@@ -78,15 +78,17 @@ test('VIES check shows warning and clears VAT fields when number is not valid', 
 
 // --- VIES unreachable ---
 
-test('VIES check shows error and does not change VAT state when service is unreachable', function () {
+test('VIES check resets toggle and clears VAT when service is unreachable', function () {
     mockVies(available: false, valid: false);
 
     Livewire::test(CompanySettingsPage::class)
-        ->set('data.general.country_code', 'BG')
+        ->set('data.company.country_code', 'BG')
         ->set('data.vat.is_vat_registered', true)
         ->set('data.vat.vat_lookup', '123456789')
         ->call('handleViesCheck')
-        ->assertNotified('VIES service is unreachable');
+        ->assertNotified('VIES service is unreachable')
+        ->assertSet('data.vat.is_vat_registered', false)
+        ->assertSet('data.vat.vat_number', null);
 
     $this->tenant->refresh();
     expect($this->tenant->is_vat_registered)->toBeFalse();
