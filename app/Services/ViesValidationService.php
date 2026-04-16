@@ -12,11 +12,6 @@ class ViesValidationService
     /**
      * Validate an EU VAT number via VIES.
      *
-     * `available` distinguishes a definitive VIES "invalid" from a service outage:
-     *   - available=true, valid=true  → VIES confirmed valid
-     *   - available=true, valid=false → VIES explicitly says invalid
-     *   - available=false, valid=false → VIES unreachable / timeout / SOAP error
-     *
      * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
      */
     public function validate(string $countryCode, string $vatNumber): array

@@ -5,6 +5,8 @@ namespace App\Filament\Pages;
 use App\Enums\NavigationGroup;
 use App\Models\CompanySettings;
 use App\Models\Currency;
+use App\Services\CompanyVatService;
+use App\Services\ViesValidationService;
 use App\Support\EuCountries;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -15,8 +17,11 @@ use Filament\Forms\Contracts\HasForms;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class CompanySettingsPage extends Page implements HasForms
@@ -48,6 +53,8 @@ class CompanySettingsPage extends Page implements HasForms
 
     public function mount(): void
     {
+        $tenant = tenancy()->tenant;
+
         $localizationGroup = CompanySettings::getGroup('localization');
 
         foreach (['en', 'bg', 'de', 'fr', 'es', 'ro', 'tr', 'el', 'sr'] as $code) {
@@ -57,14 +64,23 @@ class CompanySettingsPage extends Page implements HasForms
                 : $code === 'en';
         }
 
+        $generalGroup = CompanySettings::getGroup('general');
+        if (empty($generalGroup['country_code'])) {
+            $generalGroup['country_code'] = $tenant->country_code;
+        }
+
         $this->form->fill([
-            'general' => CompanySettings::getGroup('general'),
-            'company' => CompanySettings::getGroup('company'),
+            'general' => $generalGroup,
             'invoicing' => CompanySettings::getGroup('invoicing'),
             'purchasing' => CompanySettings::getGroup('purchasing'),
             'catalog' => CompanySettings::getGroup('catalog'),
             'fiscal' => CompanySettings::getGroup('fiscal'),
             'localization' => $localizationGroup,
+            'vat' => [
+                'is_vat_registered' => $tenant->is_vat_registered,
+                'vat_number' => $tenant->vat_number,
+                'vat_lookup' => '',
+            ],
         ]);
     }
 
@@ -101,6 +117,45 @@ class CompanySettingsPage extends Page implements HasForms
                                         'en' => 'English',
                                     ])
                                     ->default('bg'),
+                                Select::make('general.country_code')
+                                    ->label('Country')
+                                    ->options(EuCountries::forSelect())
+                                    ->searchable()
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('vat.is_vat_registered', false);
+                                        $set('vat.vat_number', null);
+                                        $set('vat.vat_lookup', '');
+                                    }),
+
+                                Section::make('VAT Registration')
+                                    ->schema([
+                                        Toggle::make('vat.is_vat_registered')
+                                            ->label('Company is VAT Registered')
+                                            ->live()
+                                            ->inline(false)
+                                            ->afterStateUpdated(function (bool $state, Set $set): void {
+                                                if (! $state) {
+                                                    $set('vat.vat_number', null);
+                                                    $set('vat.vat_lookup', '');
+                                                }
+                                            }),
+
+                                        TextInput::make('vat.vat_lookup')
+                                            ->label('VAT Number (without country prefix)')
+                                            ->visible(fn (Get $get): bool => (bool) $get('vat.is_vat_registered'))
+                                            ->helperText(fn (): ?string => $this->vatLookupHelperText())
+                                            ->suffixAction(
+                                                Action::make('check_vies')
+                                                    ->label('Check VIES')
+                                                    ->action('handleViesCheck')
+                                            ),
+
+                                        TextInput::make('vat.vat_number')
+                                            ->label('Confirmed VAT Number')
+                                            ->disabled()
+                                            ->visible(fn (Get $get): bool => filled($get('vat.vat_number'))),
+                                    ]),
                             ]),
 
                         Tab::make('Invoicing')
@@ -166,11 +221,92 @@ class CompanySettingsPage extends Page implements HasForms
             ]);
     }
 
+    public function handleViesCheck(): void
+    {
+        $countryCode = data_get($this->data, 'general.country_code', 'BG');
+        $lookupValue = trim((string) data_get($this->data, 'vat.vat_lookup', ''));
+
+        if (blank($lookupValue)) {
+            Notification::make()->warning()->title('Enter a VAT number first')->send();
+
+            return;
+        }
+
+        $prefix = EuCountries::vatPrefixForCountry($countryCode) ?? $countryCode;
+        $fullVat = strtoupper($prefix.$lookupValue);
+
+        $regex = EuCountries::vatNumberRegex($countryCode);
+        if ($regex && ! preg_match($regex, $fullVat)) {
+            Notification::make()->danger()
+                ->title('Invalid VAT number format')
+                ->body('Expected format: '.(EuCountries::vatNumberExample($countryCode) ?? 'unknown'))
+                ->send();
+
+            return;
+        }
+
+        $result = app(ViesValidationService::class)->validate($prefix, $lookupValue);
+
+        if (! $result['available']) {
+            Notification::make()->danger()
+                ->title('VIES service is unreachable')
+                ->body('Please try again later. Your VAT status has not been changed.')
+                ->send();
+
+            return;
+        }
+
+        if (! $result['valid']) {
+            data_set($this->data, 'vat.is_vat_registered', false);
+            data_set($this->data, 'vat.vat_number', null);
+            Notification::make()->warning()
+                ->title('VAT number not found in VIES')
+                ->body("Checked: {$fullVat}")
+                ->send();
+
+            return;
+        }
+
+        $confirmedVat = strtoupper($prefix.($result['vat_number'] ?? $lookupValue));
+        data_set($this->data, 'vat.vat_number', $confirmedVat);
+        data_set($this->data, 'vat.is_vat_registered', true);
+
+        if (filled($result['name'])) {
+            data_set($this->data, 'general.company_name', $result['name']);
+        }
+
+        Notification::make()->success()
+            ->title('VAT registration confirmed')
+            ->body($confirmedVat)
+            ->send();
+    }
+
     public function save(): void
     {
         $this->authorize('update', CompanySettings::class);
 
+        $vatData = $this->data['vat'] ?? [];
+
+        if (($vatData['is_vat_registered'] ?? false) && blank($vatData['vat_number'] ?? null)) {
+            Notification::make()->danger()
+                ->title('VAT verification required')
+                ->body('Verify your VAT number via VIES before saving.')
+                ->send();
+
+            return;
+        }
+
+        $tenant = tenancy()->tenant;
+        app(CompanyVatService::class)->updateVatRegistration($tenant, [
+            'is_vat_registered' => (bool) ($vatData['is_vat_registered'] ?? false),
+            'vat_number' => $vatData['vat_number'] ?? null,
+            'country_code' => data_get($this->data, 'general.country_code', $tenant->country_code),
+        ]);
+
         foreach ($this->data as $group => $settings) {
+            if ($group === 'vat') {
+                continue;
+            }
             if (is_array($settings)) {
                 foreach ($settings as $key => $value) {
                     CompanySettings::set($group, $key, is_array($value) ? json_encode($value) : ($value ?? ''));
@@ -191,5 +327,14 @@ class CompanySettingsPage extends Page implements HasForms
                 ->label('Save Settings')
                 ->action('save'),
         ];
+    }
+
+    private function vatLookupHelperText(): ?string
+    {
+        $countryCode = data_get($this->data, 'general.country_code', 'BG');
+        $example = EuCountries::vatNumberExample($countryCode);
+        $prefix = EuCountries::vatPrefixForCountry($countryCode) ?? $countryCode;
+
+        return $example ? "Prefix: {$prefix} — Format: {$example}" : null;
     }
 }
