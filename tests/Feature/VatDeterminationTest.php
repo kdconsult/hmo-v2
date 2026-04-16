@@ -23,7 +23,7 @@ use App\Services\TenantOnboardingService;
 // ─── Category A: VatScenario::determine() ────────────────────────────────────
 
 test('VatScenario::determine returns Domestic when partner country equals tenant country', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -35,7 +35,7 @@ test('VatScenario::determine returns Domestic when partner country equals tenant
 });
 
 test('VatScenario::determine returns EuB2bReverseCharge for EU partner with valid VAT', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -47,7 +47,7 @@ test('VatScenario::determine returns EuB2bReverseCharge for EU partner with vali
 });
 
 test('VatScenario::determine returns EuB2cUnderThreshold for EU B2C when OSS threshold not exceeded', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -62,7 +62,7 @@ test('VatScenario::determine returns EuB2cUnderThreshold for EU B2C when OSS thr
 });
 
 test('VatScenario::determine returns EuB2cOverThreshold for EU B2C when OSS threshold exceeded', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -76,7 +76,7 @@ test('VatScenario::determine returns EuB2cOverThreshold for EU B2C when OSS thre
 });
 
 test('VatScenario::determine returns NonEuExport for non-EU partner', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -88,7 +88,7 @@ test('VatScenario::determine returns NonEuExport for non-EU partner', function (
 });
 
 test('VatScenario::determine returns NonEuExport when partner has empty country_code', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -102,7 +102,7 @@ test('VatScenario::determine returns NonEuExport when partner has empty country_
 // ─── Category B: confirm() integration ───────────────────────────────────────
 
 test('confirm keeps original VAT rates for domestic sale', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -137,7 +137,7 @@ test('confirm keeps original VAT rates for domestic sale', function () {
 });
 
 test('confirm sets reverse charge and zero VAT rate for EU B2B partner', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -178,7 +178,7 @@ test('confirm sets reverse charge and zero VAT rate for EU B2B partner', functio
 });
 
 test('confirm keeps original VAT rates for EU B2C under OSS threshold', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -213,7 +213,7 @@ test('confirm keeps original VAT rates for EU B2C under OSS threshold', function
 });
 
 test('confirm applies destination country VAT rate for EU B2C over OSS threshold', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -253,7 +253,7 @@ test('confirm applies destination country VAT rate for EU B2C over OSS threshold
 });
 
 test('confirm applies zero VAT rate for non-EU export', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -288,7 +288,7 @@ test('confirm applies zero VAT rate for non-EU export', function () {
 });
 
 test('confirm throws DomainException when company country code is not configured', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -304,7 +304,7 @@ test('confirm throws DomainException when company country code is not configured
 });
 
 test('confirm throws DomainException when called on a non-Draft invoice', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -321,7 +321,7 @@ test('confirm throws DomainException when called on a non-Draft invoice', functi
 });
 
 test('confirm applies zero VAT to all items consistently for EU B2B multi-item invoice', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -371,7 +371,7 @@ test('confirm applies zero VAT to all items consistently for EU B2B multi-item i
 });
 
 test('confirm creates zero-rate VatRate via firstOrCreate when none exists', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -394,7 +394,7 @@ test('confirm creates zero-rate VatRate via firstOrCreate when none exists', fun
 });
 
 test('confirm creates destination-country VatRate from EuCountryVatRate reference when none exists', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -430,7 +430,7 @@ test('confirm creates destination-country VatRate from EuCountryVatRate referenc
 // ─── Category C: Edge cases ───────────────────────────────────────────────────
 
 test('confirm routes EU partner with no VAT number through B2C path, not reverse charge', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -454,7 +454,7 @@ test('confirm routes EU partner with no VAT number through B2C path, not reverse
 });
 
 test('is_reverse_charge persists after cancel and is not reset by the cancel operation', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -482,7 +482,7 @@ test('is_reverse_charge persists after cancel and is not reset by the cancel ope
 });
 
 test('confirm applies VAT determination inside transaction that also updates SO qty_invoiced', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -535,7 +535,7 @@ test('confirm applies VAT determination inside transaction that also updates SO 
 });
 
 test('OSS threshold boundary: invoice just above EUR 10000 triggers OSS rate', function () {
-    $tenant = Tenant::factory()->create();
+    $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
@@ -546,5 +546,36 @@ test('OSS threshold boundary: invoice just above EUR 10000 triggers OSS rate', f
         $partner = Partner::factory()->euWithoutVat('DE')->create();
 
         expect(VatScenario::determine($partner, 'BG'))->toBe(VatScenario::EuB2cOverThreshold);
+    });
+});
+
+// ─── VatScenario::Exempt ──────────────────────────────────────────────────────
+
+test('VatScenario::determine returns Exempt when tenant is not VAT registered', function () {
+    $tenant = Tenant::factory()->create(); // is_vat_registered = false
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $partner = Partner::factory()->euWithVat('DE')->create();
+
+        expect(VatScenario::determine($partner, 'BG', tenantIsVatRegistered: false))
+            ->toBe(VatScenario::Exempt);
+    });
+});
+
+test('VatScenario::determine checks Exempt before partner logic', function () {
+    $tenant = Tenant::factory()->create(); // is_vat_registered = false
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        // EU B2B confirmed partner that would normally trigger EuB2bReverseCharge
+        $partner = Partner::factory()->euWithVat('DE')->create();
+
+        // With tenantIsVatRegistered=false, Exempt wins regardless of partner
+        expect(VatScenario::determine($partner, 'BG', tenantIsVatRegistered: false))
+            ->toBe(VatScenario::Exempt)
+            ->not->toBe(VatScenario::EuB2bReverseCharge);
     });
 });

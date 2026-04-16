@@ -78,6 +78,10 @@ class RolesAndPermissionsSeeder extends Seeder
             }
         }
 
+        // Standalone action permissions (not model CRUD)
+        Permission::firstOrCreate(['name' => 'override_reverse_charge_customer_invoice']);
+        $allPermissions[] = 'override_reverse_charge_customer_invoice';
+
         // super-admin — bypasses all gates via Gate::before
         Role::firstOrCreate(['name' => 'super-admin']);
 
@@ -163,6 +167,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'view_any_customer_debit_note_item', 'view_customer_debit_note_item', 'create_customer_debit_note_item', 'update_customer_debit_note_item', 'delete_customer_debit_note_item',
             'view_any_advance_payment', 'view_advance_payment', 'create_advance_payment', 'update_advance_payment', 'delete_advance_payment',
             'view_any_advance_payment_application', 'view_advance_payment_application', 'create_advance_payment_application', 'update_advance_payment_application', 'delete_advance_payment_application',
+            // VAT/VIES — override reverse charge when VIES is unavailable
+            'override_reverse_charge_customer_invoice',
         ]);
 
         // viewer — view all Phase 1 models

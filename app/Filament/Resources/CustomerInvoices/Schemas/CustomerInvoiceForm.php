@@ -7,6 +7,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
 use App\Enums\SalesOrderStatus;
 use App\Enums\VatScenario;
+use App\Enums\VatStatus;
 use App\Models\CompanySettings;
 use App\Models\Currency;
 use App\Models\Partner;
@@ -52,21 +53,66 @@ class CustomerInvoiceForm
                             ->live()
                             ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
                             ->dehydrated()
+                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
+                                if (! $state) {
+                                    return;
+                                }
+
+                                $partner = Partner::find($state);
+                                if (! $partner) {
+                                    return;
+                                }
+
+                                $tenantCountry = CompanySettings::get('company', 'country_code');
+                                $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+
+                                if (! $tenantCountry) {
+                                    return;
+                                }
+
+                                $scenario = VatScenario::determine(
+                                    $partner,
+                                    $tenantCountry,
+                                    tenantIsVatRegistered: $tenantIsVatRegistered,
+                                );
+
+                                // Force VAT-exclusive pricing for any non-domestic scenario
+                                if ($scenario !== VatScenario::Domestic) {
+                                    $set('pricing_mode', PricingMode::VatExclusive->value);
+                                }
+
+                                // Reflect expected reverse charge state
+                                $set('is_reverse_charge', $scenario === VatScenario::EuB2bReverseCharge);
+                            })
                             ->helperText(function (Get $get): ?string {
                                 $partnerId = $get('partner_id');
                                 if (! $partnerId) {
                                     return null;
                                 }
+
                                 $partner = Partner::find($partnerId);
                                 if (! $partner) {
                                     return null;
                                 }
+
                                 $tenantCountry = CompanySettings::get('company', 'country_code');
                                 if (! $tenantCountry) {
                                     return null;
                                 }
 
-                                return VatScenario::determine($partner, $tenantCountry)->description();
+                                $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+
+                                $description = VatScenario::determine(
+                                    $partner,
+                                    $tenantCountry,
+                                    tenantIsVatRegistered: $tenantIsVatRegistered,
+                                )->description();
+
+                                if ($partner->vat_status === VatStatus::Pending) {
+                                    $description .= ' — VAT status pending, will be verified at confirmation.';
+                                }
+
+                                return $description;
                             }),
                         Select::make('sales_order_id')
                             ->label('Sales Order (optional)')
@@ -100,7 +146,8 @@ class CustomerInvoiceForm
                             ->label('Reverse Charge (EU B2B)')
                             ->disabled()
                             ->dehydrated()
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->helperText('Determined automatically at confirmation based on VIES result.'),
                     ]),
 
                 Section::make('Pricing & Currency')
@@ -110,7 +157,37 @@ class CustomerInvoiceForm
                             ->options(PricingMode::class)
                             ->required()
                             ->default(PricingMode::VatExclusive->value)
-                            ->disabled(fn (Get $get): bool => ! empty($get('sales_order_id')))
+                            ->disabled(function (Get $get): bool {
+                                // Locked when linked to a SO
+                                if (! empty($get('sales_order_id'))) {
+                                    return true;
+                                }
+
+                                // Forced to VAT-exclusive for non-domestic VAT scenarios
+                                $partnerId = $get('partner_id');
+                                if (! $partnerId) {
+                                    return false;
+                                }
+
+                                $partner = Partner::find($partnerId);
+                                if (! $partner) {
+                                    return false;
+                                }
+
+                                $tenantCountry = CompanySettings::get('company', 'country_code');
+                                if (! $tenantCountry) {
+                                    return false;
+                                }
+
+                                $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+                                $scenario = VatScenario::determine(
+                                    $partner,
+                                    $tenantCountry,
+                                    tenantIsVatRegistered: $tenantIsVatRegistered,
+                                );
+
+                                return $scenario !== VatScenario::Domestic;
+                            })
                             ->dehydrated(),
                         Select::make('currency_code')
                             ->label('Currency')

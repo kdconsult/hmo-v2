@@ -6,6 +6,9 @@ use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
+use App\Enums\ReverseChargeOverrideReason;
+use App\Enums\VatScenario;
+use App\Enums\ViesResult;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,6 +29,14 @@ class CustomerInvoice extends Model
         'status',
         'invoice_type',
         'is_reverse_charge',
+        'vat_scenario',
+        'vies_request_id',
+        'vies_checked_at',
+        'vies_result',
+        'reverse_charge_manual_override',
+        'reverse_charge_override_user_id',
+        'reverse_charge_override_at',
+        'reverse_charge_override_reason',
         'currency_code',
         'exchange_rate',
         'pricing_mode',
@@ -51,6 +62,12 @@ class CustomerInvoice extends Model
             'pricing_mode' => PricingMode::class,
             'payment_method' => PaymentMethod::class,
             'is_reverse_charge' => 'boolean',
+            'vat_scenario' => VatScenario::class,
+            'vies_result' => ViesResult::class,
+            'vies_checked_at' => 'datetime',
+            'reverse_charge_manual_override' => 'boolean',
+            'reverse_charge_override_at' => 'datetime',
+            'reverse_charge_override_reason' => ReverseChargeOverrideReason::class,
             'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'discount_amount' => 'decimal:2',
@@ -66,7 +83,7 @@ class CustomerInvoice extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'invoice_number', 'partner_id', 'total'])
+            ->logOnly(['status', 'invoice_number', 'partner_id', 'total', 'vat_scenario', 'reverse_charge_manual_override'])
             ->logOnlyDirty();
     }
 
@@ -108,6 +125,11 @@ class CustomerInvoice extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function overrideUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reverse_charge_override_user_id');
     }
 
     public function isEditable(): bool

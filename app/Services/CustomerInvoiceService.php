@@ -2,18 +2,23 @@
 
 namespace App\Services;
 
+use App\DTOs\ManualOverrideData;
 use App\Enums\DocumentStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
 use App\Enums\ProductType;
 use App\Enums\SalesOrderStatus;
 use App\Enums\VatScenario;
+use App\Enums\VatStatus;
+use App\Enums\ViesResult;
 use App\Events\FiscalReceiptRequested;
 use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
 use App\Models\EuCountryVatRate;
 use App\Models\VatRate;
+use App\Support\EuCountries;
+use Carbon\Carbon;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -21,6 +26,7 @@ class CustomerInvoiceService
 {
     public function __construct(
         private readonly VatCalculationService $vatCalculationService,
+        private readonly ViesValidationService $viesValidationService,
     ) {}
 
     /**
@@ -76,21 +82,135 @@ class CustomerInvoiceService
     }
 
     /**
-     * Confirm a customer invoice.
-     * - Guards against over-invoicing SO items
-     * - Updates SO qty_invoiced if linked (and transitions SO to Invoiced when fully invoiced)
-     * - For service-type SO items: sets qty_delivered = qty_invoiced (services are delivered on invoicing)
-     * - Dispatches FiscalReceiptRequested on cash payment
-     * - Accumulates EU OSS totals if applicable
+     * Run a VIES pre-check before invoice confirmation.
      *
-     * @param  bool  $treatAsB2c  When true, the partner's stored VAT data is ignored and the
-     *                            invoice is treated as B2C. Use when VIES explicitly rejected the
-     *                            VAT number and the user chose to confirm with standard VAT.
+     * Determines whether a VIES call is needed and executes it, returning data for the
+     * confirmation modal. Has a side effect on VIES-invalid results: the partner is immediately
+     * downgraded to NotRegistered and their vat_number cleared.
+     *
+     * VIES is only called when the partner is a cross-border EU partner with a confirmed VAT
+     * number. Pending partners without a stored vat_number are silently skipped (treated as B2C).
+     *
+     * Returns:
+     *   - `needed: false`  — no VIES check required (domestic, non-EU, or no VAT number to check)
+     *   - `needed: true, result: ViesResult`  — VIES was called; see 'result' key
+     *   - `needed: true, result: 'cooldown'`  — called too recently; retry after 'retry_after'
+     *
+     * @return array{needed: bool, result?: ViesResult|string, request_id?: string|null, checked_at?: Carbon, retry_after?: Carbon}
+     */
+    public function runViesPreCheck(CustomerInvoice $invoice): array
+    {
+        // Non-VAT-registered tenants always use the Exempt scenario — VIES check is irrelevant.
+        $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+        if (! $tenantIsVatRegistered) {
+            return ['needed' => false];
+        }
+
+        $tenantCountry = CompanySettings::get('company', 'country_code') ?? '';
+
+        $invoice->loadMissing('partner');
+        $partner = $invoice->partner;
+
+        if (! $partner) {
+            return ['needed' => false];
+        }
+
+        // Only re-check cross-border EU partners with confirmed status and a stored vat_number.
+        // Pending partners (no stored vat_number) are treated as B2C — no VIES call possible.
+        $needsCheck =
+            ! empty($partner->country_code)
+            && $partner->country_code !== $tenantCountry
+            && EuCountries::isEuCountry($partner->country_code)
+            && $partner->vat_status === VatStatus::Confirmed
+            && ! empty($partner->vat_number);
+
+        if (! $needsCheck) {
+            return ['needed' => false];
+        }
+
+        // Server-side cooldown: protect against VIES spam.
+        // Uses partner.vies_last_checked_at (stored on every check attempt).
+        if ($partner->vies_last_checked_at && $partner->vies_last_checked_at->gt(now()->subMinute())) {
+            return [
+                'needed' => true,
+                'result' => 'cooldown',
+                'retry_after' => $partner->vies_last_checked_at->addMinute(),
+            ];
+        }
+
+        // Extract the VAT suffix for the VIES call (strip country prefix from stored vat_number).
+        // Note: use country_code (e.g. 'GR') as the VIES countryCode, not the VAT prefix (e.g. 'EL') —
+        // they differ for Greece. The prefix is only used for string-stripping, not for the SOAP call.
+        $vatPrefix = EuCountries::vatPrefixForCountry($partner->country_code) ?? $partner->country_code;
+        $storedVat = (string) $partner->vat_number;
+        $vatSuffix = strlen($vatPrefix) > 0 && str_starts_with(strtoupper($storedVat), strtoupper($vatPrefix))
+            ? substr($storedVat, strlen($vatPrefix))
+            : $storedVat;
+
+        $result = $this->viesValidationService->validate($partner->country_code, $vatSuffix, fresh: true);
+
+        // Always record the attempt timestamp regardless of result
+        $partner->vies_last_checked_at = now();
+        $partner->save();
+
+        if (! $result['available']) {
+            return [
+                'needed' => true,
+                'result' => ViesResult::Unavailable,
+                'request_id' => null,
+                'checked_at' => now(),
+            ];
+        }
+
+        if (! $result['valid']) {
+            // Side effect: downgrade partner immediately — their VAT number is no longer valid
+            $partner->vat_status = VatStatus::NotRegistered;
+            $partner->is_vat_registered = false;
+            $partner->vat_number = null;
+            $partner->vies_verified_at = null;
+            $partner->save();
+
+            return [
+                'needed' => true,
+                'result' => ViesResult::Invalid,
+                'request_id' => $result['request_id'],
+                'checked_at' => now(),
+            ];
+        }
+
+        // Valid: refresh partner confirmation
+        $partner->vat_status = VatStatus::Confirmed;
+        $partner->is_vat_registered = true;
+        $partner->vat_number = strtoupper($vatPrefix.($result['vat_number'] ?? $vatSuffix));
+        $partner->vies_verified_at = now();
+        $partner->save();
+
+        return [
+            'needed' => true,
+            'result' => ViesResult::Valid,
+            'request_id' => $result['request_id'],
+            'checked_at' => now(),
+        ];
+    }
+
+    /**
+     * Confirm a customer invoice with full VAT audit trail.
+     *
+     * This is the primary confirmation method. Stores the determined VAT scenario,
+     * VIES reference data, and optional manual override audit trail on the invoice.
+     *
+     * @param  array|null  $viesData  Result from runViesPreCheck(); null if no VIES check ran
+     * @param  bool  $treatAsB2c  When true, partner VAT data is ignored (B2C path)
+     * @param  ManualOverrideData|null  $override  When set, stores reverse charge manual override audit trail
      *
      * @throws DomainException when an item would over-invoice its SO line
      */
-    public function confirm(CustomerInvoice $invoice, bool $treatAsB2c = false): void
-    {
+    public function confirmWithScenario(
+        CustomerInvoice $invoice,
+        ?array $viesData = null,
+        bool $treatAsB2c = false,
+        ?ManualOverrideData $override = null,
+    ): void {
         if ($invoice->status !== DocumentStatus::Draft) {
             throw new DomainException('Only draft invoices can be confirmed.');
         }
@@ -118,8 +238,25 @@ class CustomerInvoiceService
             }
         }
 
-        DB::transaction(function () use ($invoice, $treatAsB2c): void {
-            $this->determineVatType($invoice, $treatAsB2c);
+        // Store VIES audit data on the invoice
+        if ($viesData && isset($viesData['result']) && $viesData['result'] instanceof ViesResult) {
+            $invoice->vies_result = $viesData['result'];
+            $invoice->vies_request_id = $viesData['request_id'] ?? null;
+            $invoice->vies_checked_at = $viesData['checked_at'] ?? null;
+        }
+
+        // Store manual override audit trail
+        if ($override !== null) {
+            $invoice->reverse_charge_manual_override = true;
+            $invoice->reverse_charge_override_user_id = $override->userId;
+            $invoice->reverse_charge_override_at = now();
+            $invoice->reverse_charge_override_reason = $override->reason;
+        }
+
+        $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+
+        DB::transaction(function () use ($invoice, $treatAsB2c, $tenantIsVatRegistered): void {
+            $this->determineVatType($invoice, $treatAsB2c, $tenantIsVatRegistered);
 
             $invoice->status = DocumentStatus::Confirmed;
             $invoice->save();
@@ -129,7 +266,6 @@ class CustomerInvoiceService
 
                 app(SalesOrderService::class)->updateInvoicedQuantities($so);
 
-                // For service-type SO items: services are delivered when invoiced
                 $invoice->loadMissing(['items.salesOrderItem.productVariant.product']);
 
                 foreach ($invoice->items as $item) {
@@ -147,13 +283,11 @@ class CustomerInvoiceService
                         continue;
                     }
 
-                    // Service/Bundle: delivered when invoiced
-                    $soItem->refresh(); // get fresh qty_invoiced after updateInvoicedQuantities()
+                    $soItem->refresh();
                     $soItem->qty_delivered = $soItem->qty_invoiced;
                     $soItem->save();
                 }
 
-                // Check if SO is now fully delivered (service orders may become fully delivered here)
                 $so->load('items');
                 if ($so->status !== SalesOrderStatus::Delivered && $so->status !== SalesOrderStatus::Invoiced) {
                     if ($so->isFullyDelivered()) {
@@ -168,28 +302,37 @@ class CustomerInvoiceService
             FiscalReceiptRequested::dispatch($invoice);
         }
 
-        // Accumulate EU OSS amounts for cross-border B2C tracking
+        // Skip OSS accumulation for Exempt scenario — tenant is not VAT registered
         $invoice->loadMissing('partner');
-        app(EuOssService::class)->accumulate($invoice);
+        if ($invoice->vat_scenario !== VatScenario::Exempt) {
+            app(EuOssService::class)->accumulate($invoice);
+        }
+    }
+
+    /**
+     * Confirm a customer invoice.
+     * Thin wrapper around confirmWithScenario() for backward compatibility.
+     *
+     * @param  bool  $treatAsB2c  When true, partner VAT data is ignored (B2C path).
+     *
+     * @throws DomainException when an item would over-invoice its SO line
+     */
+    public function confirm(CustomerInvoice $invoice, bool $treatAsB2c = false): void
+    {
+        $this->confirmWithScenario($invoice, treatAsB2c: $treatAsB2c);
     }
 
     /**
      * Determine the correct EU VAT treatment for an invoice and apply it.
-     * Called inside the confirm() transaction before status is set to Confirmed.
+     * Called inside the confirm transaction before status is set to Confirmed.
      *
-     * For scenarios that require a VAT rate change (B2B reverse charge, OSS, non-EU export):
-     * - Resolves the target VatRate (zero-rate or destination country rate)
-     * - Updates every item's vat_rate_id and recalculates its totals
-     * - Recalculates document-level totals
-     * - Sets is_reverse_charge on the invoice
-     *
-     * @param  bool  $treatAsB2c  When true, partner VAT data is ignored — OSS threshold check
-     *                            still runs so over-threshold B2C gets the correct OSS rate.
+     * Stores vat_scenario on the invoice. For scenarios requiring a VAT rate change,
+     * resolves the target rate, updates all items, and recalculates totals.
      *
      * @throws DomainException when company country code is not configured
      * @throws DomainException when OSS destination country has no VAT rate record
      */
-    private function determineVatType(CustomerInvoice $invoice, bool $treatAsB2c = false): void
+    private function determineVatType(CustomerInvoice $invoice, bool $treatAsB2c = false, bool $tenantIsVatRegistered = true): void
     {
         $tenantCountry = CompanySettings::get('company', 'country_code');
 
@@ -200,7 +343,14 @@ class CustomerInvoiceService
         $invoice->loadMissing('partner');
         $partner = $invoice->partner;
 
-        $scenario = VatScenario::determine($partner, $tenantCountry, ignorePartnerVat: $treatAsB2c);
+        $scenario = VatScenario::determine(
+            $partner,
+            $tenantCountry,
+            ignorePartnerVat: $treatAsB2c,
+            tenantIsVatRegistered: $tenantIsVatRegistered,
+        );
+
+        $invoice->vat_scenario = $scenario;
 
         if (! $scenario->requiresVatRateChange()) {
             $invoice->is_reverse_charge = false;
@@ -211,8 +361,9 @@ class CustomerInvoiceService
 
         $invoice->is_reverse_charge = ($scenario === VatScenario::EuB2bReverseCharge);
 
+        // Exempt, EuB2bReverseCharge, and NonEuExport all resolve to the tenant's zero-rate.
         $targetVatRate = match ($scenario) {
-            VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport => $this->resolveZeroVatRate($tenantCountry),
+            VatScenario::Exempt, VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport => $this->resolveZeroVatRate($tenantCountry),
             VatScenario::EuB2cOverThreshold => $this->resolveOssVatRate($partner->country_code),
             default => throw new \LogicException("Unexpected scenario requiring VAT rate change: {$scenario->value}"),
         };
@@ -232,7 +383,7 @@ class CustomerInvoiceService
 
     /**
      * Find or create a zero-rate VatRate for the tenant's country.
-     * Used for EU B2B reverse charge and non-EU exports.
+     * Used for EU B2B reverse charge, non-EU exports, and Exempt scenarios.
      */
     private function resolveZeroVatRate(string $countryCode): VatRate
     {
@@ -267,7 +418,7 @@ class CustomerInvoiceService
     /**
      * Cancel a customer invoice.
      * - Reverses qty_invoiced on linked SO items
-     * - Reverses EU OSS accumulation if applicable
+     * - Reverses EU OSS accumulation if applicable (skipped for Exempt scenario)
      * - Sets status to Cancelled
      */
     public function cancel(CustomerInvoice $invoice): void
@@ -282,7 +433,11 @@ class CustomerInvoiceService
             }
 
             $invoice->loadMissing('partner');
-            app(EuOssService::class)->reverseAccumulation($invoice);
+
+            // Skip OSS reversal for Exempt scenario — accumulation was never done
+            if ($invoice->vat_scenario !== VatScenario::Exempt) {
+                app(EuOssService::class)->reverseAccumulation($invoice);
+            }
 
             $invoice->update(['status' => DocumentStatus::Cancelled]);
         });

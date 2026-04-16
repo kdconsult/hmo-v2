@@ -17,15 +17,17 @@ class PartnerVatService
      */
     public function reVerify(Partner $partner): VatStatus
     {
-        $prefix = EuCountries::vatPrefixForCountry($partner->country_code) ?? $partner->country_code;
+        // Note: use country_code (e.g. 'GR') as the VIES countryCode, not the VAT prefix (e.g. 'EL') —
+        // they differ for Greece. The prefix is only used for string-stripping, not for the SOAP call.
+        $vatPrefix = EuCountries::vatPrefixForCountry($partner->country_code) ?? $partner->country_code;
 
         // For confirmed partners, extract the suffix from the stored vat_number
         $storedVat = (string) ($partner->vat_number ?? '');
-        $vatSuffix = strlen($prefix) > 0 && str_starts_with(strtoupper($storedVat), strtoupper($prefix))
-            ? substr($storedVat, strlen($prefix))
+        $vatSuffix = strlen($vatPrefix) > 0 && str_starts_with(strtoupper($storedVat), strtoupper($vatPrefix))
+            ? substr($storedVat, strlen($vatPrefix))
             : $storedVat;
 
-        $result = $this->vies->validate($prefix, $vatSuffix);
+        $result = $this->vies->validate($partner->country_code, $vatSuffix);
 
         $partner->vies_last_checked_at = now();
 
@@ -46,7 +48,7 @@ class PartnerVatService
             return VatStatus::NotRegistered;
         }
 
-        $confirmedVat = strtoupper($prefix.($result['vat_number'] ?? $vatSuffix));
+        $confirmedVat = strtoupper($vatPrefix.($result['vat_number'] ?? $vatSuffix));
         $partner->is_vat_registered = true;
         $partner->vat_status = VatStatus::Confirmed;
         $partner->vat_number = $confirmedVat;

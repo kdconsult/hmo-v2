@@ -21,6 +21,7 @@ use App\Models\CustomerInvoice;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Table;
@@ -65,45 +66,48 @@ class CustomerInvoiceResource extends Resource
                         TextEntry::make('pricing_mode'),
                         TextEntry::make('payment_method')->label('Payment Method'),
                     ]),
-
-                // CI-V3: Tax Breakdown
-                Section::make('Tax Breakdown')
+                Grid::make()
+                    ->columns(1)
                     ->schema([
-                        TextEntry::make('tax_breakdown')
-                            ->label('VAT by Rate')
-                            ->html()
-                            ->state(fn (CustomerInvoice $record): string => $record
-                                ->loadMissing('items.vatRate')
-                                ->items
-                                ->filter(fn ($item) => (float) $item->vat_amount > 0)
-                                ->groupBy(fn ($item) => $item->vatRate?->name ?? 'Unknown Rate')
-                                ->map(fn ($items, $rateName) => $rateName.': €'.number_format(
-                                    $items->sum(fn ($i) => (float) $i->vat_amount), 2
-                                ))
-                                ->join('<br>') ?: 'No VAT applicable')
-                            ->columnSpanFull(),
-                    ])
-                    ->visible(fn (CustomerInvoice $record): bool => (float) $record->tax_amount > 0),
+                        // CI-V3: Tax Breakdown
+                        Section::make('Tax Breakdown')
+                            ->schema([
+                                TextEntry::make('tax_breakdown')
+                                    ->label('VAT by Rate')
+                                    ->html()
+                                    ->state(fn (CustomerInvoice $record): string => $record
+                                        ->loadMissing('items.vatRate')
+                                        ->items
+                                        ->filter(fn ($item) => (float) $item->vat_amount > 0)
+                                        ->groupBy(fn ($item) => $item->vatRate?->name ?? 'Unknown Rate')
+                                        ->map(fn ($items, $rateName) => $rateName.': €'.number_format(
+                                            $items->sum(fn ($i) => (float) $i->vat_amount), 2
+                                        ))
+                                        ->join('<br>') ?: 'No VAT applicable')
+                                    ->columnSpanFull(),
+                            ])
+                            ->visible(fn (CustomerInvoice $record): bool => (float) $record->tax_amount > 0),
 
-                // CI-V4 + CI-1: Totals and Payment Status
-                Section::make('Totals')
-                    ->columns(2)
-                    ->schema([
-                        TextEntry::make('subtotal')->money(fn (CustomerInvoice $record): string => $record->currency_code),
-                        TextEntry::make('discount_amount')->money(fn (CustomerInvoice $record): string => $record->currency_code),
-                        TextEntry::make('tax_amount')->money(fn (CustomerInvoice $record): string => $record->currency_code),
-                        TextEntry::make('total')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                        // CI-V4 + CI-1: Totals and Payment Status
+                        Section::make('Totals')
+                            ->columns(3)
+                            ->schema([
+                                TextEntry::make('subtotal')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                                TextEntry::make('tax_amount')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                                TextEntry::make('total')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                                TextEntry::make('discount_amount')->money(fn (CustomerInvoice $record): string => $record->currency_code),
 
-                        // CI-1: Advance deductions
-                        TextEntry::make('advance_deductions')
-                            ->label('Advance Deductions Applied')
-                            ->state(fn (CustomerInvoice $record): float => (float) $record->advancePaymentApplications->sum('amount_applied'))
-                            ->money(fn (CustomerInvoice $record): string => $record->currency_code)
-                            ->visible(fn (CustomerInvoice $record): bool => $record->advancePaymentApplications->isNotEmpty()),
+                                // CI-1: Advance deductions
+                                TextEntry::make('advance_deductions')
+                                    ->label('Advance Deductions Applied')
+                                    ->state(fn (CustomerInvoice $record): float => (float) $record->advancePaymentApplications->sum('amount_applied'))
+                                    ->money(fn (CustomerInvoice $record): string => $record->currency_code)
+                                    ->visible(fn (CustomerInvoice $record): bool => $record->advancePaymentApplications->isNotEmpty()),
 
-                        // CI-V4
-                        TextEntry::make('amount_paid')->money(fn (CustomerInvoice $record): string => $record->currency_code),
-                        TextEntry::make('amount_due')->label('Balance Due')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                                // CI-V4
+                                TextEntry::make('amount_paid')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                                TextEntry::make('amount_due')->label('Balance Due')->money(fn (CustomerInvoice $record): string => $record->currency_code),
+                            ]),
                     ]),
 
                 Section::make('Notes')

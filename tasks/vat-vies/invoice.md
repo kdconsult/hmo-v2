@@ -104,19 +104,25 @@ Add columns:
 
 ## Refactor Findings
 
-> Filled during / after implementation.
+1. **Two-action modal pattern broken** — `confirm` action called `$this->mountAction('proceedToConfirm')` from inside its `->action()` handler. Filament's `callMountedAction()` detects `mountedActions` changed mid-execution and aborts. Fixed by merging into a single action using `->mountUsing()` which runs VIES pre-check before the modal opens; `throw new Halt` prevents the modal on failure.
+
+2. **VIES countryCode vs VAT prefix split (Greece bug)** — `GR` (ISO country code) has VAT prefix `EL`. Both `CustomerInvoiceService::runViesPreCheck()` and `PartnerVatService::reVerify()` were passing the VAT prefix (`EL`) as the VIES `countryCode` param. Fixed: `$partner->country_code` is passed to `validate()` as the country code; `$vatPrefix` is used only for stripping the stored VAT number string.
+
+3. **Modal financial preview showed draft values** — for reverse charge / non-EU / exempt scenarios, VAT is zeroed out at confirmation. The modal was showing current draft totals (with VAT). Fixed: preview computes `previewTax = '0.00'` and `previewTotal = subtotal - discount` for zero-rated scenarios.
+
+4. **Modal schema had no visual structure** — flat list of `TextEntry` with HtmlString hacks. Replaced with `Section` + `Grid` layout, `badge()` with per-scenario color on the VAT treatment entry, proper `->money()` formatting, and `->weight(FontWeight::Bold)->size(TextSize::Large)` on the total.
 
 ---
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`invoice-plan.md`)
-- [ ] Implementation complete
-- [ ] Automated tests pass
-- [ ] Code review clean
+- [x] Investigation complete
+- [x] Plan written (`invoice-plan.md`)
+- [x] Implementation complete
+- [x] Automated tests pass
+- [x] Code review clean
 - [ ] Browser tested (manual)
-- [ ] Refactor findings written
-- [ ] Refactor implemented
-- [ ] Pint clean
-- [ ] Final test run
+- [x] Refactor findings written
+- [x] Refactor implemented
+- [x] Pint clean
+- [x] Final test run

@@ -8,6 +8,7 @@ use App\Support\EuCountries;
 
 enum VatScenario: string
 {
+    case Exempt = 'exempt';
     case Domestic = 'domestic';
     case EuB2bReverseCharge = 'eu_b2b_reverse_charge';
     case EuB2cUnderThreshold = 'eu_b2c_under_threshold';
@@ -25,13 +26,19 @@ enum VatScenario: string
      * 5. EU + no valid VAT + OSS threshold exceeded → B2C OSS rate
      * 6. EU + no valid VAT + threshold not exceeded → B2C domestic rate
      *
+     * @param  bool  $tenantIsVatRegistered  When false, the tenant cannot charge VAT; short-circuits
+     *                                       to Exempt before any partner-based logic.
      * @param  bool  $ignorePartnerVat  When true, skip the hasValidEuVat() check so the partner
      *                                  is treated as a B2C customer regardless of stored VAT data.
      *                                  Use when VIES has explicitly rejected the VAT number at
      *                                  confirm time and the user chose to proceed with standard VAT.
      */
-    public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false): self
+    public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false, bool $tenantIsVatRegistered = true): self
     {
+        if (! $tenantIsVatRegistered) {
+            return self::Exempt;
+        }
+
         if (empty($partner->country_code)) {
             return self::NonEuExport;
         }
@@ -58,6 +65,7 @@ enum VatScenario: string
     public function description(): string
     {
         return match ($this) {
+            self::Exempt => 'Exempt — tenant is not VAT registered.',
             self::Domestic => 'Domestic sale — standard VAT applies.',
             self::EuB2bReverseCharge => 'EU B2B — reverse charge applies (0% VAT, Article 196).',
             self::EuB2cUnderThreshold => 'EU B2C — below OSS threshold, domestic VAT rate applies.',
@@ -74,7 +82,7 @@ enum VatScenario: string
     {
         return match ($this) {
             self::Domestic, self::EuB2cUnderThreshold => false,
-            self::EuB2bReverseCharge, self::EuB2cOverThreshold, self::NonEuExport => true,
+            self::Exempt, self::EuB2bReverseCharge, self::EuB2cOverThreshold, self::NonEuExport => true,
         };
     }
 }

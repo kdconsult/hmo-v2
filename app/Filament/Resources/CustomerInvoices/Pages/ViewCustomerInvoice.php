@@ -2,31 +2,47 @@
 
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
+use App\DTOs\ManualOverrideData;
 use App\Enums\DocumentStatus;
+use App\Enums\ReverseChargeOverrideReason;
 use App\Enums\VatScenario;
+use App\Enums\VatStatus;
+use App\Enums\ViesResult;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Services\CustomerInvoiceService;
-use App\Services\ViesValidationService;
-use App\Support\EuCountries;
 use Barryvdh\DomPDF\Facade\Pdf;
 use DomainException;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
+use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 
 class ViewCustomerInvoice extends ViewRecord
 {
     protected static string $resource = CustomerInvoiceResource::class;
 
-    /** Set to true when VIES explicitly rejects the partner's VAT number. */
-    public bool $viesInvalidDetected = false;
+    /** Result from the most recent runViesPreCheck() call; null before first check. */
+    public ?array $viesPreCheckResult = null;
+
+    /** True when VIES was unreachable — shows inline retry/fallback buttons. */
+    public bool $viesUnavailable = false;
+
+    /** Timestamp of the last VIES attempt (for retry cooldown UX). */
+    public ?string $lastViesAttemptAt = null;
 
     protected function getHeaderActions(): array
     {
@@ -34,52 +50,84 @@ class ViewCustomerInvoice extends ViewRecord
             EditAction::make()
                 ->visible(fn (CustomerInvoice $record): bool => $record->isEditable()),
 
+            // ─── Primary confirmation trigger + modal ────────────────────────────
+            // mountUsing runs the VIES pre-check before the modal opens.
+            // Throwing Halt prevents the modal from rendering on failure/unavailable.
+            // On success, $this->viesPreCheckResult is set so buildConfirmationSchema can use it.
             Action::make('confirm')
                 ->label('Confirm Invoice')
                 ->icon(Heroicon::OutlinedCheckCircle)
                 ->color('success')
-                ->requiresConfirmation()
-                ->visible(fn (CustomerInvoice $record): bool => $record->status === DocumentStatus::Draft && ! $this->viesInvalidDetected)
-                ->action(function (CustomerInvoice $record): void {
+                ->visible(fn (CustomerInvoice $record): bool => $record->status === DocumentStatus::Draft && ! $this->viesUnavailable)
+                ->modalHeading('Confirm Invoice')
+                ->modalSubmitActionLabel('Confirm Invoice')
+                ->schema(fn (CustomerInvoice $record): array => $this->buildConfirmationSchema($record))
+                ->mountUsing(function (CustomerInvoice $record): void {
+                    // If retryVies already stored the result, skip the VIES call and open modal directly.
+                    if ($this->viesPreCheckResult !== null) {
+                        return;
+                    }
+
                     try {
-                        $record->loadMissing('partner');
-                        $tenantCountry = CompanySettings::get('company', 'country_code');
+                        $viesResult = app(CustomerInvoiceService::class)->runViesPreCheck($record);
 
-                        if ($tenantCountry && $record->partner) {
-                            $scenario = VatScenario::determine($record->partner, $tenantCountry);
+                        if ($viesResult['needed'] && isset($viesResult['result'])) {
+                            if ($viesResult['result'] === 'cooldown') {
+                                $retryAfter = $viesResult['retry_after']->diffForHumans();
+                                Notification::make()
+                                    ->title('VIES check on cooldown')
+                                    ->body("The VIES service was checked very recently. Please retry {$retryAfter}.")
+                                    ->warning()
+                                    ->send();
+                                throw new Halt;
+                            }
 
-                            if ($scenario === VatScenario::EuB2bReverseCharge) {
-                                $vatNumber = EuCountries::extractMainVatNumber(
-                                    $record->partner->country_code,
-                                    $record->partner->vat_number
-                                );
-                                $viesResult = app(ViesValidationService::class)->validate(
-                                    $record->partner->country_code,
-                                    $vatNumber
-                                );
+                            if ($viesResult['result'] === ViesResult::Invalid) {
+                                Notification::make()
+                                    ->title('VAT number no longer valid')
+                                    ->body('VIES confirmed this partner\'s VAT number is invalid. Their VAT status has been reset. You may now confirm the invoice — reverse charge will not apply.')
+                                    ->danger()
+                                    ->send();
+                                throw new Halt;
+                            }
 
-                                if (! $viesResult['available']) {
-                                    // VIES is down — warn and fall back to stored VAT data
-                                    Notification::make()
-                                        ->title('VIES unavailable')
-                                        ->body('Could not reach the VIES service. Reverse charge has been applied based on the stored VAT number. Verify manually when VIES is back online.')
-                                        ->warning()
-                                        ->send();
-                                } elseif (! $viesResult['valid']) {
-                                    // VIES explicitly says invalid — halt and let user decide
-                                    $this->viesInvalidDetected = true;
-                                    Notification::make()
-                                        ->title('VIES: VAT number invalid')
-                                        ->body('VIES confirms this VAT number is not valid. Reverse charge cannot be applied. Use "Confirm with Standard VAT" to invoice with local VAT, or cancel to investigate.')
-                                        ->danger()
-                                        ->send();
-
-                                    return;
-                                }
+                            if ($viesResult['result'] === ViesResult::Unavailable) {
+                                $this->viesUnavailable = true;
+                                $this->lastViesAttemptAt = now()->toIso8601String();
+                                Notification::make()
+                                    ->title('VIES service unreachable')
+                                    ->body('Could not reach the EU VIES service. You can retry, confirm with standard VAT, or (if authorised) confirm with reverse charge.')
+                                    ->warning()
+                                    ->send();
+                                throw new Halt;
                             }
                         }
 
-                        app(CustomerInvoiceService::class)->confirm($record);
+                        $this->viesPreCheckResult = $viesResult;
+                    } catch (Halt $e) {
+                        throw $e;
+                    } catch (InvalidArgumentException|DomainException $e) {
+                        Notification::make()
+                            ->title('Cannot confirm invoice')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                        throw new Halt;
+                    }
+                })
+                ->action(function (CustomerInvoice $record): void {
+                    try {
+                        $viesData = $this->viesPreCheckResult;
+                        $storedViesData = ($viesData && isset($viesData['result']) && $viesData['result'] instanceof ViesResult)
+                            ? $viesData
+                            : null;
+
+                        app(CustomerInvoiceService::class)->confirmWithScenario(
+                            $record,
+                            viesData: $storedViesData,
+                        );
+
+                        $this->viesPreCheckResult = null;
                         Notification::make()->title('Invoice confirmed')->success()->send();
                         $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                     } catch (InvalidArgumentException|DomainException $e) {
@@ -91,18 +139,88 @@ class ViewCustomerInvoice extends ViewRecord
                     }
                 }),
 
-            Action::make('confirmWithStandardVat')
-                ->label('Confirm with Standard VAT')
-                ->icon(Heroicon::OutlinedExclamationTriangle)
-                ->color('warning')
-                ->requiresConfirmation()
-                ->modalHeading('Confirm with Standard VAT?')
-                ->modalDescription('VIES rejected this partner\'s VAT number. Confirming with standard VAT means reverse charge will NOT apply — local VAT rates will be charged instead. This is the correct treatment if the partner is not truly VAT-registered in their country.')
-                ->visible(fn (CustomerInvoice $record): bool => $this->viesInvalidDetected && $record->status === DocumentStatus::Draft)
+            // ─── VIES unavailable: retry ─────────────────────────────────────────
+            Action::make('retryVies')
+                ->label('Retry VIES Check')
+                ->icon(Heroicon::OutlinedArrowPath)
+                ->color('info')
+                ->visible(fn (): bool => $this->viesUnavailable)
                 ->action(function (CustomerInvoice $record): void {
                     try {
-                        app(CustomerInvoiceService::class)->confirm($record, treatAsB2c: true);
-                        $this->viesInvalidDetected = false;
+                        $viesResult = app(CustomerInvoiceService::class)->runViesPreCheck($record);
+                        $this->lastViesAttemptAt = now()->toIso8601String();
+
+                        if (isset($viesResult['result'])) {
+                            if ($viesResult['result'] === 'cooldown') {
+                                $retryAfter = $viesResult['retry_after']->diffForHumans();
+                                Notification::make()
+                                    ->title('On cooldown')
+                                    ->body("Retry {$retryAfter}.")
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+
+                            if ($viesResult['result'] === ViesResult::Invalid) {
+                                $this->viesUnavailable = false;
+                                Notification::make()
+                                    ->title('VAT number no longer valid')
+                                    ->body('Partner VAT status has been reset. You can now confirm the invoice without reverse charge.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
+
+                            if ($viesResult['result'] === ViesResult::Unavailable) {
+                                Notification::make()
+                                    ->title('VIES still unreachable')
+                                    ->body('The service is still unavailable. Try again later or use one of the fallback confirmation options.')
+                                    ->warning()
+                                    ->send();
+
+                                return;
+                            }
+                        }
+
+                        // VIES now available — open confirmation modal.
+                        // viesPreCheckResult is set first so mountUsing skips the re-check.
+                        $this->viesUnavailable = false;
+                        $this->viesPreCheckResult = $viesResult;
+                        $this->mountAction('confirm');
+                    } catch (InvalidArgumentException|DomainException $e) {
+                        Notification::make()
+                            ->title('Error')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+
+            // ─── VIES unavailable: confirm with standard VAT ──────────────────────
+            Action::make('confirmWithVat')
+                ->label('Confirm with VAT')
+                ->icon(Heroicon::OutlinedExclamationTriangle)
+                ->color('warning')
+                ->visible(fn (): bool => $this->viesUnavailable)
+                ->requiresConfirmation()
+                ->modalHeading('Confirm with Standard VAT?')
+                ->modalDescription('VIES is currently unreachable. Confirming now will apply standard VAT — reverse charge will NOT be used. This is safe when you are confident the reverse charge does not apply.')
+                ->action(function (CustomerInvoice $record): void {
+                    try {
+                        app(CustomerInvoiceService::class)->confirmWithScenario(
+                            $record,
+                            viesData: [
+                                'needed' => true,
+                                'result' => ViesResult::Unavailable,
+                                'request_id' => null,
+                                'checked_at' => now(),
+                            ],
+                            treatAsB2c: true,
+                        );
+
+                        $this->viesUnavailable = false;
                         Notification::make()->title('Invoice confirmed with standard VAT')->success()->send();
                         $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                     } catch (InvalidArgumentException|DomainException $e) {
@@ -114,6 +232,55 @@ class ViewCustomerInvoice extends ViewRecord
                     }
                 }),
 
+            // ─── VIES unavailable: confirm with reverse charge override ───────────
+            Action::make('confirmWithReverseCharge')
+                ->label('Confirm with Reverse Charge')
+                ->icon(Heroicon::OutlinedShieldExclamation)
+                ->color('danger')
+                ->visible(fn (CustomerInvoice $record): bool => $this->viesUnavailable
+                    && $record->partner?->vat_status === VatStatus::Confirmed
+                    && auth()->user()?->can('override_reverse_charge_customer_invoice'))
+                ->modalHeading('Apply Reverse Charge without Current VIES Verification?')
+                ->schema([
+                    TextEntry::make('warning')
+                        ->label('')
+                        ->state(new HtmlString(
+                            '<p class="text-warning-600 dark:text-warning-400">VIES is currently unreachable. Applying reverse charge without live VIES confirmation creates legal and audit risk. This action is recorded with your name and timestamp. Only proceed if you are certain this partner holds a valid EU VAT registration.</p>'
+                        )),
+                    Checkbox::make('acknowledged')
+                        ->label('I acknowledge that I am applying reverse charge without current VIES verification and take responsibility for this decision.')
+                        ->required()
+                        ->accepted(),
+                ])
+                ->action(function (array $data, CustomerInvoice $record): void {
+                    try {
+                        app(CustomerInvoiceService::class)->confirmWithScenario(
+                            $record,
+                            viesData: [
+                                'needed' => true,
+                                'result' => ViesResult::Unavailable,
+                                'request_id' => null,
+                                'checked_at' => now(),
+                            ],
+                            override: new ManualOverrideData(
+                                userId: auth()->id(),
+                                reason: ReverseChargeOverrideReason::ViesUnavailable,
+                            ),
+                        );
+
+                        $this->viesUnavailable = false;
+                        Notification::make()->title('Invoice confirmed with reverse charge override')->success()->send();
+                        $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                    } catch (InvalidArgumentException|DomainException $e) {
+                        Notification::make()
+                            ->title('Cannot confirm invoice')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+
+            // ─── Unchanged actions ────────────────────────────────────────────────
             Action::make('print_invoice')
                 ->label('Print Invoice')
                 ->icon(Heroicon::OutlinedPrinter)
@@ -166,5 +333,110 @@ class ViewCustomerInvoice extends ViewRecord
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
                 }),
         ];
+    }
+
+    /**
+     * Build the read-only confirmation modal schema showing the VAT scenario,
+     * VIES reference, and financial summary before the user finalises the confirmation.
+     */
+    private function buildConfirmationSchema(CustomerInvoice $record): array
+    {
+        $viesResult = $this->viesPreCheckResult;
+        $tenantCountry = CompanySettings::get('company', 'country_code') ?? '';
+        $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+
+        $record->loadMissing('partner');
+        $scenario = $record->partner
+            ? VatScenario::determine($record->partner, $tenantCountry, tenantIsVatRegistered: $tenantIsVatRegistered)
+            : null;
+
+        // Preview financials: zero-rated scenarios will wipe VAT at confirmation.
+        $zeroRatedScenarios = [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport, VatScenario::Exempt];
+        if ($scenario && in_array($scenario, $zeroRatedScenarios, strict: true)) {
+            $previewTax = '0.00';
+            $previewTotal = bcsub((string) $record->subtotal, (string) $record->discount_amount, 2);
+        } else {
+            $previewTax = $record->tax_amount;
+            $previewTotal = $record->total;
+        }
+
+        $scenarioColor = match ($scenario) {
+            VatScenario::Domestic => 'success',
+            VatScenario::EuB2bReverseCharge => 'info',
+            VatScenario::EuB2cUnderThreshold, VatScenario::EuB2cOverThreshold => 'warning',
+            VatScenario::NonEuExport, VatScenario::Exempt => 'gray',
+            null => 'gray',
+        };
+
+        $sections = [];
+
+        // ── VAT Treatment ─────────────────────────────────────────────────────
+        if ($scenario) {
+            $sections[] = Section::make('VAT Treatment')
+                ->schema([
+                    TextEntry::make('vat_scenario')
+                        ->label('')
+                        ->state($scenario->description())
+                        ->badge()
+                        ->color($scenarioColor)
+                        ->columnSpanFull(),
+                ]);
+        }
+
+        // ── VIES Verification (only when VIES returned a live valid result) ───
+        if ($viesResult && ($viesResult['result'] ?? null) === ViesResult::Valid) {
+            $requestId = $viesResult['request_id'] ?? '—';
+            $checkedAt = $viesResult['checked_at'] ?? null;
+            $timestamp = $checkedAt ? $checkedAt->format('Y-m-d H:i:s \U\T\C') : '—';
+
+            $viesEntries = [
+                TextEntry::make('vies_request_id')
+                    ->label('Request ID')
+                    ->state($requestId)
+                    ->copyable(),
+                TextEntry::make('vies_checked_at')
+                    ->label('Verified At')
+                    ->state($timestamp),
+            ];
+
+            if ($record->partner?->vat_number) {
+                $viesEntries[] = TextEntry::make('partner_vat')
+                    ->label('Partner VAT')
+                    ->state($record->partner->vat_number)
+                    ->badge()
+                    ->color('success')
+                    ->columnSpanFull();
+            }
+
+            $sections[] = Section::make('VIES Verification')
+                ->icon(Heroicon::OutlinedShieldCheck)
+                ->columns(2)
+                ->schema($viesEntries);
+        }
+
+        // ── Invoice Totals ────────────────────────────────────────────────────
+        $sections[] = Section::make('Invoice Totals')
+            ->schema([
+                Grid::make(3)
+                    ->schema([
+                        TextEntry::make('preview_subtotal')
+                            ->label('Subtotal')
+                            ->state($record->subtotal)
+                            ->money($record->currency_code),
+                        TextEntry::make('preview_vat')
+                            ->label('VAT')
+                            ->state($previewTax)
+                            ->money($record->currency_code),
+                        TextEntry::make('preview_total')
+                            ->label('Total')
+                            ->state($previewTotal)
+                            ->money($record->currency_code)
+                            ->weight(FontWeight::Bold)
+                            ->size(TextSize::Large)
+                            ->color('success'),
+                    ]),
+            ]);
+
+        return $sections;
     }
 }

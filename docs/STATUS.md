@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1 + 2 complete.** 554 tests pass. Next: implement `tasks/vat-vies/invoice.md` (Area 3) then `blocks.md` (Area 4). See `tasks/vat-vies/spec.md` for full agreed design.
+**VAT/VIES Areas 1 + 2 + 3 complete.** 580 tests pass. Next: implement `tasks/vat-vies/blocks.md` (Area 4 — UI blocks for exempt/pending scenarios). See `tasks/vat-vies/spec.md` for full agreed design.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -192,7 +192,11 @@ Sub-task 3.2.12 complete: Full structured refactor — 5 tiers, 50+ items. Key c
 
 VAT/VIES Area 1 (tenant.md) complete: Migration adds `is_vat_registered` + `vies_verified_at` to `tenants` table. `CompanyVatService` enforces invariant (registered ↔ VAT number). CompanySettingsPage VAT section: VIES-verified toggle + lookup + confirmed field; country change resets all; save guard blocks unverified VAT. 8 tests (`CompanyVatServiceTest` + `CompanyVatSetupTest`).
 
-Next: `tasks/vat-vies/partner.md` (Area 2 — Partner VAT setup)
+VAT/VIES Area 2 (partner.md) complete: `VatStatus` enum (3 states), Partner form VAT section with VIES-verified badge, `PartnerVatService` (validate, confirm, downgrade, pending-to-confirmed promotion), `vies_last_checked_at` + `vies_verified_at` columns on `partners`. 13 tests.
+
+VAT/VIES Area 3 (invoice.md) complete: VIES re-check at confirmation time, `ViesResult` + `ReverseChargeOverrideReason` enums, `ManualOverrideData` DTO, `VatScenario::Exempt` case (non-VAT-registered tenant short-circuit), `runViesPreCheck()` + `confirmWithScenario()` on `CustomerInvoiceService`, `checkVatApprox` SOAP for audit trail `requestIdentifier`, 8 VAT audit columns on `customer_invoices`, three-way confirmation UI (retry/confirm-with-VAT/confirm-with-reverse-charge-override), `override_reverse_charge_customer_invoice` permission. 36 tests (`VatDeterminationTest` 22 + `InvoiceViesConfirmationTest` 14 + `ViesValidationServiceTest` 10). Post-implementation fixes: `mountUsing()` pattern replaces broken two-action modal flow; VIES countryCode/vatPrefix split for Greece (`GR` country code ≠ `EL` VAT prefix) in both `CustomerInvoiceService` and `PartnerVatService`; financial preview in modal shows post-confirmation zero-VAT totals for reverse charge / non-EU / exempt scenarios; confirmation modal redesigned with `Section` + `Grid` layout, scenario badge with color, VIES reference grid, `->money()` totals.
+
+Next: `tasks/vat-vies/blocks.md` (Area 4 — UI blocks for Exempt/Pending/non-VAT-registered tenant scenarios)
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -273,3 +277,6 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Phase 3.2.12 refactor (Tiers 0–5: migrations, service hardening, form fixes, view actions, infolist conversions — Blade deleted) | **513** |
 | VAT-DETERMINATION-1 (VatScenario enum, determineVatType, VIES three-way branch, transient-safe caching, Company Settings + Partner country fields) | **533** |
 | VAT/VIES Area 1 — tenant.md (migration, CompanyVatService, CompanySettingsPage VAT section, TenantFactory, 8 tests) | **541** |
+| VAT/VIES Area 2 — partner.md (VatStatus enum, PartnerVatService, VIES badge on partner form, 13 tests) | **554** |
+| VAT/VIES Area 3 — invoice.md (ViesResult/ReverseChargeOverrideReason/ManualOverrideData, VatScenario::Exempt, runViesPreCheck, confirmWithScenario, checkVatApprox, 8 audit columns, three-way UI, override permission — 16 tests) | **570** |
+| ViesValidationService unit tests + prefix-stripping bug fix (makeSoapClient seam, 10 tests covering SOAP params/parsing/caching/unavailability) | **580** |
