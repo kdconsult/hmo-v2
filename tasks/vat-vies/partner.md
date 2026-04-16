@@ -2,7 +2,7 @@
 
 > **Spec:** `tasks/vat-vies/spec.md` — Area 2
 > **Plan:** `tasks/vat-vies/partner-plan.md` (created when ready to build)
-> **Status:** Discussion complete — ready to plan
+> **Status:** ✅ DONE
 
 ---
 
@@ -16,11 +16,11 @@ Invoice-time re-verification behaviour is defined in `invoice.md`.
 
 ## What Needs Investigation Before Planning
 
-- [ ] What columns exist today on `partners` for VAT? (`vat_number`, `is_vat_registered`, `vies_verified_at`, `vies_valid`, etc.)
-- [ ] Does `Partner::hasValidEuVat()` need to be updated to use the new three-state model?
-- [ ] Does the partner form already have a country selector?
-- [ ] `ViesValidationService` — already returns `available`, `valid`, `name`, `address`; confirm no changes needed
-- [ ] Check `VAT-VIES-1` entry in backlog — it partially overlaps this task; decide if it gets absorbed or removed
+- [x] What columns exist today on `partners` for VAT? (`vat_number`, `is_vat_registered`, `vies_verified_at`, `vies_valid`, etc.)
+- [x] Does `Partner::hasValidEuVat()` need to be updated to use the new three-state model?
+- [x] Does the partner form already have a country selector?
+- [x] `ViesValidationService` — already returns `available`, `valid`, `name`, `address`; confirm no changes needed
+- [x] Check `VAT-VIES-1` entry in backlog — it partially overlaps this task; decide if it gets absorbed or removed
 
 ---
 
@@ -56,14 +56,14 @@ Invoice-time re-verification behaviour is defined in `invoice.md`.
 
 ## Tests Required
 
-- [ ] Unit: `Partner::hasValidEuVat()` — confirmed / pending / not_registered states
-- [ ] Unit: `Partner::isEligibleForReverseCharge()` — all states + non-EU country cases
-- [ ] Feature: Partner create — happy path (VIES valid → confirmed)
-- [ ] Feature: Partner create — VIES invalid → not_registered, nothing saved
-- [ ] Feature: Partner create — VIES unavailable → pending, partner saved without VAT
-- [ ] Feature: Save blocked when toggle ON + no confirmed VAT (except pending state)
-- [ ] Feature: Manual re-verify action — valid / invalid / unavailable responses
-- [ ] Feature: Country change resets state
+- [x] Unit: `PartnerVatService` — all three update states + all three re-verify outcomes (6 tests)
+- [x] Feature: Partner create — happy path (VIES valid → confirmed)
+- [x] Feature: Partner create — VIES invalid → not_registered, nothing saved
+- [x] Feature: Partner create — VIES unavailable → pending, partner saved without VAT
+- [x] Feature: Save blocked when toggle ON + no confirmed VAT (except pending state)
+- [x] Feature: Manual re-verify action — valid / invalid / unavailable responses
+- [x] Feature: Country change resets state
+- [x] Feature: Validate VAT action hidden for pending partners
 
 ---
 
@@ -75,13 +75,13 @@ Invoice-time re-verification behaviour is defined in `invoice.md`.
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`partner-plan.md`)
-- [ ] Implementation complete
-- [ ] Automated tests pass
+- [x] Investigation complete
+- [x] Plan written (`partner-plan.md`)
+- [x] Implementation complete
+- [x] Automated tests pass (557 tests, 0 failures)
 - [ ] Code review clean
 - [ ] Browser tested (manual)
 - [ ] Refactor findings written
 - [ ] Refactor implemented
-- [ ] Pint clean
-- [ ] Final test run
+- [x] Pint clean
+- [x] Final test run

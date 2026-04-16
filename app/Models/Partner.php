@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\PartnerType;
 use App\Enums\PaymentMethod;
+use App\Enums\VatStatus;
 use App\Support\EuCountries;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -40,6 +41,10 @@ class Partner extends Model
         'notes',
         'is_active',
         'country_code',
+        'is_vat_registered',
+        'vat_status',
+        'vies_verified_at',
+        'vies_last_checked_at',
     ];
 
     protected function casts(): array
@@ -50,6 +55,10 @@ class Partner extends Model
             'is_customer' => 'boolean',
             'is_supplier' => 'boolean',
             'is_active' => 'boolean',
+            'is_vat_registered' => 'boolean',
+            'vat_status' => VatStatus::class,
+            'vies_verified_at' => 'datetime',
+            'vies_last_checked_at' => 'datetime',
             'credit_limit' => 'decimal:2',
             'discount_percent' => 'decimal:2',
         ];
@@ -79,9 +88,14 @@ class Partner extends Model
 
     public function hasValidEuVat(): bool
     {
-        return ! empty($this->vat_number)
+        return $this->vat_status === VatStatus::Confirmed;
+    }
+
+    public function isEligibleForReverseCharge(): bool
+    {
+        return $this->vat_status === VatStatus::Confirmed
             && ! empty($this->country_code)
-            && in_array($this->country_code, EuCountries::codes(), true);
+            && EuCountries::isEuCountry($this->country_code);
     }
 
     public function defaultVatRate(): BelongsTo

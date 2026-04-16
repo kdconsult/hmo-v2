@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\VatStatus;
 use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\EuOssAccumulation;
@@ -76,6 +77,8 @@ test('accumulate skips B2B invoices with valid EU VAT', function () {
         $partner = Partner::factory()->customer()->create([
             'country_code' => 'DE',
             'vat_number' => 'DE123456789',
+            'vat_status' => VatStatus::Confirmed,
+            'is_vat_registered' => true,
         ]);
 
         $invoice = CustomerInvoice::factory()->create([
@@ -153,6 +156,8 @@ test('shouldApplyOss returns false for B2B partner with valid EU VAT', function 
         $partner = Partner::factory()->customer()->create([
             'country_code' => 'DE',
             'vat_number' => 'DE123456789',
+            'vat_status' => VatStatus::Confirmed,
+            'is_vat_registered' => true,
         ]);
 
         expect(app(EuOssService::class)->shouldApplyOss($partner))->toBeFalse();

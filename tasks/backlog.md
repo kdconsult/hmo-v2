@@ -14,6 +14,24 @@ Superseded by the full VAT/VIES feature redesign (2026-04-16). See `tasks/vat-vi
 
 ---
 
+### PARTNER-1: Remove `company_name` + make partner document fields translatable
+
+Handle alongside the PDF polish pass.
+
+**Remove `partners.company_name`:**
+- Migration: drop `company_name` column
+- `Partner` model: remove from `$fillable`
+- `PartnerFactory`: remove from default definition
+- `PartnerForm`: remove `TextInput::make('company_name')`
+- 4 PDF views: replace `$partner->company_name ?: $partner->name` → `$partner->name`
+
+**Make document-facing partner fields translatable:**
+- Fields that appear on official documents (`name`, `mol`, and any other fields rendered in PDFs) should use the same translatable pattern as product/category names (lara-zeus/spatie-translatable)
+- Update model, factory, form inputs, and PDF views accordingly
+- Check `reference_translatable_setup.md` memory for the established pattern
+
+---
+
 ### SALES-1: Quotation auto-expiry scheduler
 
 When `valid_until` passes and a quotation is still in `Draft` or `Sent` status, automatically transition it to `QuotationStatus::Expired`.

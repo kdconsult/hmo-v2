@@ -4,15 +4,20 @@ namespace App\Filament\Resources\Partners\Schemas;
 
 use App\Enums\PartnerType;
 use App\Enums\PaymentMethod;
+use App\Enums\VatStatus;
 use App\Models\Currency;
 use App\Models\VatRate;
 use App\Support\EuCountries;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 class PartnerForm
 {
@@ -20,50 +25,47 @@ class PartnerForm
     {
         return $schema
             ->components([
-                Section::make('General Info')
-                    ->columns(2)
-                    ->schema([
-                        Select::make('type')
-                            ->options(PartnerType::class)
-                            ->required()
-                            ->default(PartnerType::Company->value),
-                        TextInput::make('name')
-                            ->required()
-                            ->maxLength(255)
-                            ->columnSpanFull(),
-                        TextInput::make('company_name')
-                            ->maxLength(255),
-                        TextInput::make('eik')
-                            ->label('EIK')
-                            ->maxLength(20),
-                        TextInput::make('vat_number')
-                            ->label('VAT Number')
-                            ->maxLength(20),
-                        TextInput::make('mol')
-                            ->label('MOL')
-                            ->maxLength(255),
-                        Select::make('country_code')
-                            ->label('Country')
-                            ->options(EuCountries::forSelect())
-                            ->searchable()
-                            ->helperText('Determines EU VAT treatment on invoices.'),
-                        TextInput::make('email')
-                            ->email()
-                            ->maxLength(255),
-                        TextInput::make('phone')
-                            ->tel()
-                            ->maxLength(50),
-                        TextInput::make('secondary_phone')
-                            ->tel()
-                            ->maxLength(50),
-                        TextInput::make('website')
-                            ->url()
-                            ->maxLength(255),
-                    ]),
-
                 Grid::make()
                     ->columns(1)
                     ->schema([
+                        Section::make('General Info')
+                            ->columns(2)
+                            ->schema([
+                                Select::make('type')
+                                    ->options(PartnerType::class)
+                                    ->required()
+                                    ->default(PartnerType::Company->value),
+                                TextInput::make('name')
+                                    ->required()
+                                    ->maxLength(255),
+                                TextInput::make('company_name')
+                                    ->maxLength(255),
+                                TextInput::make('eik')
+                                    ->label('EIK')
+                                    ->maxLength(20),
+                                TextInput::make('mol')
+                                    ->label('MOL')
+                                    ->maxLength(255),
+                                Select::make('country_code')
+                                    ->label('Country')
+                                    ->options(EuCountries::forSelect())
+                                    ->searchable()
+                                    ->live()
+                                    ->helperText('Determines EU VAT treatment on invoices.')
+                                    ->afterStateUpdated(fn ($livewire) => $livewire->resetVatState()),
+                                TextInput::make('email')
+                                    ->email()
+                                    ->maxLength(255),
+                                TextInput::make('phone')
+                                    ->tel()
+                                    ->maxLength(50),
+                                TextInput::make('secondary_phone')
+                                    ->tel()
+                                    ->maxLength(50),
+                                TextInput::make('website')
+                                    ->url()
+                                    ->maxLength(255),
+                            ]),
 
                         Section::make('Classification')
                             ->columns(2)
@@ -76,7 +78,46 @@ class PartnerForm
                                 Toggle::make('is_active')
                                     ->default(true),
                             ]),
-        
+                    ]),
+
+                Grid::make()
+                    ->columns(1)
+                    ->schema([
+                        Section::make('VAT Registration')
+                            ->schema([
+                                Hidden::make('vat_status')
+                                    ->default(VatStatus::NotRegistered->value),
+
+                                Toggle::make('is_vat_registered')
+                                    ->label('Partner is VAT Registered')
+                                    ->live()
+                                    ->inline(false)
+                                    ->afterStateUpdated(function (bool $state, $livewire): void {
+                                        if (! $state) {
+                                            $livewire->resetVatState();
+                                        }
+                                    }),
+
+                                TextInput::make('vat_lookup')
+                                    ->label('VAT Number (without country prefix)')
+                                    ->prefix(fn ($livewire): string => $livewire->vatCountryPrefix())
+                                    ->visible(fn (Get $get): bool => (bool) $get('is_vat_registered'))
+                                    ->helperText(fn ($livewire): ?string => $livewire->vatLookupHelperText())
+                                    ->dehydrated(false)
+                                    ->suffixAction(
+                                        Action::make('check_vies')
+                                            ->label('Check VIES')
+                                            ->icon(Heroicon::Bolt)
+                                            ->action(fn ($livewire) => $livewire->handleViesCheck())
+                                    ),
+
+                                TextInput::make('vat_number')
+                                    ->label('Confirmed VAT Number')
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->visible(fn (Get $get): bool => filled($get('vat_number'))),
+                            ]),
+
                         Section::make('Financial')
                             ->columns(2)
                             ->schema([
