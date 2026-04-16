@@ -42,6 +42,8 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
     protected $casts = [
         'status' => TenantStatus::class,
         'subscription_status' => SubscriptionStatus::class,
+        'is_vat_registered' => 'boolean',
+        'vies_verified_at' => 'datetime',
         'trial_ends_at' => 'datetime',
         'subscription_ends_at' => 'datetime',
         'deactivated_at' => 'datetime',
@@ -63,6 +65,8 @@ class Tenant extends \Stancl\Tenancy\Database\Models\Tenant implements TenantWit
             'postal_code',
             'country_code',
             'vat_number',
+            'is_vat_registered',
+            'vies_verified_at',
             'eik',
             'mol',
             'logo_path',

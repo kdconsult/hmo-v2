@@ -30,6 +30,8 @@ class TenantFactory extends Factory
             'postal_code' => fake()->postcode(),
             'country_code' => 'BG',
             'vat_number' => null,
+            'is_vat_registered' => false,
+            'vies_verified_at' => null,
             'eik' => fake()->numerify('#########'),
             'mol' => fake()->name(),
             'logo_path' => null,
@@ -48,6 +50,15 @@ class TenantFactory extends Factory
             'deactivation_reason' => null,
             'deactivated_by' => null,
         ];
+    }
+
+    public function vatRegistered(): static
+    {
+        return $this->state(fn () => [
+            'is_vat_registered' => true,
+            'vat_number' => 'BG'.fake()->numerify('#########'),
+            'vies_verified_at' => now(),
+        ]);
     }
 
     public function suspended(): static

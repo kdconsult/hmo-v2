@@ -12,7 +12,7 @@ class ViesValidationService
     /**
      * Validate an EU VAT number via VIES.
      *
-     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
      */
     public function validate(string $countryCode, string $vatNumber): array
     {
@@ -24,7 +24,7 @@ class ViesValidationService
     }
 
     /**
-     * @return array{valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
+     * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string}
      */
     private function callVies(string $countryCode, string $vatNumber): array
     {
@@ -40,6 +40,7 @@ class ViesValidationService
             ]);
 
             return [
+                'available' => true,
                 'valid' => (bool) $result->valid,
                 'name' => $result->name !== '---' ? $result->name : null,
                 'address' => $result->address !== '---' ? $result->address : null,
@@ -54,6 +55,7 @@ class ViesValidationService
             ]);
 
             return [
+                'available' => false,
                 'valid' => false,
                 'name' => null,
                 'address' => null,
