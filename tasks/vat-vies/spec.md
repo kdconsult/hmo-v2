@@ -150,15 +150,19 @@ Invoices are where VAT scenarios are legally applied and frozen. The treatment o
 
 ### VAT Scenarios
 
-Five scenarios, applied in this priority order:
+Six scenarios (seven with `DomesticExempt` added in Phase B), applied in this priority order:
 
 | Scenario | Condition | VAT Treatment |
 |----------|-----------|---------------|
+| Exempt | Tenant `is_vat_registered = false` | 0% VAT — чл. 113, ал. 9 ЗДДС |
 | Domestic | Partner country = tenant country | Standard local VAT rate |
-| EU B2B Reverse Charge | Different EU country + `vat_status = confirmed` (post-VIES re-check) | 0% VAT — Article 196 EU VAT Directive |
+| DomesticExempt *(Phase B)* | Domestic partner + user-selected Art. 39–49 | 0% VAT — legal basis from `vat_legal_references` |
+| EU B2B Reverse Charge | Different EU country + `vat_status = confirmed` (post-VIES re-check) | 0% VAT — Art. 138/196 EU VAT Directive |
 | EU B2C Under Threshold | Different EU country + no confirmed VAT + OSS threshold not exceeded | Tenant's domestic VAT rate |
 | EU B2C Over Threshold | Different EU country + no confirmed VAT + OSS threshold exceeded | Destination country VAT rate |
 | Non-EU Export | Non-EU country or no country | 0% VAT |
+
+`DomesticExempt` is **never** auto-detected by `VatScenario::determine()` — the user explicitly toggles it on the draft form. The `vat_scenario_sub_code` column (added in Phase B migration) stores the specific article (`art_39`..`art_49`), legal reference resolved at PDF render time.
 
 ### VIES Re-check at Confirmation
 
@@ -275,7 +279,7 @@ When `is_vat_registered = false`, the tenant legally cannot charge VAT, apply re
 
 **Invoice PDF:**
 - No VAT breakdown section
-- Legal notice rendered: "Not subject to VAT — Art. 96 ЗДДС" (exact article confirmed at implementation time)
+- Legal notice rendered: "чл. 113, ал. 9 ЗДДС" (resolved from `vat_legal_references` table, Phase A)
 
 ### Pricing Mode
 

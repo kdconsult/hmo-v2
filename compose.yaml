@@ -22,8 +22,12 @@ services:
         networks:
             - sail
         depends_on:
-            - redis
-            - mailpit
+            redis:
+                condition: service_started
+            mailpit:
+                condition: service_started
+            postgres:
+                condition: service_healthy
 
     queue:
         build:
@@ -46,8 +50,12 @@ services:
         networks:
             - sail
         depends_on:
-            - redis
-            - mailpit
+            redis:
+                condition: service_started
+            mailpit:
+                condition: service_started
+            postgres:
+                condition: service_healthy
 
     scheduler:
         build:
@@ -70,8 +78,12 @@ services:
         networks:
             - sail
         depends_on:
-            - redis
-            - mailpit
+            redis:
+                condition: service_started
+            mailpit:
+                condition: service_started
+            postgres:
+                condition: service_healthy
 
     redis:
         image: 'redis:alpine'
