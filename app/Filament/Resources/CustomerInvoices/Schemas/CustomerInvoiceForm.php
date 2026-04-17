@@ -70,11 +70,16 @@ class CustomerInvoiceForm
                                     return;
                                 }
 
-                                $scenario = VatScenario::determine(
-                                    $partner,
-                                    $tenantCountry,
-                                    tenantIsVatRegistered: $tenantIsVatRegistered,
-                                );
+                                try {
+                                    $scenario = VatScenario::determine(
+                                        $partner,
+                                        $tenantCountry,
+                                        tenantIsVatRegistered: $tenantIsVatRegistered,
+                                    );
+                                } catch (\DomainException) {
+                                    // Partner has no country_code — form helper text surfaces the fix
+                                    return;
+                                }
 
                                 // Force VAT-exclusive pricing for any non-domestic scenario
                                 if ($scenario !== VatScenario::Domestic) {
@@ -102,11 +107,15 @@ class CustomerInvoiceForm
 
                                 $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
 
-                                $description = VatScenario::determine(
-                                    $partner,
-                                    $tenantCountry,
-                                    tenantIsVatRegistered: $tenantIsVatRegistered,
-                                )->description();
+                                try {
+                                    $description = VatScenario::determine(
+                                        $partner,
+                                        $tenantCountry,
+                                        tenantIsVatRegistered: $tenantIsVatRegistered,
+                                    )->description();
+                                } catch (\DomainException) {
+                                    return '⚠ Partner has no country set. Edit the partner record to fix.';
+                                }
 
                                 if ($partner->vat_status === VatStatus::Pending) {
                                     $description .= ' — VAT status pending, will be verified at confirmation.';
@@ -180,11 +189,15 @@ class CustomerInvoiceForm
                                 }
 
                                 $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
-                                $scenario = VatScenario::determine(
-                                    $partner,
-                                    $tenantCountry,
-                                    tenantIsVatRegistered: $tenantIsVatRegistered,
-                                );
+                                try {
+                                    $scenario = VatScenario::determine(
+                                        $partner,
+                                        $tenantCountry,
+                                        tenantIsVatRegistered: $tenantIsVatRegistered,
+                                    );
+                                } catch (\DomainException) {
+                                    return false;
+                                }
 
                                 return $scenario !== VatScenario::Domestic;
                             })

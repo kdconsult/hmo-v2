@@ -104,9 +104,10 @@ class CompanySettingsPage extends Page implements HasForms
                                 Select::make('company.country_code')
                                     ->label('Company Country')
                                     ->options(EuCountries::forSelect())
+                                    ->required()
                                     ->searchable()
                                     ->live()
-                                    ->helperText('Used for EU VAT determination (domestic vs reverse charge vs OSS).')
+                                    ->helperText('Used for EU VAT determination (domestic vs reverse charge vs OSS). Required.')
                                     ->afterStateUpdated(fn () => $this->resetVatState()),
                                 Select::make('general.default_currency')
                                     ->label('Default Currency')

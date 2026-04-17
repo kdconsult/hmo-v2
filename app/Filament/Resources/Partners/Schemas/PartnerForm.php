@@ -5,9 +5,10 @@ namespace App\Filament\Resources\Partners\Schemas;
 use App\Enums\PartnerType;
 use App\Enums\PaymentMethod;
 use App\Enums\VatStatus;
+use App\Models\CompanySettings;
 use App\Models\Currency;
 use App\Models\VatRate;
-use App\Support\EuCountries;
+use App\Support\Countries;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
@@ -48,10 +49,13 @@ class PartnerForm
                                     ->maxLength(255),
                                 Select::make('country_code')
                                     ->label('Country')
-                                    ->options(EuCountries::forSelect())
+                                    ->options(Countries::forSelect())
+                                    ->required()
                                     ->searchable()
                                     ->live()
-                                    ->helperText('Determines EU VAT treatment on invoices.')
+                                    ->default(fn () => CompanySettings::get('company', 'country_code')
+                                        ?? tenancy()->tenant?->country_code)
+                                    ->helperText('Determines VAT treatment on invoices. Required.')
                                     ->afterStateUpdated(fn ($livewire) => $livewire->resetVatState()),
                                 TextInput::make('email')
                                     ->email()

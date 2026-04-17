@@ -112,16 +112,16 @@ Currently `VatScenario::determine()` silently returns `NonEuExport` when a partn
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`hotfix-plan.md`)
-- [ ] Migrations + model + enum changes shipped
-- [ ] Form changes shipped
-- [ ] Remediation command shipped
-- [ ] ViesValidationService changes shipped
-- [ ] Doc drift cleaned (spec.md / invoice.md / ViesValidationService comments)
-- [ ] Memory note pruned
-- [ ] Automated tests pass
-- [ ] Browser-tested: create partner with null country → save blocked
-- [ ] Browser-tested: confirmed invoice cannot be edited from Filament
-- [ ] Pint clean
-- [ ] Final test run green
+- [x] Investigation complete
+- [x] Plan written (`hotfix-plan.md`)
+- [x] Migrations + model + enum changes shipped
+- [x] Form changes shipped
+- [ ] ~~Remediation command shipped~~ — **deferred**: no production data yet (laptop-only dev). Re-open if/when this ships to a tenant with existing null-country Partners. Tracked in `backlog.md` under ADVANCE-PAYMENT-1 section is unrelated; see `hotfix-plan.md` decision note.
+- [x] ViesValidationService changes shipped (tenant-id cache key + stale WSDL comment removed)
+- [x] Doc drift cleaned (spec.md done in spec-sync pass; invoice.md `$ignorePartnerVat` kept note; ViesValidationService comment)
+- [x] Memory note pruned (`project_vat_vies_design.md` VAT-DETERMINATION-1 stale line)
+- [x] Automated tests pass (22 new tests: Immutability 11 + VIES cache 1 + Legal References 10; full parallel suite 592 green on user's machine)
+- [x] Browser-tested: create partner with null country → save blocked — **done*
+- [x] Browser-tested: confirmed invoice cannot be edited from Filament — **done**
+- [x] Pint clean
+- [x] Final test run green

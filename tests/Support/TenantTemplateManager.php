@@ -11,6 +11,7 @@ use Database\Seeders\CurrencySeeder;
 use Database\Seeders\EuCountryVatRatesSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\UnitSeeder;
+use Database\Seeders\VatLegalReferenceSeeder;
 use Database\Seeders\VatRateSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -122,6 +123,7 @@ class TenantTemplateManager
             app(VatRateSeeder::class)->run();
             app(UnitSeeder::class)->run();
             app(EuCountryVatRatesSeeder::class)->run();
+            app(VatLegalReferenceSeeder::class)->run();
 
             Warehouse::firstOrCreate(
                 ['code' => 'MAIN'],
@@ -161,6 +163,7 @@ class TenantTemplateManager
             database_path('seeders/VatRateSeeder.php'),
             database_path('seeders/UnitSeeder.php'),
             database_path('seeders/EuCountryVatRatesSeeder.php'),
+            database_path('seeders/VatLegalReferenceSeeder.php'),
             app_path('Services/TenantOnboardingService.php'),
         ];
 

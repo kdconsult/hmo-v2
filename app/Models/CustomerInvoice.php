@@ -14,12 +14,54 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RuntimeException;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
 class CustomerInvoice extends Model
 {
     use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * F-031: economic / face-content fields that become immutable once the invoice
+     * leaves Draft status. Mutations to these on a confirmed invoice throw
+     * RuntimeException; corrections must go through credit / debit notes.
+     *
+     * Derived totals (subtotal / discount_amount / tax_amount / total) are NOT
+     * frozen — they must remain recomputable so that they stay in sync with
+     * item rows when a service layer touches the invoice post-confirmation
+     * (e.g. advance-payment deduction lines). Item-level economic inputs are
+     * locked in CustomerInvoiceItem::FROZEN_FIELDS; as long as those can't
+     * change, totals recompute to the same value.
+     *
+     * Mutable post-Draft: status, amount_paid, amount_due, payment_method,
+     * due_date, internal_notes, subtotal, discount_amount, tax_amount, total,
+     * deleted_at.
+     *
+     * Legal basis: Art. 233 Directive 2006/112/EC; чл. 114, ал. 6 ЗДДС.
+     */
+    protected const FROZEN_FIELDS = [
+        'invoice_number',
+        'issued_at',
+        'partner_id',
+        'created_by',
+        'document_series_id',
+        'sales_order_id',
+        'invoice_type',
+        'currency_code',
+        'exchange_rate',
+        'pricing_mode',
+        'vat_scenario',
+        'is_reverse_charge',
+        'vies_request_id',
+        'vies_checked_at',
+        'vies_result',
+        'reverse_charge_manual_override',
+        'reverse_charge_override_user_id',
+        'reverse_charge_override_at',
+        'reverse_charge_override_reason',
+        'notes',
+    ];
 
     protected $fillable = [
         'invoice_number',
@@ -78,6 +120,43 @@ class CustomerInvoice extends Model
             'issued_at' => 'date',
             'due_date' => 'date',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $invoice): void {
+            $original = $invoice->getOriginal('status');
+            $originalValue = $original instanceof DocumentStatus ? $original->value : $original;
+
+            // Draft is freely mutable; confirmation (Draft -> Confirmed) also passes.
+            if ($originalValue === null || $originalValue === DocumentStatus::Draft->value) {
+                return;
+            }
+
+            $disallowed = array_intersect(array_keys($invoice->getDirty()), self::FROZEN_FIELDS);
+            if ($disallowed === []) {
+                return;
+            }
+
+            throw new RuntimeException(
+                'Confirmed invoices are immutable (Art. 233 Directive 2006/112/EC; chl. 114, al. 6 ZDDS). '
+                ."Invoice #{$invoice->invoice_number} (status={$originalValue}). "
+                .'Disallowed field changes: '.implode(', ', $disallowed).'. '
+                .'Issue a credit or debit note to correct.'
+            );
+        });
+
+        static::deleting(function (self $invoice): void {
+            $original = $invoice->getOriginal('status') ?? $invoice->status;
+            $originalValue = $original instanceof DocumentStatus ? $original->value : $original;
+
+            if ($originalValue !== null && $originalValue !== DocumentStatus::Draft->value) {
+                throw new RuntimeException(
+                    "Cannot delete a non-Draft invoice (#{$invoice->invoice_number}, status={$originalValue}). "
+                    .'Cancel it via the Cancel action instead.'
+                );
+            }
+        });
     }
 
     public function getActivitylogOptions(): LogOptions

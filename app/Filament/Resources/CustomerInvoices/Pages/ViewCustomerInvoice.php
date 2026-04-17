@@ -346,9 +346,13 @@ class ViewCustomerInvoice extends ViewRecord
         $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
 
         $record->loadMissing('partner');
-        $scenario = $record->partner
-            ? VatScenario::determine($record->partner, $tenantCountry, tenantIsVatRegistered: $tenantIsVatRegistered)
-            : null;
+        try {
+            $scenario = $record->partner
+                ? VatScenario::determine($record->partner, $tenantCountry, tenantIsVatRegistered: $tenantIsVatRegistered)
+                : null;
+        } catch (DomainException) {
+            $scenario = null;
+        }
 
         // Preview financials: zero-rated scenarios will wipe VAT at confirmation.
         $zeroRatedScenarios = [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport, VatScenario::Exempt];

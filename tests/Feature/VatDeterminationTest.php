@@ -87,16 +87,21 @@ test('VatScenario::determine returns NonEuExport for non-EU partner', function (
     });
 });
 
-test('VatScenario::determine returns NonEuExport when partner has empty country_code', function () {
-    $tenant = Tenant::factory()->vatRegistered()->create();
-    $user = User::factory()->create();
-    app(TenantOnboardingService::class)->onboard($tenant, $user);
+test('VatScenario::determine throws DomainException when partner has empty country_code (F-030)', function () {
+    // DB-level NOT NULL blocks this in production writes — enum guard is defence-in-depth
+    // against in-memory stubs / tinker / future API callers that construct a partner
+    // object bypassing persistence.
+    $partner = new Partner(['country_code' => null]);
 
-    $tenant->run(function () {
-        $partner = Partner::factory()->customer()->create(['country_code' => null]);
+    expect(fn () => VatScenario::determine($partner, 'BG'))
+        ->toThrow(DomainException::class);
+});
 
-        expect(VatScenario::determine($partner, 'BG'))->toBe(VatScenario::NonEuExport);
-    });
+test('VatScenario::determine throws on whitespace-only country_code (F-030)', function () {
+    $partner = new Partner(['country_code' => '  ']);
+
+    expect(fn () => VatScenario::determine($partner, 'BG'))
+        ->toThrow(DomainException::class);
 });
 
 // ─── Category B: confirm() integration ───────────────────────────────────────

@@ -481,6 +481,31 @@ Covered in `pre-launch.md` Step 4. If pre-launch slips, this stays as a standalo
 
 ---
 
+### ADVANCE-PAYMENT-1: AdvancePaymentService redesign — rows added to Confirmed invoices
+
+**Source:** F-031 CustomerInvoiceItem immutability hotfix (2026-04-17) — note on the `creating` gap in `app/Models/CustomerInvoiceItem.php`.
+
+**The gap:**
+`CustomerInvoiceItem` has `updating` + `deleting` guards that block economic-input mutations on items of non-Draft invoices, but intentionally **not** a `creating` guard. The reason: `AdvancePaymentService::createAdvanceInvoice()` creates a `CustomerInvoice` directly in `Confirmed` status and adds its one line, and `AdvancePaymentService::applyToFinalInvoice()` inserts a deduction row on an already-Confirmed final invoice. A `creating` guard would break both flows.
+
+**Why this is legally questionable:**
+EU VAT Directive 2006/112/EC Art. 233 and BG ЗДДС чл. 114 ал. 6 treat an issued invoice as a closed, authenticity-protected document. Adding a line to it after issue — even an "advance deduction" — is outside the directive's adjustment mechanism, which is the credit note (Art. 226(10)). The correct pattern is:
+
+1. Advance invoice is a **standalone Confirmed invoice** (already the case — fine).
+2. Final invoice on delivery is a **new Confirmed invoice** reflecting the full supply.
+3. Reconciliation of the prepaid amount is done **via a credit note on the advance invoice** (or equivalent ledger entry), not by mutating the final invoice after the fact.
+
+**Scope of redesign:**
+- `AdvancePaymentService::createAdvanceInvoice()`: keep as-is (builds Confirmed advance invoice with its one line in a single create — legitimate).
+- `AdvancePaymentService::applyToFinalInvoice()`: do not append a deduction row to the final invoice post-Confirm. Instead, either (a) issue an auto credit note against the advance invoice, or (b) wire the offset through a payment/ledger entry that references both the advance and final invoices. Decide during the redesign — depends on how Phase 4 (accounting) models the ledger.
+- Once `applyToFinalInvoice` no longer mutates a Confirmed invoice, add the `creating` guard to `CustomerInvoiceItem` to close the gap. Current comment on the `FROZEN_FIELDS` const in that model explicitly flags this as the completion trigger.
+
+**Blocking dependency for:** Full F-031 compliance. Without this redesign, the invoice-item immutability story has a deliberate hole in it.
+
+**Deferred because:** The hotfix (frozen-list guards) locks the 95% of item mutations that matter. Redesigning AdvancePaymentService is a multi-day task better scheduled alongside Phase 4 ledger work.
+
+---
+
 ## Complex / Design-heavy
 
 ### SYSTEM-1: Global "Reassign user documents" tool

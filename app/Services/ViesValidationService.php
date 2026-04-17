@@ -21,7 +21,12 @@ class ViesValidationService
      */
     public function validate(string $countryCode, string $vatNumber, bool $fresh = false): array
     {
-        $cacheKey = "vies_validation_{$countryCode}_{$vatNumber}";
+        // F-005: prefix cache key with tenant id as defence-in-depth. The stancl/tenancy
+        // CacheTenancyBootstrapper already tags cache per tenant; this prefix guards
+        // against call paths that bypass the bootstrapper (central context, scheduled
+        // commands, etc.) from seeing another tenant's cached requestIdentifier.
+        $tenantScope = tenancy()->tenant?->id ?? 'central';
+        $cacheKey = "vies_validation_{$tenantScope}_{$countryCode}_{$vatNumber}";
 
         if ($fresh) {
             Cache::forget($cacheKey);
@@ -45,8 +50,8 @@ class ViesValidationService
      * checkVatApprox returns a requestIdentifier that serves as the audit reference.
      * It requires the requester's country code and VAT number (the tenant's own registration).
      *
-     * Note: Both checkVat and checkVatApprox are defined in the same WSDL
-     * (checkVatService.wsdl). Verify this holds against the live endpoint if SOAP faults occur.
+     * The live WSDL at checkVatService.wsdl exposes both checkVat and checkVatApprox.
+     * Verified 2026-04-17 — no separate checkVatApproxService.wsdl exists.
      *
      * @return array{available: bool, valid: bool, name: string|null, address: string|null, country_code: string, vat_number: string, request_id: string|null}
      */

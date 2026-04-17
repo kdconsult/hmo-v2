@@ -24,6 +24,7 @@ class PartnerFactory extends Factory
             'vat_number' => null,
             'is_vat_registered' => false,
             'vat_status' => VatStatus::NotRegistered,
+            'country_code' => 'BG',
             'email' => fake()->companyEmail(),
             'phone' => fake()->phoneNumber(),
             'is_customer' => true,

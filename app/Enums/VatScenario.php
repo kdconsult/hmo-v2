@@ -19,7 +19,7 @@ enum VatScenario: string
      * Determine the correct VAT scenario for a cross-border transaction.
      *
      * Branching order (EU VAT Directive 2006/112/EC):
-     * 1. Empty country_code → treat as non-EU export
+     * 1. Empty country_code → throws DomainException (partner records MUST have a country; [review.md#f-030])
      * 2. Same country as tenant → domestic
      * 3. Not in EU → export (0%)
      * 4. EU + valid VAT (unless $ignorePartnerVat) → B2B reverse charge (Article 196)
@@ -32,6 +32,9 @@ enum VatScenario: string
      *                                  is treated as a B2C customer regardless of stored VAT data.
      *                                  Use when VIES has explicitly rejected the VAT number at
      *                                  confirm time and the user chose to proceed with standard VAT.
+     *
+     * @throws \DomainException when $partner->country_code is empty/whitespace. Forgotten country
+     *                          would silently route to NonEuExport (0% VAT); guard catches it.
      */
     public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false, bool $tenantIsVatRegistered = true): self
     {
@@ -39,8 +42,11 @@ enum VatScenario: string
             return self::Exempt;
         }
 
-        if (empty($partner->country_code)) {
-            return self::NonEuExport;
+        if (empty(trim((string) $partner->country_code))) {
+            throw new \DomainException(
+                "Cannot determine VAT scenario: partner #{$partner->id} has no country_code. ".
+                'Every partner must have a country set before an invoice is issued.'
+            );
         }
 
         if ($partner->country_code === $tenantCountryCode) {

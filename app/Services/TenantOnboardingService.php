@@ -13,6 +13,7 @@ use Database\Seeders\CurrencySeeder;
 use Database\Seeders\EuCountryVatRatesSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\UnitSeeder;
+use Database\Seeders\VatLegalReferenceSeeder;
 use Database\Seeders\VatRateSeeder;
 use Illuminate\Database\Seeder;
 
@@ -36,6 +37,7 @@ class TenantOnboardingService
                 $this->runSeeder(VatRateSeeder::class);
                 $this->runSeeder(UnitSeeder::class);
                 $this->runSeeder(EuCountryVatRatesSeeder::class);
+                $this->runSeeder(VatLegalReferenceSeeder::class);
             }
 
             // Create the TenantUser for the owner if it doesn't exist yet
