@@ -108,15 +108,23 @@ Both changes **MUST** land in the same commit. If only (1) lands, the template h
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`legal-references-plan.md`)
-- [ ] Migration + model + seeder implemented
-- [ ] `TenantOnboardingService` wired
-- [ ] `TenantTemplateManager` — both places updated
-- [ ] Automated tests pass
-- [ ] Code review clean
-- [ ] Manual verification: new tenant has 16 rows
-- [ ] Refactor findings written
-- [ ] Refactor implemented
-- [ ] Pint clean
-- [ ] Final test run (`./vendor/bin/sail artisan test --parallel --compact`)
+- [x] Investigation complete
+- [x] Plan written (`legal-references-plan.md`)
+- [x] Migration + model + seeder implemented
+- [x] `TenantOnboardingService` wired
+- [x] `TenantTemplateManager` — both places updated (`recreateTemplate()` line 125 + `currentHash()` seederFiles array line 164)
+- [x] Automated tests pass (10 in `tests/Feature/VatLegalReferenceTest.php`: seeder count, idempotency, resolve exact/fallback/throws, listForScenario ordering + is_default-first, translations bg+en, case-insensitive country, services citations)
+- [x] Code review clean (advisor pass: no findings on this task; 3 items flagged on the paired hotfix bundle — all addressed)
+- [x] Manual verification: new tenant has 16 rows — confirmed via `TenantOnboardingService` test chain
+- [x] Refactor findings written — none surfaced; design matched implementation 1:1
+- [x] Refactor implemented — n/a (no findings)
+- [x] Pint clean
+- [x] Final test run (`./vendor/bin/sail artisan test --parallel --compact`) — 592 passed on user's machine
+
+---
+
+## Outcome
+
+Shipped 2026-04-17 alongside `hotfix.md`. `VatLegalReference` is now the single source of truth for every scenario that needs a legal citation on the invoice face. Consumers in later waves (`pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md`, `blocks-credit-debit.md`, `invoice-credit-debit.md`) will call `VatLegalReference::resolve($country, $scenario, $sub_code)` — no hard-coded citations anywhere in the codebase.
+
+The `sub_code = 'default'` sentinel (never NULL) is load-bearing: Postgres unique indexes treat NULL as distinct, so allowing NULL would permit duplicate rows per `(country, scenario)`. Any future per-country seeder MUST preserve this contract.
