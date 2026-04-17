@@ -1,7 +1,8 @@
 # Task: Invoice VAT Determination
 
 > **Spec:** `tasks/vat-vies/spec.md` — Area 3
-> **Plan:** `tasks/vat-vies/invoice-plan.md` (created when ready to build)
+> **Plan:** `tasks/vat-vies/invoice-plan.md` — refactor queue for the items below
+> **Review:** `tasks/vat-vies/review.md` — 2026-04-17 audit
 > **Status:** Discussion complete — ready to plan
 
 ---
@@ -104,6 +105,8 @@ Add columns:
 
 ## Refactor Findings
 
+### From implementation (2026-04-16)
+
 1. **Two-action modal pattern broken** — `confirm` action called `$this->mountAction('proceedToConfirm')` from inside its `->action()` handler. Filament's `callMountedAction()` detects `mountedActions` changed mid-execution and aborts. Fixed by merging into a single action using `->mountUsing()` which runs VIES pre-check before the modal opens; `throw new Halt` prevents the modal on failure.
 
 2. **VIES countryCode vs VAT prefix split (Greece bug)** — `GR` (ISO country code) has VAT prefix `EL`. Both `CustomerInvoiceService::runViesPreCheck()` and `PartnerVatService::reVerify()` were passing the VAT prefix (`EL`) as the VIES `countryCode` param. Fixed: `$partner->country_code` is passed to `validate()` as the country code; `$vatPrefix` is used only for stripping the stored VAT number string.
@@ -111,6 +114,22 @@ Add columns:
 3. **Modal financial preview showed draft values** — for reverse charge / non-EU / exempt scenarios, VAT is zeroed out at confirmation. The modal was showing current draft totals (with VAT). Fixed: preview computes `previewTax = '0.00'` and `previewTotal = subtotal - discount` for zero-rated scenarios.
 
 4. **Modal schema had no visual structure** — flat list of `TextEntry` with HtmlString hacks. Replaced with `Section` + `Grid` layout, `badge()` with per-scenario color on the VAT treatment entry, proper `->money()` formatting, and `->weight(FontWeight::Bold)->size(TextSize::Large)` on the total.
+
+### From 2026-04-17 review (review.md)
+
+5. **F-006 — OSS threshold uses `now()->year`.** `VatScenario::determine()` line 58 reads `EuOssAccumulation::isThresholdExceeded((int) now()->year)`. Should use the invoice's chargeable-event year (`$invoice->issued_at->year` or new `supplied_at` per `pdf-rewrite.md`). Cross-year confirmations (December invoice confirmed in January) produce wrong scenario. See `invoice-plan.md` Step 1.
+6. **F-007 — `NonEuExport` label conflates goods (Art. 146) and services (Art. 44 outside scope).** Enum description updated to neutral wording; PDF and legal-reference lookup drive the exact citation via `vat_scenario_sub_code`. Covered by `domestic-exempt.md` (which adds the sub-code column) + `pdf-rewrite.md` (which renders the correct citation). This invoice-plan just updates the enum description string. See Step 2.
+7. **F-009 — Reverse-charge override has no recency gate + no alt-proof acknowledgement.** The "Confirm with Reverse Charge" path during VIES unavailability currently accepts any partner with historical `vat_status = Confirmed`, regardless of how stale. Add a recency gate (e.g. `vies_verified_at > now()->subDays(30)`) + a required checkbox acknowledging retention of alternative proof. See Step 3.
+8. **F-024 — Partner mutation outside invoice confirmation transaction.** `runViesPreCheck()` writes partner state changes (downgrade to NotRegistered on VIES invalid) OUTSIDE any DB transaction tied to `confirmWithScenario()`. If confirmation fails or is cancelled after the pre-check, the partner stays downgraded. Move the mutation into `confirmWithScenario()`'s transaction as a pending DTO applied atomically. See Step 4.
+9. **F-003 — No ВИЕС-декларация / ECSL export.** Deferred to backlog — a recapitulative statement is a full reporting module, not a one-file refactor. Flagged in `pre-launch.md` and `tasks/backlog.md` with ⚡ marker.
+10. **F-036 — `$ignorePartnerVat` doc drift.** Clarified in `hotfix.md` Step 11 + updated here: **kept** — used by `confirm()` backward-compat wrapper and the "Confirm with VAT" path after VIES has rejected the partner.
+
+### Open refactor items (executed via `invoice-plan.md`)
+
+1. Fix OSS year (F-006)
+2. Update `NonEuExport` enum description (F-007)
+3. Reverse-charge override recency + acknowledgement (F-009)
+4. Partner-mutation transactional boundary (F-024)
 
 ---
 

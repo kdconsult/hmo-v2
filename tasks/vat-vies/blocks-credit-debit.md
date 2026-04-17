@@ -1,146 +1,160 @@
-# Task: Non-VAT-Registered Tenant Blocks — Credit & Debit Notes (Area 4.2)
+# Task: Non-VAT-Registered Tenant Blocks — Credit & Debit Notes
 
-> **Spec:** `tasks/vat-vies/spec.md` — Area 4 (credit/debit note extension)
-> **Parent task:** `tasks/vat-vies/blocks.md` — Area 4 (customer invoice) — not yet implemented
-> **Sibling task:** `tasks/vat-vies/invoice-credit-debit.md` — Area 3.2 (must be done first — PDF templates needed here)
-> **Status:** Not started — blocked by Area 3.2 for PDF work; form/service work can proceed independently
-
----
-
-## Dependency Note
-
-The PDF changes in this task require the templates created in Area 3.2 (`invoice-credit-debit.md`). The form and service changes are independent and can be done in parallel or before 3.2.
+> **Spec:** `tasks/vat-vies/spec.md`
+> **Plan:** `tasks/vat-vies/blocks-credit-debit-plan.md`
+> **Review:** `review.md` (F-004, F-021)
+> **Status:** 📋 PLANNED
+> **Depends on:** `blocks.md` landed (shared `TenantVatStatus` helper), `invoice-credit-debit.md` landed (credit/debit scenario logic)
 
 ---
 
-## Context
+## Why this task exists
 
-When `is_vat_registered = false`, the same master-switch behaviour defined for customer invoices (Area 4 / `blocks.md`) must apply to credit notes and debit notes. Currently neither document type checks `is_vat_registered` anywhere — in forms, item relation managers, or service confirmation.
+`blocks.md` restricts outgoing invoices for a non-VAT-registered tenant. The same restrictions must apply to **credit** and **debit** notes — but with a **critical exception** that the previous plan got wrong:
+
+**A credit note for a parent issued while the tenant WAS VAT-registered must still carry the parent's VAT treatment** (Art. 219 Directive / чл. 115 ЗДДС — the amending document mirrors the original). If the tenant has since deregistered, the credit note cannot retroactively become Exempt — that would falsify the correction.
+
+The old plan forced `Exempt` unconditionally for any non-registered tenant. That is **wrong**. The correct rule:
+
+- **Parent-attached credit note** → inherit from parent, always. Current tenant status is irrelevant.
+- **Parent-attached debit note** → inherit from parent, always.
+- **Standalone debit note + tenant non-registered** → Exempt (same as a fresh non-registered invoice).
+- **Standalone debit note + tenant VAT-registered** → normal fresh determination.
+
+This task implements that rule, plus the UI surface and PDF rendering.
+
+Review findings resolved:
+- **F-004** — no stale "Art. 96 ЗДДС" citation; legal basis comes from `VatLegalReference::resolve(tenantCountry, 'exempt', 'default')`
+- **F-021** — inheritance wins over blocks-override for parent-attached notes
 
 ---
 
-## Gap Analysis
+## Scope
 
-### `CustomerCreditNoteForm` — `pricing_mode` not hidden
+### UI blocks (mirror invoice blocks)
 
-`pricing_mode` is a visible, editable `Select` in `CustomerCreditNoteForm`. It is populated from the parent invoice on selection, but it remains visible even when the tenant is not VAT registered. For non-registered tenants the field is irrelevant (all items are 0%) and should be hidden.
+For non-VAT-registered tenant:
+- Credit / debit note forms: hide pricing-mode selector
+- Items RM: restrict `vat_rate_id` options to 0% exempt
+- "Import from invoice" action: when parent is Exempt, copied item rates are already 0% (no override needed); when parent is non-Exempt but tenant deregistered → items keep parent's rates (inheritance), NOT overridden to 0%
 
-### `CustomerDebitNoteForm` — same
+### Service layer
 
-Identical gap in `CustomerDebitNoteForm`.
+Credit / debit note services' `confirmWithScenario()` — ordered logic:
 
-### `CustomerCreditNoteItemsRelationManager` — VAT rate not restricted
+```
+1. Parent exists?
+   → YES: inherit scenario + sub_code + RC from parent (ALWAYS). Stop blocks logic.
+   → NO (standalone debit): continue
+2. Tenant non-registered?
+   → YES: force Exempt (scenario='exempt', sub_code='default', rc=false, skip VIES+OSS)
+   → NO: fresh determine()
+```
 
-The `vat_rate_id` Select in the credit note items form uses `VatRate::active()->orderBy('rate')->pluck('name', 'id')` — all active rates. When tenant is non-registered, it must be restricted to only the 0% exempt rate.
+### PDF rendering
 
-The "Import from Invoice" action copies `vat_rate_id` directly from the parent invoice item. If the parent invoice was confirmed under a non-exempt scenario but the tenant has since deregistered, the imported rate would be wrong. The import action must override to the exempt rate when `is_vat_registered = false`.
+Parent-attached Exempt note → shows parent's legal basis (`чл. 113, ал. 9 ЗДДС` if parent was non-registered, or whatever parent cited).
 
-### `CustomerDebitNoteItemsRelationManager` — same
+Standalone debit + non-registered tenant → render `чл. 113, ал. 9 ЗДДС`.
 
-Identical gap. The same override requirement applies to the "Import from Invoice" action.
+### `applyExemptScenario()` helper (previously undefined — defined in plan)
 
-### `CustomerCreditNoteService::confirmWithScenario()` (to be added in 3.2)
+Shared between credit & debit services:
 
-When `confirmWithScenario()` is written in Area 3.2, it must check `is_vat_registered` before inheriting from the parent invoice. If the tenant is non-registered:
-- Force `vat_scenario = VatScenario::Exempt`
-- Force `is_reverse_charge = false`
-- Apply the 0% exempt rate to all items regardless of what the parent invoice had
+```php
+protected function applyExemptScenario(Model $note): void
+{
+    $this->applyZeroRateToItems($note, \App\Support\TenantVatStatus::country());
+    $note->fill([
+        'vat_scenario' => VatScenario::Exempt,
+        'vat_scenario_sub_code' => 'default',
+        'is_reverse_charge' => false,
+    ]);
+    $note->save();
+}
+```
 
-This ensures a non-registered tenant cannot accidentally issue a credit note carrying the parent invoice's reverse-charge or OSS scenario.
+Do NOT call this for parent-attached notes — that's the F-021 bug.
 
-### `CustomerDebitNoteService::confirmWithScenario()` — same
+---
 
-Identical requirement.
+## Non-scope
 
-### PDF templates (dependent on Area 3.2)
-
-Once `pdf/customer-credit-note.blade.php` and `pdf/customer-debit-note.blade.php` exist, they need the same exempt-case handling as the customer invoice PDF:
-- VAT breakdown section absent when `vat_scenario === VatScenario::Exempt`
-- Legal notice rendered: *"Not subject to VAT — Art. 96 ЗДДС"* (exact article to be confirmed at implementation — see `blocks.md` open question)
+- Fresh OSS accumulation for standalone debit notes (deferred from `invoice-credit-debit.md`)
+- Per-MS localization of the "не е регистриран по ЗДДС" notice (DE / FR variants — future)
+- Reopening a non-registered tenant's historical credit notes for re-classification on re-registration (backlog)
 
 ---
 
 ## Known Changes
 
-### `CustomerCreditNoteForm`
+### Forms
 
-- `pricing_mode` Select: add `->hidden(fn (): bool => ! (bool) tenancy()->tenant?->is_vat_registered)` (or `->visible()` inverse)
-- Mirror the same approach already used in `CustomerInvoiceForm`
+- `app/Filament/Resources/CustomerCreditNotes/Schemas/CustomerCreditNoteForm.php` — pricing-mode hidden when tenant non-registered
+- `app/Filament/Resources/CustomerDebitNotes/Schemas/CustomerDebitNoteForm.php` — same
 
-### `CustomerDebitNoteForm`
+### Items RM
 
-- Same change to `pricing_mode`
+- `app/Filament/Resources/CustomerCreditNotes/RelationManagers/CustomerCreditNoteItemsRelationManager.php` — vat_rate_id options gated via TenantVatStatus (mirror `blocks-plan.md` Step 4)
+- Same for debit note items RM
 
-### `CustomerCreditNoteItemsRelationManager`
+### Services
 
-- `vat_rate_id` Select options: when non-registered, restrict to the single 0% exempt rate using `VatRate::where('type', 'zero')->where('country_code', $tenantCountry)->first()` (or `firstOrCreate` pattern from `CustomerInvoiceService::resolveZeroVatRate()`)
-- "Import from Invoice" action: override `vat_rate_id` to the exempt rate when non-registered
+- `CustomerCreditNoteService::confirmWithScenario()` — ALREADY inherits (from `invoice-credit-debit.md`). Explicit comment: "No blocks override here — inheritance wins per F-021."
+- `CustomerDebitNoteService::confirmWithScenario()` — add standalone-path guard:
+  ```php
+  if (!$parent && !TenantVatStatus::isRegistered()) {
+      $this->applyExemptScenario($note);
+      return;
+  }
+  ```
 
-### `CustomerDebitNoteItemsRelationManager`
+### PDF
 
-- Same two changes
+- Credit note PDF template renders legal reference from note's stored `vat_scenario_sub_code` → `VatLegalReference::resolve()`. No special-casing — the inherited scenario drives rendering.
+- Standalone debit note in Exempt scenario renders the `чл. 113, ал. 9 ЗДДС` notice via same path.
 
-### `CustomerCreditNoteService::confirmWithScenario()`
+### Import action (copy from invoice)
 
-At the top, before parent-invoice inheritance:
-```
-$tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
-if (! $tenantIsVatRegistered) {
-    $this->applyExemptScenario($ccn);  // sets scenario, rate, recalculates
-    $ccn->status = DocumentStatus::Confirmed;
-    $ccn->save();
-    return;
-}
-// ... normal inheritance path
-```
+When credit / debit note is created from an existing invoice (action: "Import from invoice"):
+- Items are copied with their original `vat_rate_id`
+- **If tenant is now non-registered AND the parent is the Exempt invoice itself** → items already at 0% (no rewrite)
+- **If parent is a normal-VAT invoice** → items keep their original rates (inheritance — F-021)
 
-### `CustomerDebitNoteService::confirmWithScenario()`
-
-Same pattern.
-
-### PDF templates (Area 3.2 dependency)
-
-In both new PDF blade templates:
-```blade
-@unless ($document->vat_scenario?->value === 'exempt')
-    {{-- VAT breakdown rows --}}
-@else
-    <tr>
-        <td colspan="2" class="legal-notice">
-            Not subject to VAT — Art. 96 ЗДДС
-        </td>
-    </tr>
-@endunless
-```
+No "Import from invoice" rate override needed. The old plan's override requirement was based on the faulty "force Exempt unconditionally" logic.
 
 ---
 
 ## Tests Required
 
-- [ ] Feature: Credit note form — `pricing_mode` hidden when tenant non-registered
-- [ ] Feature: Debit note form — `pricing_mode` hidden when tenant non-registered
-- [ ] Feature: Credit note item form — only 0% rate selectable when non-registered
-- [ ] Feature: Debit note item form — only 0% rate selectable when non-registered
-- [ ] Feature: Credit note "Import from Invoice" — overrides to 0% rate when non-registered
-- [ ] Feature: Debit note "Import from Invoice" — overrides to 0% rate when non-registered
-- [ ] Feature: Credit note confirmation — `vat_scenario = exempt`, `is_reverse_charge = false` stored when non-registered (regardless of parent invoice scenario)
-- [ ] Feature: Debit note confirmation — same
-- [ ] Feature: Credit note PDF — no VAT breakdown, legal notice present when exempt
-- [ ] Feature: Debit note PDF — same
+- [ ] Feature: parent-attached credit note against Domestic parent — tenant non-registered at note time — note remains Domestic (inherits)
+- [ ] Feature: parent-attached credit note against Exempt parent — note is Exempt (inherits)
+- [ ] Feature: parent-attached debit note — same inheritance rules
+- [ ] Feature: standalone debit note + tenant non-registered → Exempt
+- [ ] Feature: standalone debit note + tenant VAT-registered → fresh determination works normally
+- [ ] Feature: credit / debit note form hides pricing-mode for non-registered tenant
+- [ ] Feature: credit / debit note items RM restricts VAT rate when tenant non-registered
+- [ ] Feature: Import-from-invoice copies rates as-is (no Exempt override)
+- [ ] Feature: credit note PDF against Domestic parent (non-registered tenant) → renders normal Domestic treatment, NOT exempt notice
+- [ ] Feature: standalone debit note PDF (non-registered tenant) → renders `чл. 113, ал. 9 ЗДДС`
+
+---
+
+## Refactor Findings
+
+> Filled during / after implementation.
 
 ---
 
 ## Checklist
 
-- [ ] `CustomerCreditNoteForm` — `pricing_mode` hidden when non-registered
-- [ ] `CustomerDebitNoteForm` — same
-- [ ] `CustomerCreditNoteItemsRelationManager` — VAT rate restricted
-- [ ] `CustomerCreditNoteItemsRelationManager` — import action overrides rate
-- [ ] `CustomerDebitNoteItemsRelationManager` — VAT rate restricted
-- [ ] `CustomerDebitNoteItemsRelationManager` — import action overrides rate
-- [ ] `CustomerCreditNoteService::confirmWithScenario()` — exempt short-circuit
-- [ ] `CustomerDebitNoteService::confirmWithScenario()` — exempt short-circuit
-- [ ] PDF templates updated (requires Area 3.2)
-- [ ] Automated tests pass
+- [ ] Investigation complete
+- [ ] Plan written (`blocks-credit-debit-plan.md`)
+- [ ] Form blocks landed for both note types
+- [ ] Items RM restrictions landed
+- [ ] `applyExemptScenario()` helper defined + used only for standalone non-registered path
+- [ ] Inheritance test passes (F-021)
+- [ ] PDF renders correctly in all four cases (parent-attached × Exempt/Non-Exempt, standalone × non-registered/registered)
+- [ ] Browser-tested end-to-end
 - [ ] Pint clean
-- [ ] Final test run
+- [ ] Final test run green

@@ -1,145 +1,180 @@
-# Task: Credit & Debit Note VAT Determination (Area 3.2)
+# Task: Credit & Debit Note VAT Determination
 
-> **Spec:** `tasks/vat-vies/spec.md` — Area 3 (credit/debit note extension)
-> **Parent task:** `tasks/vat-vies/invoice.md` — Area 3 (customer invoice) ✅ DONE
-> **Status:** Not started
-
----
-
-## Context
-
-Credit notes and debit notes are outgoing documents that correct a previously confirmed customer invoice. They inherit their VAT treatment from the parent invoice — no independent VIES re-check is needed or appropriate. The VAT scenario is already a legal fact on the parent invoice; the correction document should mirror it.
-
-Currently `CustomerCreditNoteService::confirm()` and `CustomerDebitNoteService::confirm()` simply flip the status to `Confirmed`. They store no VAT scenario, apply no VAT overrides to items, and show no confirmation preview to the user. Additionally, no PDF templates exist for either document type.
+> **Spec:** `tasks/vat-vies/spec.md`
+> **Plan:** `tasks/vat-vies/invoice-credit-debit-plan.md`
+> **Review:** `review.md` (F-010, F-011, F-021, F-024)
+> **Status:** 📋 PLANNED
+> **Depends on:** `pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md` all landed
+> **Unblocks:** `blocks-credit-debit.md`, `pre-launch.md`
 
 ---
 
-## Gap Analysis
+## Why this task exists
 
-### DB / Models — missing columns
+BG ЗДДС **чл. 115** governs credit / debit notices (известие за кредит / дебит): corrections to an already-confirmed invoice. EU law equivalent is **Art. 219 Directive 2006/112/EC** — documents that amend and specifically refer to the initial invoice are treated as invoices for VAT purposes and carry the same requirements.
 
-Both `customer_credit_notes` and `customer_debit_notes` tables are missing:
+Critical property: the amending document **inherits the parent invoice's VAT treatment**. A credit note for a `EuB2bReverseCharge` parent is itself reverse-charge (not a fresh scenario determination at credit-note time). This is the principle of Art. 90 — the taxable basis adjustment mirrors the original.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `vat_scenario` | nullable enum (`VatScenario`) | Copied from parent invoice at confirmation; null until confirmed |
-| `is_reverse_charge` | boolean, default `false` | Copied from parent invoice |
+Currently neither credit notes nor debit notes have VAT scenario logic. This task wires it in.
 
-Neither model has these in `$fillable` or `casts()`.
-
-No VIES audit columns are needed — the parent invoice already carries the full VIES trail.
-
-### Service layer — bare `confirm()` methods
-
-`CustomerCreditNoteService::confirm()`:
-- Does not load the parent `CustomerInvoice`
-- Does not copy `vat_scenario` or `is_reverse_charge`
-- Does not apply VAT rate overrides to items when the inherited scenario requires it (reverse charge / export / exempt)
-- Does not skip OSS accumulation (which it should always do — credit notes reverse an existing invoice, OSS was already handled there)
-
-`CustomerDebitNoteService::confirm()`:
-- Same gaps
-
-### Confirmation modal — bare `requiresConfirmation()`
-
-`ViewCustomerCreditNote::getHeaderActions()`:
-- Confirmation is a raw `->requiresConfirmation()` with no schema
-- No scenario badge shown
-- No financial preview (subtotal / VAT / total)
-- No indication of inherited `vat_scenario` / `is_reverse_charge`
-
-`ViewCustomerDebitNote::getHeaderActions()`:
-- Identical gap
-
-### PDF templates — do not exist
-
-- `resources/views/pdf/customer-credit-note.blade.php` — missing entirely
-- `resources/views/pdf/customer-debit-note.blade.php` — missing entirely
-- No "Print" action on `ViewCustomerCreditNote` or `ViewCustomerDebitNote`
-- VAT breakdown and reverse-charge notice need to be conditional (same logic as `customer-invoice.blade.php`)
+Review findings this task resolves:
+- **F-010** — 5-day issuance rule (чл. 115 ЗДДС) not enforced; add `triggering_event_date` input and soft warning.
+- **F-011** — credit / debit note PDF must reference original invoice **number AND date** (Art. 219 / чл. 115 ЗДДС).
+- **F-021** — inheritance vs tenant-non-registered blocks: a credit note for a parent issued while tenant was VAT-registered must carry the parent's treatment, even if the tenant later deregistered. Blocks override only applies when parent is also Exempt or note is standalone.
+- **F-024** — partner mutation during VIES re-check must be inside the invoice-confirmation transaction; apply same rule to any credit-note VIES interaction (though credit notes don't typically re-run VIES — they inherit).
 
 ---
 
-## What Needs Building
+## Scope
 
-### 1. Migrations
+### Credit notes
+- `vat_scenario` + `vat_scenario_sub_code` + `is_reverse_charge` columns on `customer_credit_notes`
+- **Inherit** all three from parent `customer_invoices` at confirmation
+- No VIES re-check — parent carries the audit trail
+- PDF template based on `pdf-rewrite.md` partials; reference parent invoice number AND date (Art. 219)
+- 5-day warning if `issued_at - triggering_event_date > 5 days`
+- Items force to the parent's VAT rate (if parent is zero-rated, items zero)
+- OSS adjustment (negative delta) via `EuOssService::adjust()` when parent's scenario accumulated OSS
 
-Two migrations (one per document type), each adding:
-- `vat_scenario` nullable string (or enum)
-- `is_reverse_charge` boolean default `false`
+### Debit notes
+- Same columns on `customer_debit_notes`
+- If parent exists: inherit (same logic as credit notes, but delta is additive / positive)
+- If standalone (no parent): run `VatScenario::determine()` fresh — treated as a new invoice for VAT purposes
+- Standalone + mixed items + zero-rate-eligible scenario → user must explicitly pick goods/services sub-code in the confirmation modal
 
-### 2. Model updates
+### Model immutability
+- Credit & debit notes — same `RuntimeException` guard as CustomerInvoice once confirmed (mirrors hotfix Step 7)
 
-`CustomerCreditNote` and `CustomerDebitNote`:
-- Add columns to `$fillable`
-- Add `vat_scenario => VatScenario::class` and `is_reverse_charge => 'boolean'` to `casts()`
+---
 
-### 3. Service — `confirmWithScenario()`
+## Non-scope
 
-Add `confirmWithScenario()` to both services (keep existing `confirm()` as a thin wrapper for backward compatibility):
+- Cancellation documents (different legal construct; not a credit note)
+- Partial credit notes with rate re-allocation — scope: credit notes mirror parent line-for-line; partial = user adjusts line quantities/prices but rate stays fixed
+- Non-registered tenant blocks on credit / debit — handled in `blocks-credit-debit.md`
+- Fresh OSS accumulation for standalone debit notes (deferred — flagged as follow-up)
+- Foreign currency / FX nuances on cross-year credits — `pre-launch.md`
 
+---
+
+## Known Changes
+
+### Data model — `customer_credit_notes` and `customer_debit_notes`
+
+Add (both tables):
+- `vat_scenario` — enum nullable until confirmed
+- `vat_scenario_sub_code` — nullable string
+- `is_reverse_charge` — boolean default false
+- `triggering_event_date` — date nullable; the event (return, price correction, cancellation) that prompts the note
+- VIES audit columns? **No** — inherited from parent. Credit/debit notes do not re-run VIES. If historical audit is needed, reference parent's columns.
+
+### Model immutability
+
+Add booted guards on:
+- `app/Models/CustomerCreditNote.php`
+- `app/Models/CustomerDebitNote.php`
+- Related item models
+
+Same pattern as `hotfix.md` Step 7.
+
+### Service layer — `CustomerCreditNoteService`
+
+Add `confirmWithScenario()`:
+- Parent must exist (schema already enforces `customer_invoice_id` NOT NULL for credit notes — verify)
+- Parent must be Confirmed — throw if parent is Draft
+- Inherit `vat_scenario`, `vat_scenario_sub_code`, `is_reverse_charge` from parent
+- If parent scenario requires zero rate → apply 0% to note's items
+- Emit 5-day warning if applicable
+- OSS adjust (negative delta) if parent's scenario is `EuB2cOverThreshold`
+- Status → Confirmed
+
+### Service layer — `CustomerDebitNoteService`
+
+Add `confirmWithScenario()`:
+- If parent exists: same as credit-note path
+- If standalone (no parent):
+  - Run `VatScenario::determine()` fresh with current partner / tenant state
+  - If zero-rate scenario AND mixed goods/services → user must pick sub-code in confirmation form
+  - NO VIES re-check for the debit-note path in Phase C (deferred); use partner's current `vat_status`
+  - **Defer OSS accumulation** for standalone debit notes to a future phase (documented)
+
+### `EuOssService::adjust()`
+
+New method — negative / positive delta accumulation:
+```php
+public function adjust(CustomerInvoice $parent, float $deltaEur): void
 ```
-Load parent CustomerInvoice (if exists).
-If parent exists:
-    Copy vat_scenario and is_reverse_charge from parent.
-    If parent vat_scenario requires VAT rate change:
-        Resolve the correct zero-rate VatRate.
-        Update all items to that rate.
-        Recalculate item totals.
-        Recalculate document totals.
-Set status = Confirmed.
-Save in transaction.
-// Do NOT call EuOssService — OSS was already handled on the parent invoice.
-```
+- Uses `$parent->issued_at->year` (NOT `now()->year`) per `[review.md#f-006]` + hotfix parent-year lock
+- Applies same eligibility checks as `accumulate()` but with a partial amount
+- Credit note: negative delta (reduce accumulation)
+- Debit note against confirmed parent: positive delta
 
-When there is no parent invoice (standalone credit/debit notes are allowed by the schema — `customer_invoice_id` is nullable on debit notes):
-- Fall back to `VatScenario::determine()` using the document's `partner` and the tenant VAT status, identical to the invoice path but without VIES re-check (treat partner VAT data as-is).
+### PDF templates
 
-### 4. Confirmation modal
+Two new templates:
+- `resources/views/pdf/customer-credit-note.blade.php`
+- `resources/views/pdf/customer-debit-note.blade.php`
 
-Replace bare `->requiresConfirmation()` in both view pages with a `->schema()` modal showing:
-- Inherited scenario badge (or determined scenario for standalone)
-- Financial preview: subtotal / VAT / total (with zero-VAT preview when scenario requires rate change)
-- `is_reverse_charge` indicator when applicable
+Both reuse partials from `pdf-rewrite.md` Step 4 (`_header.blade.php`, `_parties.blade.php`, `_vat-treatment.blade.php`, `_totals-by-rate.blade.php`, `_footer.blade.php`).
 
-### 5. PDF templates
+**Art. 219 / чл. 115 requirement** — render `Referring to invoice <number>, issued <date>` (and `date of supply` if parent `supplied_at` is distinct).
 
-Create `resources/views/pdf/customer-credit-note.blade.php` and `resources/views/pdf/customer-debit-note.blade.php`:
-- Based on `customer-invoice.blade.php` structure
-- Document title "CREDIT NOTE" / "DEBIT NOTE"
-- Reference the parent invoice number
-- VAT breakdown section conditional: `@unless ($document->vat_scenario === VatScenario::Exempt || $document->is_reverse_charge)`
-- When reverse charge: show "Reverse Charge — VAT accounted for by the recipient"
-- When exempt: show legal notice (see Area 4.2)
+### Form changes
 
-Add "Print" action to `ViewCustomerCreditNote` and `ViewCustomerDebitNote`.
+Credit / debit note forms:
+- `triggering_event_date` DatePicker (nullable; defaults to today)
+- Visible banner: "This note inherits the parent invoice's VAT treatment (‹scenario›). Current partner / tenant VAT status does not affect this note."
+- VAT scenario fields (scenario + sub_code + is_reverse_charge) are read-only / display-only on credit-note form; editable on standalone debit-note form
 
 ---
 
 ## Tests Required
 
-- [ ] Unit: `confirmWithScenario()` copies `vat_scenario` and `is_reverse_charge` from parent invoice
-- [ ] Unit: `confirmWithScenario()` applies zero-rate to items when inherited scenario requires it
-- [ ] Unit: standalone debit note (no parent) falls back to `VatScenario::determine()`
-- [ ] Feature: Credit note confirmation modal shows inherited scenario badge
-- [ ] Feature: OSS accumulation NOT called on credit/debit note confirmation
-- [ ] Feature: Print action produces PDF with correct document type label and parent invoice reference
-- [ ] Feature: VAT breakdown absent when `vat_scenario = eu_b2b_reverse_charge`; reverse charge notice present
+### Credit notes
+- [ ] Feature: confirm credit note — inherits parent's `vat_scenario`, `sub_code`, `is_reverse_charge`
+- [ ] Feature: confirm credit note on Draft parent throws
+- [ ] Feature: credit note with zero-rate parent → items forced to 0%
+- [ ] Feature: credit note against `EuB2cOverThreshold` parent → OSS adjust called with NEGATIVE delta
+- [ ] Feature: OSS adjust uses parent's `issued_at->year` not current year (cross-year regression)
+- [ ] Feature: credit note PDF renders "Referring to invoice <number>, issued <date>"
+- [ ] Feature: credit note PDF inherits "Reverse Charge" wording when parent was reverse-charge
+- [ ] Feature: credit note confirmed → immutable (throws on update/delete)
+- [ ] Feature: 5-day warning surfaced when `issued_at - triggering_event_date > 5 days`
+- [ ] Feature: inherited scenario overrides blocks — tenant now non-registered, parent was Domestic → credit note stays Domestic (per F-021)
+
+### Debit notes
+- [ ] Feature: debit note with parent → inherits like credit note
+- [ ] Feature: standalone debit note → runs fresh scenario determination
+- [ ] Feature: standalone debit note zero-rate + mixed goods/services → sub-code required in confirmation
+- [ ] Feature: debit note against `EuB2cOverThreshold` parent → OSS adjust with POSITIVE delta
+- [ ] Feature: standalone debit note does NOT trigger fresh OSS accumulation (deferred)
+- [ ] Feature: debit note confirmed → immutable
+
+### General
+- [ ] Feature: credit / debit note Confirmed rows cannot be edited or deleted
+- [ ] Feature: blocks interaction — tenant non-registered + parent Domestic → credit note inherits Domestic, NOT forced to Exempt (F-021)
+
+---
+
+## Refactor Findings
+
+> Filled during / after implementation.
 
 ---
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Migrations written
-- [ ] Models updated
-- [ ] `confirmWithScenario()` implemented for credit note service
-- [ ] `confirmWithScenario()` implemented for debit note service
-- [ ] Confirmation modal updated (credit note view)
-- [ ] Confirmation modal updated (debit note view)
-- [ ] PDF template: credit note
-- [ ] PDF template: debit note
-- [ ] Print actions added to view pages
+- [ ] Investigation complete (current credit/debit note models, services, forms)
+- [ ] Plan written (`invoice-credit-debit-plan.md`)
+- [ ] Migrations for note columns
+- [ ] Immutability guards on both note models
+- [ ] Credit note service `confirmWithScenario()`
+- [ ] Debit note service `confirmWithScenario()` (both paths)
+- [ ] `EuOssService::adjust()` method
+- [ ] PDF templates (credit + debit) using shared partials
+- [ ] Form changes (triggering_event_date, inheritance banner)
 - [ ] Automated tests pass
+- [ ] Browser-tested: create credit note against reverse-charge invoice → correct PDF
+- [ ] Browser-tested: standalone debit note for a non-EU services → correct sub-code
 - [ ] Pint clean
-- [ ] Final test run
+- [ ] Final test run green

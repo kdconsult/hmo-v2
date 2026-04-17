@@ -3,19 +3,36 @@
 > Single source of truth for all design decisions across the entire VAT/VIES feature.
 > All task files reference this document. Updated progressively as each area is discussed and agreed.
 > Never contains implementation detail — that lives in `*-plan.md` files.
+> **Audit reference:** `review.md` (27+ findings incorporated into the task / plan files below).
 
 ---
 
 ## Overview
 
-Four areas, each with its own task + plan file:
+### Core areas (original scope)
 
-| Area | File | Status |
-|------|------|--------|
-| 1. Tenant company VAT setup | `tenant.md` | ✅ DONE |
-| 2. Partner VAT setup | `partner.md` | ✅ DONE |
-| 3. Invoice VAT determination | `invoice.md` | ✅ AGREED |
-| 4. Non-VAT-registered tenant blocks | `blocks.md` | ✅ AGREED |
+| # | Area | Task | Status |
+|---|------|------|--------|
+| 1 | Tenant company VAT setup | `tenant.md` | ✅ SHIPPED — refactor queue in `tenant-plan.md` |
+| 2 | Partner VAT setup | `partner.md` | ✅ SHIPPED — refactor queue in `partner-plan.md` |
+| 3 | Invoice VAT determination | `invoice.md` | ✅ SHIPPED — refactor queue in `invoice-plan.md` |
+| 4 | Non-VAT-registered tenant blocks (invoice) | `blocks.md` | 📋 PLANNED — `blocks-plan.md` |
+
+### Cross-cutting / derived tasks (added after 2026-04-17 review)
+
+| Task | File | Depends on | Status |
+|------|------|-----------|--------|
+| Post-review hotfix (country_code, immutability, doc drift) | `hotfix.md` | — | 🔧 TODO |
+| Legal references foundation (vat_legal_references table) | `legal-references.md` | hotfix landed | 📋 PLANNED |
+| Invoice PDF rewrite (Art. 226 compliance) | `pdf-rewrite.md` | legal-references | 📋 PLANNED |
+| DomesticExempt scenario (чл. 39–49 ЗДДС) | `domestic-exempt.md` | legal-references | 📋 PLANNED |
+| Credit / debit note VAT determination | `invoice-credit-debit.md` | pdf-rewrite, domestic-exempt | 📋 PLANNED |
+| Non-VAT-registered blocks — credit / debit notes | `blocks-credit-debit.md` | blocks, invoice-credit-debit | 📋 PLANNED |
+| Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | 📋 PLANNED |
+
+### Recommended execution order
+
+`hotfix` → `legal-references` → `pdf-rewrite` → `domestic-exempt` → `blocks` → `invoice-credit-debit` → `blocks-credit-debit` → done-task refactor plans (tenant/partner/invoice) → `pre-launch`.
 
 ---
 
@@ -157,10 +174,16 @@ Six scenarios (seven with `DomesticExempt` added in Phase B), applied in this pr
 | Exempt | Tenant `is_vat_registered = false` | 0% VAT — чл. 113, ал. 9 ЗДДС |
 | Domestic | Partner country = tenant country | Standard local VAT rate |
 | DomesticExempt *(Phase B)* | Domestic partner + user-selected Art. 39–49 | 0% VAT — legal basis from `vat_legal_references` |
-| EU B2B Reverse Charge | Different EU country + `vat_status = confirmed` (post-VIES re-check) | 0% VAT — Art. 138/196 EU VAT Directive |
+| EU B2B Reverse Charge | Different EU country + `vat_status = confirmed` (post-VIES re-check) | 0% VAT — Art. 138 (goods) or Art. 44 + 196 (services), Directive 2006/112/EC |
 | EU B2C Under Threshold | Different EU country + no confirmed VAT + OSS threshold not exceeded | Tenant's domestic VAT rate |
 | EU B2C Over Threshold | Different EU country + no confirmed VAT + OSS threshold exceeded | Destination country VAT rate |
-| Non-EU Export | Non-EU country or no country | 0% VAT |
+| Non-EU Export | Non-EU country (see note below) | 0% VAT — Art. 146 (goods, export); Art. 44 (services — **outside scope of EU VAT**, not "exempt") |
+
+> **Note on empty `country_code`:** null / empty country is **not** a valid scenario input. `VatScenario::determine()` throws a `DomainException` on empty country; the Partner form requires a country; the DB enforces NOT NULL. See `hotfix.md` / `[review.md#f-030]`.
+>
+> **Note on EU B2C services:** some services have special place-of-supply rules (immovable property Art. 47, event admission Art. 53/54, passenger transport Arts. 48–52, restaurant Art. 55) that override the `EuB2c*` default. Handling is deferred to a later phase — flag at product / service-category level. `[review.md#f-022]`
+>
+> **Note on goods vs services split:** `EuB2bReverseCharge` and `NonEuExport` both carry a `vat_scenario_sub_code` (`goods` | `services`) used at PDF render time to pick the correct article citation via `vat_legal_references`. See `legal-references.md`.
 
 `DomesticExempt` is **never** auto-detected by `VatScenario::determine()` — the user explicitly toggles it on the draft form. The `vat_scenario_sub_code` column (added in Phase B migration) stores the specific article (`art_39`..`art_49`), legal reference resolved at PDF render time.
 
@@ -193,9 +216,9 @@ Runs when: partner is in a different EU country AND `vat_status ∈ {confirmed, 
 
 1. Modal does not open
 2. View shows VIES error state with three elements:
-   - **Retry button** — disabled for 1 min after each attempt; cooldown tracked via `localStorage` keyed by invoice ID; no server-side state needed
+   - **Retry button** — 1-minute cooldown enforced at the service layer via `partners.vies_last_checked_at` (server-side; tamper-resistant; shared across devices). UI reads the server response to decide whether to show "retry" or "wait". `[review.md#f-017]`
    - **"Confirm with VAT"** — always available to any user; no reverse charge; no special permission
-   - **"Confirm with Reverse Charge"** — only shown when `partner.vat_status = confirmed`; role-gated; requires checkbox acknowledging responsibility; full audit trail stored on invoice
+   - **"Confirm with Reverse Charge"** — only shown when `partner.vat_status = confirmed`; role-gated; requires checkbox acknowledging responsibility; full audit trail stored on invoice. Future: recency gate + alt-proof acknowledgement `[review.md#f-009]`
 
 **VIES invalid path:**
 
@@ -255,7 +278,7 @@ When `is_vat_registered = false`, the tenant legally cannot charge VAT, apply re
 | 3 | `eu_b2b_reverse_charge` | Different EU country + `vat_status = confirmed` |
 | 4 | `eu_b2c_under_threshold` | Different EU country + no confirmed VAT + below OSS threshold |
 | 5 | `eu_b2c_over_threshold` | Different EU country + no confirmed VAT + above OSS threshold |
-| 6 | `non_eu_export` | Non-EU country or no country |
+| 6 | `non_eu_export` | Non-EU country (empty country throws — see hotfix) |
 
 ### What Changes When `is_vat_registered = false`
 
@@ -279,7 +302,7 @@ When `is_vat_registered = false`, the tenant legally cannot charge VAT, apply re
 
 **Invoice PDF:**
 - No VAT breakdown section
-- Legal notice rendered: "чл. 113, ал. 9 ЗДДС" (resolved from `vat_legal_references` table, Phase A)
+- Legal notice rendered: **"чл. 113, ал. 9 ЗДДС"** (resolved from `vat_legal_references` table — see `legal-references.md`). This is **not** Art. 96 — Art. 96 is the registration-threshold rule and never appears on an invoice. `[review.md#f-004]`
 
 ### Pricing Mode
 

@@ -1,171 +1,225 @@
-# Area 2: Partner VAT Setup — Implementation Plan
+# Plan: Partner VAT Setup — Refactor Queue
 
-> Implementation plan for `tasks/vat-vies/partner.md`. Cross-references spec: `tasks/vat-vies/spec.md` lines 93–142.
-
-## Context
-
-Area 1 (tenant) is done. Area 2 adds VIES-verified VAT to the Partner create/edit flow with a **three-state model**: `not_registered` / `confirmed` / `pending`. Key delta from Area 1: VIES unavailable does NOT reset the toggle — partner is saved as `pending` (treated as non-VAT on invoices until confirmed). Blocking on VIES downtime would halt normal partner creation workflows.
+> **Task:** `tasks/vat-vies/partner.md`
+> **Review:** `tasks/vat-vies/review.md` (F-008, F-019, F-025, F-027)
+> **Status:** Refactor-only plan (Area 2 implementation is already shipped). Covers F-008, F-019, F-025. F-027 flagged to backlog.
 
 ---
 
-## Step 1: `VatStatus` Enum
+## Prerequisites
 
-**File:** `app/Enums/VatStatus.php`
+- [ ] `hotfix.md` merged (country_code NOT NULL — partners don't exist without a country anymore; simplifies scenario determination)
+
+---
+
+## Step 1 — Visible notification + enriched log on VIES-invalid downgrade (F-008)
+
+**File:** `app/Services/CustomerInvoiceService.php` — `runViesPreCheck()` around the `vat_status = NotRegistered` update.
+
+Add:
 
 ```php
-enum VatStatus: string
-{
-    case NotRegistered = 'not_registered';
-    case Confirmed = 'confirmed';
-    case Pending = 'pending';
-}
+use App\Models\Activity;  // or Spatie\Activitylog\Models\Activity per project setup
+use Filament\Notifications\Notification;
+
+// ... inside the branch where VIES returned valid=false and is_vat_registered=true:
+
+$partner->update([
+    'vat_status' => VatStatus::NotRegistered,
+    'vat_number' => null,
+    'vies_verified_at' => null,
+    // keep vies_last_checked_at = now()
+]);
+
+// Activity log entry — enriched with invoice context
+activity()
+    ->performedOn($partner)
+    ->causedBy(auth()->user())
+    ->withProperties([
+        'reason' => 'vies_invalid_at_invoice_confirmation',
+        'invoice_id' => $invoice->id,
+        'invoice_number' => $invoice->invoice_number,
+        'checked_at' => now()->toIso8601String(),
+    ])
+    ->log('Partner VAT downgraded to not_registered by VIES rejection');
+
+// User-visible notification
+Notification::make()
+    ->title('Partner VAT downgraded')
+    ->body("Partner '{$partner->company_name}' was marked as not VAT-registered because VIES rejected their VAT number. This invoice has been re-scenario'd.")
+    ->warning()
+    ->persistent()
+    ->send();
+```
+
+**Test** (`tests/Feature/PartnerVatDowngradeNotificationTest.php`):
+
+```php
+it('surfaces a notification when VIES invalid downgrades a confirmed partner', function () {
+    $partner = Partner::factory()->confirmed()->create(['country_code' => 'DE']);
+    $invoice = CustomerInvoice::factory()->draft()->forPartner($partner)->create();
+
+    ViesValidationService::shouldReceive('validate')
+        ->andReturn(['available' => true, 'valid' => false, 'name' => null, 'address' => null, 'country_code' => 'DE', 'vat_number' => $partner->vat_number, 'request_id' => null]);
+
+    app(CustomerInvoiceService::class)->runViesPreCheck($invoice);
+
+    Notification::assertNotified(fn ($n) => str_contains($n->body, 'downgraded'));
+    $this->assertDatabaseHas('activity_log', [
+        'subject_id' => $partner->id,
+        'description' => 'Partner VAT downgraded to not_registered by VIES rejection',
+    ]);
+});
 ```
 
 ---
 
-## Step 2: Migration + Factory + Model (atomic)
+## Step 2 — `VatStatus::Pending` staleness (F-019)
 
-### 2a. Migration
+### Staleness watcher on Partner view page
 
-**File:** `database/migrations/tenant/2026_04_16_200024_add_vat_status_to_partners_table.php`
+**File:** `app/Filament/Resources/Partners/Pages/ViewPartner.php` (or the infolist schema)
 
-Adds to `partners`: `is_vat_registered` (bool, default false), `vat_status` (string, default 'not_registered'), `vies_verified_at` (timestamp nullable), `vies_last_checked_at` (timestamp nullable).
+Add an infolist entry that only shows when the partner is `Pending` and was last checked > 7 days ago:
 
-**Backfill:** partners with `vat_number IS NOT NULL` and EU `country_code` → set `vat_status = 'confirmed'`, `is_vat_registered = true`.
+```php
+TextEntry::make('vies_staleness_warning')
+    ->state(function (Partner $record) {
+        if ($record->vat_status !== VatStatus::Pending) {
+            return null;
+        }
+        if (!$record->vies_last_checked_at || $record->vies_last_checked_at->gt(now()->subDays(7))) {
+            return null;
+        }
 
-### 2b. Factory
+        $days = $record->vies_last_checked_at->diffInDays(now());
+        return "VIES has been unavailable for this partner for {$days} days. Re-check now or escalate.";
+    })
+    ->color('warning')
+    ->visible(fn (Partner $record) => $record->vat_status === VatStatus::Pending
+        && $record->vies_last_checked_at?->lt(now()->subDays(7))),
+```
 
-**File:** `database/factories/PartnerFactory.php`
+### Visual marker on partner lists
 
-- Default: `vat_number = null`, `vat_status = NotRegistered`
-- `euWithVat($cc)`: adds `vat_status = Confirmed`, `is_vat_registered = true`, `vies_verified_at = now()`
-- `vatPending($cc)`: `vat_status = Pending`, `is_vat_registered = true`, `vat_number = null`
-- `euWithoutVat($cc)`: adds `vat_status = NotRegistered`
+**File:** `app/Filament/Resources/Partners/Tables/PartnersTable.php` (or where the table is defined)
 
-### 2c. Model
+Add an icon column next to the company name:
 
-**File:** `app/Models/Partner.php`
+```php
+IconColumn::make('vat_status_icon')
+    ->label('')
+    ->icon(fn (Partner $record) => match ($record->vat_status) {
+        VatStatus::Confirmed => 'heroicon-s-check-badge',
+        VatStatus::Pending => 'heroicon-s-clock',
+        VatStatus::NotRegistered => null,
+    })
+    ->color(fn (Partner $record) => match ($record->vat_status) {
+        VatStatus::Confirmed => 'success',
+        VatStatus::Pending => 'warning',
+        VatStatus::NotRegistered => 'gray',
+    })
+    ->tooltip(fn (Partner $record) => $record->vat_status->value),
+```
 
-- New fillable: `is_vat_registered`, `vat_status`, `vies_verified_at`, `vies_last_checked_at`
-- New casts: `is_vat_registered => 'boolean'`, `vat_status => VatStatus::class`, timestamps → `'datetime'`
-- `hasValidEuVat()` → `return $this->vat_status === VatStatus::Confirmed`
-- New `isEligibleForReverseCharge(): bool` — confirmed + EU country_code
+### Regression test
 
----
+```php
+it('pending partner never triggers EuB2bReverseCharge scenario', function () {
+    $partner = Partner::factory()->pending()->create(['country_code' => 'DE']);
+    tenancy()->tenant->update(['country_code' => 'BG', 'is_vat_registered' => true]);
 
-## Step 3: `PartnerVatService`
+    $scenario = VatScenario::determine($partner, 'BG', tenantIsVatRegistered: true);
 
-**File:** `app/Services/PartnerVatService.php`
-
-**`updateVatRegistration(Partner, array): void`** — three-state logic:
-- `is_vat_registered = false` → `not_registered`, clear vat_number + timestamps
-- `is_vat_registered = true` + vat_number → `confirmed`, set both timestamps
-- `is_vat_registered = true` + no vat_number → `pending`, set `vies_last_checked_at`
-
-**`reVerify(Partner): VatStatus`** — calls `ViesValidationService::validate()`:
-- Valid → `confirmed`, store VAT number, update timestamps
-- Invalid → `not_registered`, clear vat_number
-- Unavailable → leave status unchanged, update `vies_last_checked_at`
-
----
-
-## Step 4: Unit Tests
-
-**File:** `tests/Unit/PartnerVatServiceTest.php` — 6 tests covering all three update states and all three re-verify outcomes.
-
----
-
-## Step 5: Trait + Form
-
-### 5a. `HandlesPartnerViesCheck` Trait
-
-**File:** `app/Filament/Resources/Partners/Concerns/HandlesPartnerViesCheck.php`
-
-Used by CreatePartner, EditPartner, and ViewPartner (needed because ViewRecord mounts the form internally).
-
-- `handleViesCheck()` — reads from `$this->data`, validates format, calls VIES:
-  - Unavailable → `vat_status = pending`, keep toggle ON (delta from Area 1)
-  - Invalid → `is_vat_registered = false`, `vat_status = not_registered`
-  - Valid → `vat_number` from VIES, `vat_status = confirmed`, pre-fill name
-- `resetVatState()` — clears toggle, vat_number, vat_lookup, vat_status
-- `vatCountryPrefix()`, `vatLookupHelperText()` — defensive against null country_code
-
-### 5b. `PartnerForm`
-
-**File:** `app/Filament/Resources/Partners/Schemas/PartnerForm.php`
-
-Changes:
-- Remove plain `TextInput::make('vat_number')` from General Info
-- Make `country_code` live + `afterStateUpdated` → `resetVatState()`
-- Add `Section::make('VAT Registration')` containing:
-  - `Hidden::make('vat_status')` — tracks state through Livewire; read by save guard in pages
-  - `Toggle::make('is_vat_registered')` — live; OFF → resetVatState
-  - `TextInput::make('vat_lookup')` — ephemeral (`dehydrated(false)`), prefix + VIES action
-  - `TextInput::make('vat_number')` — disabled + `dehydrated()` (critical for Filament v5)
+    expect($scenario)->not->toBe(VatScenario::EuB2bReverseCharge);
+    // Specifically: either EuB2cUnderThreshold or EuB2cOverThreshold (no confirmed VAT)
+});
+```
 
 ---
 
-## Step 6: Page Classes
+## Step 3 — `vies_raw_address` column + form pre-fill fallback (F-025)
 
-### `CreatePartner.php`
+**File:** `database/migrations/tenant/{timestamp}_add_vies_raw_address_to_partners.php`
 
-- `use HandlesPartnerViesCheck`
-- `beforeCreate()` — save guard: toggle ON + no vat_number + not pending → halt + notification
-- `mutateFormDataBeforeCreate()` — strip `vat_lookup`; derive `vat_status` + timestamps from `is_vat_registered` + `vat_number`
+```php
+Schema::table('partners', function (Blueprint $table) {
+    $table->text('vies_raw_address')->nullable()->after('vies_verified_at');
+});
+```
 
-### `EditPartner.php`
+**Form:** `app/Filament/Resources/Partners/Schemas/PartnerForm.php` — when VIES returns an address, store BOTH raw and best-effort structured:
 
-- `use HandlesPartnerViesCheck`
-- `beforeSave()` — same save guard as CreatePartner
-- `mutateFormDataBeforeSave()` — strip `vat_lookup`; derive `vat_status` + timestamps (preserves `vies_verified_at` when VAT number unchanged)
+```php
+// Inside the VIES check handler:
+$partner->vies_raw_address = $viesResponse['address'];  // raw, unparsed
+$parsed = $this->parseAddress($viesResponse['address']);
+$partner->legal_address_line_1 = $parsed['line_1'] ?? null;
+$partner->postcode = $parsed['postcode'] ?? null;
+$partner->city = $parsed['city'] ?? null;
+```
 
-### `ViewPartner.php`
+**PDF fallback** (handled in `pdf-rewrite.md`, confirmed here): if structured parse yields an empty display, fall back to `$partner->vies_raw_address`.
 
-- `use HandlesPartnerViesCheck` — needed because ViewRecord mounts the form schema
-- "Validate VAT" header action — visible only when `vat_status === confirmed`:
-  - Calls `PartnerVatService::reVerify()` + notification
-  - Calls `$this->refreshFormData([...])`
-- Hidden for `pending` partners (no stored VAT number to re-verify)
+**Confidence flag** (optional, simpler first cut):
 
----
+```php
+// Add column (same migration or follow-up):
+$table->string('vies_address_confidence', 10)->default('parsed')->after('vies_raw_address');
+// Values: 'parsed' (good), 'partial' (some fields), 'raw_only' (parse failed)
+```
 
-## Step 7: Feature Tests
-
-**File:** `tests/Feature/PartnerVatSetupTest.php` — 10 Livewire tests:
-
-1. VIES valid → confirmed, vat_number stored, timestamps set
-2. VIES invalid → not_registered, fields cleared
-3. VIES unavailable → pending saved (toggle stays ON, no vat_number)
-4. Save guard: toggle ON, no check → halted
-5. Country change → fields reset
-6. Edit: confirmed partner loads with vat_number + toggle ON
-7. Re-verify: VIES valid → stays confirmed
-8. Re-verify: VIES invalid → not_registered, vat_number cleared
-9. Validate VAT action hidden for pending partners
-10. Pending partner allowed to save without guard block
+Surface the confidence flag as a warning on partner view when `raw_only` or `partial`.
 
 ---
 
-## Files Modified/Created
+## Step 4 — Art. 18(1)(b) placeholder (F-027) — deferred to backlog
 
-| Action | File |
-|--------|------|
-| Create | `app/Enums/VatStatus.php` |
-| Create | `database/migrations/tenant/2026_04_16_200024_add_vat_status_to_partners_table.php` |
-| Modify | `database/factories/PartnerFactory.php` |
-| Modify | `app/Models/Partner.php` |
-| Create | `app/Services/PartnerVatService.php` |
-| Create | `tests/Unit/PartnerVatServiceTest.php` |
-| Create | `app/Filament/Resources/Partners/Concerns/HandlesPartnerViesCheck.php` |
-| Modify | `app/Filament/Resources/Partners/Schemas/PartnerForm.php` |
-| Modify | `app/Filament/Resources/Partners/Pages/CreatePartner.php` |
-| Modify | `app/Filament/Resources/Partners/Pages/EditPartner.php` |
-| Modify | `app/Filament/Resources/Partners/Pages/ViewPartner.php` |
-| Create | `tests/Feature/PartnerVatSetupTest.php` |
-| Modify | `tests/Feature/EuOssTest.php` (2 partners needed `vat_status = confirmed`) |
+No implementation here. Add to `tasks/backlog.md`:
 
-## Reused Without Changes
+```
+- [ ] VAT-FALLBACK-1 — Art. 18(1)(b) CIR 282/2011 fallback (applied-but-not-yet-issued VAT number).
+  Add `VatStatus::PendingRegistration` with required uploaded proof, supervisor role gate,
+  no automated VIES check. Triggered rarely (new businesses); defer until first request. [review.md#f-027]
+```
 
-- `app/Services/ViesValidationService.php`
-- `app/Support/EuCountries.php`
-- `app/Enums/VatScenario.php` (calls `hasValidEuVat()` — change is transparent)
+---
+
+## Tests
+
+**File:** `tests/Feature/PartnerVatRefactorTest.php`
+
+Covers all of Steps 1-3:
+
+```php
+it('enriches activity log on VIES-invalid downgrade (F-008)', function () { ... });
+it('notifies user when partner is auto-downgraded (F-008)', function () { ... });
+it('shows staleness warning on pending partner older than 7 days (F-019)', function () { ... });
+it('does not show staleness for confirmed partner (F-019)', function () { ... });
+it('stores vies_raw_address alongside parsed fields (F-025)', function () { ... });
+it('PDF falls back to raw address when parse is empty (F-025)', function () { ... });
+```
+
+---
+
+## Gotchas / load-bearing details
+
+1. **Activity log table name may differ** per Spatie config — verify `activity_log` vs `activities`.
+2. **Notification::make() runs in request context.** For background jobs (unlikely here since this runs at invoice confirmation — synchronous), it still works; confirm no queueing wraps the call.
+3. **Staleness warning threshold (7 days) is arbitrary.** Consider making it configurable per-tenant later; hard-code for now.
+4. **VIES address parsing per-MS variance.** A proper parser is a bigger project; storing raw unblocks quality issues without scope creep.
+5. **`vies_address_confidence` column is optional** — if Step 3's `vies_raw_address` + PDF fallback is sufficient quality-wise, skip the confidence flag.
+
+---
+
+## Exit Criteria
+
+- [ ] All refactor tests green
+- [ ] Full suite green
+- [ ] Manual: confirm an invoice with a would-be VIES-invalid partner → notification appears; activity log has the enriched entry
+- [ ] Manual: create partner with VIES unavailable → status Pending; wait 7 days (or backdate `vies_last_checked_at`) → staleness widget appears on view page
+- [ ] Manual: partner list shows the green check-badge for Confirmed; yellow clock for Pending
+- [ ] Manual: VIES returns a weird address format → raw preserved on partner record; PDF falls back if parse is empty
+- [ ] F-027 added to backlog
+- [ ] Pint clean
+- [ ] `partner.md` refactor checkbox ticked

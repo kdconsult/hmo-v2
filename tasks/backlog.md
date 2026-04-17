@@ -166,9 +166,9 @@ This applies to **Customer Invoice only** — not Quotations, Sales Orders, or D
 
 ## Medium — Multi-file, some design needed
 
-### VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation 🔄 IN PROGRESS → `tasks/vat-vies/` (Area 1 done, Area 2 next)
+### ~~VAT-DETERMINATION-1: VAT type determination at Customer Invoice confirmation~~ ✅ SHIPPED 2026-04-16 → `tasks/vat-vies/`
 
-**Implemented.** All five EU VAT scenarios are now handled at confirmation. Key design decisions below for reference.
+**Superseded by the full VAT/VIES feature (see `tasks/vat-vies/spec.md`).** Areas 1-3 shipped. Remaining work tracked in `hotfix.md`, `legal-references.md`, `pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md`, `invoice-credit-debit.md`, `blocks-credit-debit.md`, `pre-launch.md`, plus refactor plans for tenant/partner/invoice. Original design decisions preserved below for historical reference.
 
 **Five VAT scenarios (implemented):**
 
@@ -265,6 +265,219 @@ Product codes auto-generated from a configurable series, per `ProductType`.
 - Address fields become optional for non-Physical types
 
 **Phase 4 connection:** `Mobile` warehouse is the foundation of the Field Service module.
+
+---
+
+## VAT/VIES future work (from 2026-04-17 review — `tasks/vat-vies/review.md`)
+
+These items are identified by the review but deferred out of the current scope. Each is a standalone phase when scheduled. ⚡ marks urgent items that should be picked up before scaling to non-BG tenants or before a first real production tenant.
+
+### ⚡ VAT-FUTURE-1: ВИЕС-декларация (recapitulative statement / ECSL) export ⚡
+
+**Source:** `review.md` F-003.
+**Why urgent:** Art. 138(1a) Directive 2006/112/EC + чл. 125 ЗДДС — timely filing of the monthly recapitulative statement is a **substantive** condition for the 0% EU B2B rating. Absent filing, НАП can recharacterise the supply as domestic-rate.
+
+**Scope:**
+- Monthly aggregation of confirmed `EuB2bReverseCharge` invoices grouped by acquirer VAT number
+- NAP XML export format for the ВИЕС-декларация
+- Preview page + "Mark as filed" action (tracks filing date per period)
+- Deadline: 14th of the month following the tax period
+- Cross-link filed periods back to invoices (`customer_invoices.recapitulative_period_id`)
+
+**Per-MS variance:** each EU MS has its own ECSL format (DE ZM, FR DES, etc.). Ship BG first.
+
+---
+
+### VAT-FUTURE-2: BG SME regime (from 2026-01-01)
+
+**Source:** `review.md` F-020.
+
+**Scope:**
+- Taxable-turnover accumulator per tenant per calendar year
+- Threshold-crossing notifications (80% yellow, 100% red — "register for VAT within 7 days")
+- Cross-border SME flag (EU Dir. 2020/285) — opt-in to apply the SME exemption in other MS with per-MS turnover caps
+- New chл. 96 ЗДДС basis: calendar year current/previous (replaces rolling 12 months)
+- Threshold: EUR 51,130 mandatory registration
+
+---
+
+### VAT-FUTURE-3: SUPTO / fiscal-printer tax-group mapping
+
+**Source:** `review.md` F-026.
+
+**Scope:**
+- Document the VatScenario → BG fiscal tax-group mapping (А/Б/В/Г per Наредба Н-18)
+- Guard: consumer-facing `EuB2cOverThreshold` supplies blocked from BG fiscal receipt (foreign VAT rate cannot be printed on a BG fiscal printer)
+- Integration test suite against the existing fiscal-printer test harness
+- Cross-link with any SUPTO integration phase
+
+---
+
+### VAT-FUTURE-4: Advance payments / prepayments (Art. 65 Directive / чл. 25, ал. 7 ЗДДС)
+
+**Source:** `review.md` F-033.
+
+**Scope:**
+- `PrepaymentInvoice` / `is_prepayment` flag on CustomerInvoice
+- VAT charged on receipt of payment, not on delivery
+- Final invoice at delivery nets the prepayment amount
+- 5-day rule applies to the advance-payment invoice per чл. 113, ал. 4 ЗДДС
+- Cross-link with CI-PAID-1 when the payment module arrives
+
+---
+
+### VAT-FUTURE-5: Inbound reverse-charge protocol (чл. 117 ЗДДС)
+
+**Scope:**
+- When tenant receives a reverse-charge supply (EU services, foreign goods-with-installation, intra-Community acquisition): issue a self-invoice protocol within 15 days (чл. 117, ал. 3)
+- Separate document type `chl117_protocols`
+- Appears on the monthly purchase journal (дневник покупки)
+
+**Outside current outgoing-document feature scope. Flagged for the inbound / purchases VAT pass.**
+
+---
+
+### VAT-FUTURE-6: Art. 141 triangulation simplification
+
+**Scope:**
+- ABC chain across three EU MS
+- Special invoicing: mention "Reverse charge" + Art. 197 reference
+- Specific place-of-supply treatment
+- New `VatScenario::Triangulation` case or sub-code on `EuB2bReverseCharge`
+
+**Deferred until any tenant signals an ABC flow.**
+
+---
+
+### VAT-FUTURE-7: Art. 199 domestic reverse charge (construction, scrap, emission allowances)
+
+**Scope:**
+- BG чл. 82(5) + чл. 163а for specific fraud-sensitive supplies (construction, scrap / waste, mobile phones, ICs, gas/electricity certificates, emission allowances)
+- New `VatScenario::DomesticReverseCharge` case + user-selected sub-code
+- Mandatory invoice mention
+
+**Deferred — relevant only for tenants in those industries.**
+
+---
+
+### VAT-FUTURE-8: Self-billing (Art. 226(10a))
+
+**Scope:**
+- Customer issues the invoice in supplier's name, with explicit agreement
+- Mandatory wording "Self-billing" on the invoice
+- Agreement-tracking column on `partners` or a join table
+
+**Deferred — uncommon in BG SMEs.**
+
+---
+
+### VAT-FUTURE-9: Cash accounting scheme (Art. 226(7a) / чл. 151а ЗДДС)
+
+**Scope:**
+- Opt-in tenant flag; chargeable event shifts to payment receipt
+- Mandatory wording "Cash accounting" on every invoice
+- Reporting changes: VAT declared on payment, not on issuance
+
+---
+
+### VAT-FUTURE-10: Margin schemes (Art. 226(11b–d))
+
+**Scope:**
+- Travel agents, second-hand goods, works of art, collectors' items and antiques, gold
+- Separate VatScenario case(s); separate totals rendering (no per-item VAT; margin-based)
+- Mandatory mentions: "Margin scheme — Travel agents" / "Second-hand goods" / "Works of art" / "Collector's items and antiques"
+
+---
+
+### VAT-FUTURE-11: Simplified invoices (Art. 220a, Art. 226b)
+
+**Scope:**
+- MS may permit simplified invoices up to EUR 100 (optional up to EUR 400) with a reduced dataset
+- Check BG transposition before enabling
+
+---
+
+### VAT-FUTURE-12: Intrastat reporting
+
+**Scope:**
+- Monthly dispatches / arrivals reporting for VAT-registered persons above the НСИ thresholds (2026: arrivals ~EUR 899,874; dispatches ~EUR 1,150,407 — verify)
+- NSIS / NSI XML format
+- Separate from VAT declarations
+
+---
+
+### VAT-FUTURE-13: SAF-T (Standard Audit File for Tax)
+
+**Scope:**
+- BG rollout in phases — large taxpayers first
+- Data model must support extraction of: GL accounts, invoice content, payments, inventory movements
+
+---
+
+### VAT-FUTURE-14: ViDA — mandatory e-invoicing (2030-07-01)
+
+**Scope:**
+- EN 16931-compatible structured e-invoicing for intra-EU B2B
+- Near-real-time digital reporting replacing the recapitulative statement (VAT-FUTURE-1 retires)
+- Peppol BIS Billing 3.0 output alongside PDF
+
+**Work begins by 2028; must ship by 2030-07-01 for any tenant issuing EU B2B invoices.**
+
+---
+
+### VAT-FUTURE-15: National e-invoicing mandates (per MS)
+
+**Scope:**
+- DE B2B e-invoicing — phased from 2025-01-01 (receipt mandatory; issuance 2027-01-01 or 2028)
+- IT SdI — mandatory since 2019 (required for any IT tenant)
+- FR Factur-X / PPF — planned 2026-09
+- PL KSeF — phased mandatory
+- RO e-Factura — mandatory since 2024
+- HU RTIR — realtime reporting
+
+**Each new MS tenant may require integration work.**
+
+---
+
+### VAT-FUTURE-16: 2020 Quick Fixes — call-off stock + chain transactions
+
+**Scope:**
+- Call-off stock (Art. 17a) — goods sent to a known buyer in another MS with deferred ownership transfer
+- Chain transactions (Art. 36a) — transport assignment to a single leg
+
+**Deferred — relevant only for tenants with such flows.**
+
+---
+
+### VAT-FUTURE-17: Per-MS legal-reference seeding
+
+**Scope:**
+- Phase A (legal-references.md) seeds BG only. Each additional MS tenant needs its own seed set for Exempt, domestic exemptions, goods/services split for EU B2B / Non-EU supplies
+- Per-MS VAT rate tables (already exists via `EuCountryVatRate`) — keep current against TEDB
+- Per-MS VAT number regex / checksum tables (partly in `EuCountries`)
+- Per-MS invoice-number format rules
+
+---
+
+### VAT-FUTURE-18: Document-integrity hash (if not shipped in pre-launch)
+
+**Source:** `review.md` F-016.
+
+Covered in `pre-launch.md` Step 4. If pre-launch slips, this stays as a standalone backlog item.
+
+---
+
+### VAT-FALLBACK-1: Art. 18(1)(b) CIR 282/2011 — applied-but-not-yet-issued VAT
+
+**Source:** `review.md` F-027.
+
+**Scope:**
+- New `VatStatus::PendingRegistration` case
+- Supervisor-role gated
+- Requires uploaded proof of VAT application
+- No automated VIES check
+
+**Deferred — uncommon edge case for new businesses.**
 
 ---
 

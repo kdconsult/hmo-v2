@@ -1,123 +1,248 @@
-# Area 3: Invoice VAT Determination — Implementation Plan
+# Plan: Invoice VAT Determination — Refactor Queue
 
-## Context
-
-Area 3 completes the VAT/VIES feature by adding VIES re-validation at invoice confirmation time, storing immutable VAT audit data on confirmed invoices, and implementing the full three-way VIES branch UI (valid/invalid/unavailable) on the ViewCustomerInvoice page. Areas 1 (tenant VAT setup) and 2 (partner VAT setup) are already complete (554 tests passing). The current confirmation flow in `ViewCustomerInvoice.php` has a prototype VIES check that needs to be replaced with the full spec from `tasks/vat-vies/spec.md` Area 3.
-
----
-
-## Step 1: Create new enums
-
-**1a. `app/Enums/ViesResult.php`** — new file
-- Cases: `Valid = 'valid'`, `Invalid = 'invalid'`, `Unavailable = 'unavailable'`
-- Add `label(): string` method for UI display
-
-**1b. `app/Enums/ReverseChargeOverrideReason.php`** — new file
-- Cases: `ViesUnavailable = 'vies_unavailable'` (single value for now; enum is future-proof)
-- Add `label(): string` method
+> **Task:** `tasks/vat-vies/invoice.md`
+> **Review:** `tasks/vat-vies/review.md` (F-006, F-007, F-009, F-024, F-036)
+> **Status:** Refactor-only plan (Area 3 implementation is already shipped). Covers the four review findings above; F-003 deferred to backlog.
 
 ---
 
-## Step 2: Migration — add VAT audit columns to `customer_invoices`
+## Prerequisites
 
-**New tenant migration file** via `php artisan make:migration add_vat_audit_columns_to_customer_invoices_table --path=database/migrations/tenant --no-interaction`
-
-> **Important:** This must be a tenant migration (path: `database/migrations/tenant/`). The artisan command won't place it there by default — use `--path` or move after creation.
-
-Add columns:
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `vat_scenario` | `string()->nullable()` | Frozen VatScenario value at confirmation |
-| `vies_request_id` | `string()->nullable()` | From VIES SOAP `requestIdentifier` |
-| `vies_checked_at` | `timestamp()->nullable()` | When the confirmation-time VIES check ran |
-| `vies_result` | `string()->nullable()` | ViesResult enum value |
-| `reverse_charge_manual_override` | `boolean()->default(false)` | True when user opted into RC despite VIES unavailable |
-| `reverse_charge_override_user_id` | `foreignId()->nullable()->constrained('users')->nullOnDelete()` | Who approved |
-| `reverse_charge_override_at` | `timestamp()->nullable()` | When approved |
-| `reverse_charge_override_reason` | `string()->nullable()` | ReverseChargeOverrideReason value |
-
-Add index: `->index('vat_scenario')` for reporting queries.
+- [ ] `hotfix.md` merged (country_code not null; immutability guard; `$ignorePartnerVat` doc clarification)
+- [ ] `domestic-exempt.md` merged (adds `vat_scenario_sub_code` — needed for F-007 sub-code split)
+- [ ] `pdf-rewrite.md` optional — Step 1's OSS year change works independently; downstream PDF consumption is separately tested there
 
 ---
 
-## Step 3: Update `CustomerInvoice` model
-
-**File:** `app/Models/CustomerInvoice.php`
-
-- Add all 8 new columns to `$fillable`
-- Add casts:
-  - `vat_scenario` → `VatScenario::class`
-  - `vies_result` → `ViesResult::class`
-  - `reverse_charge_manual_override` → `'boolean'`
-  - `vies_checked_at` → `'datetime'`
-  - `reverse_charge_override_at` → `'datetime'`
-  - `reverse_charge_override_reason` → `ReverseChargeOverrideReason::class`
-- Add `overrideUser(): BelongsTo` relationship (→ `User`, FK `reverse_charge_override_user_id`)
-- Add to `getActivitylogOptions()` `logOnly`: `vat_scenario`, `reverse_charge_manual_override`
-
----
-
-## Step 4: Add `VatScenario::Exempt` case
+## Step 1 — Fix OSS year to use invoice's chargeable-event year (F-006)
 
 **File:** `app/Enums/VatScenario.php`
 
-- Add case: `Exempt = 'exempt'`
-- Add parameter to `determine()`: `bool $tenantIsVatRegistered = true`
-- Add short-circuit as FIRST check in `determine()`: `if (!$tenantIsVatRegistered) return self::Exempt`
-- Add to `description()`: `'Exempt — tenant is not VAT registered.'`
-- Add to `requiresVatRateChange()`: `Exempt` returns `true` (needs zero-rate applied)
-- **Keep `$ignorePartnerVat` parameter** — still needed for "Confirm with VAT" path
+Currently (line 58):
 
-**Why add Exempt in Area 3 (not defer to Area 4):** Without it, a non-VAT-registered tenant could get `EuB2bReverseCharge` from `determine()`, which is legally wrong. The heavy UI blocks for non-VAT tenants (form field hiding, product restrictions) stay in Area 4 — only the enum case and determine() short-circuit go in here.
+```php
+if (EuOssAccumulation::isThresholdExceeded((int) now()->year)) {
+    return self::EuB2cOverThreshold;
+}
+```
+
+**Change signature to accept year:**
+
+```php
+public static function determine(
+    Partner $partner,
+    string $tenantCountryCode,
+    bool $ignorePartnerVat = false,
+    bool $tenantIsVatRegistered = true,
+    ?int $year = null,
+): self {
+    // ... existing tenant + country checks
+
+    if (EuOssAccumulation::isThresholdExceeded($year ?? (int) now()->year)) {
+        return self::EuB2cOverThreshold;
+    }
+
+    return self::EuB2cUnderThreshold;
+}
+```
+
+**Callers:**
+
+- `CustomerInvoiceForm` scenario preview → pass `now()->year` (form-time preview, current year is correct for UX)
+- `CustomerInvoiceService::previewScenario()` → pass `$invoice->supplied_at?->year ?? $invoice->issued_at?->year ?? now()->year`
+- `CustomerInvoiceService::confirmWithScenario()` → SAME. MUST pass the invoice's year, not `now()->year`.
+- `CustomerInvoiceService::determineVatType()` → SAME
+- `CustomerDebitNoteService::confirmWithScenario()` standalone path → pass `$note->issued_at->year`
+
+**File:** `app/Services/EuOssService.php`
+
+`accumulate()` — already fixed per `pdf-rewrite.md` / Phase B plan to use `$invoice->issued_at->year`. Verify.
+`adjust()` — added in `invoice-credit-debit.md`; uses `$parent->issued_at->year`. Verify.
+`shouldApplyOss()` — keeps `now()->year` because it's used at form-preview time (current-year check is correct).
+
+**Regression test** (`tests/Feature/VatScenarioOssCrossYearTest.php`):
+
+```php
+it('uses invoice issued_at year, not wall-clock year', function () {
+    // Accumulate 2025 past threshold
+    EuOssAccumulation::updateOrCreate(['year' => 2025], ['amount_eur' => 15_000]);
+    EuOssAccumulation::updateOrCreate(['year' => 2026], ['amount_eur' => 0]);
+
+    $partner = Partner::factory()->create(['country_code' => 'DE', 'vat_status' => VatStatus::NotRegistered]);
+
+    // Invoice dated Dec 2025, confirmed in Jan 2026
+    $scenario = VatScenario::determine(
+        partner: $partner,
+        tenantCountryCode: 'BG',
+        tenantIsVatRegistered: true,
+        year: 2025,  // explicit
+    );
+
+    expect($scenario)->toBe(VatScenario::EuB2cOverThreshold);
+});
+
+it('passes current year when no year argument given (backward compat)', function () {
+    // Confirms that default behavior matches pre-refactor
+    EuOssAccumulation::updateOrCreate(['year' => now()->year], ['amount_eur' => 0]);
+    $partner = Partner::factory()->create(['country_code' => 'DE', 'vat_status' => VatStatus::NotRegistered]);
+
+    $scenario = VatScenario::determine($partner, 'BG', tenantIsVatRegistered: true);
+    expect($scenario)->toBe(VatScenario::EuB2cUnderThreshold);
+});
+```
 
 ---
 
-## Step 5: Update `ViesValidationService`
+## Step 2 — Update `NonEuExport` description (F-007)
 
-**File:** `app/Services/ViesValidationService.php`
+**File:** `app/Enums/VatScenario.php`
 
-**5a. Switch from `checkVat` to `checkVatApprox`**
+**Before:**
+```php
+self::NonEuExport => 'Non-EU export — zero-rated (0% VAT).',
+```
 
-The VIES `checkVat` SOAP operation does NOT return `requestIdentifier`. Only `checkVatApprox` does. Since the spec requires storing `vies_request_id` for audit trail, we must switch.
+**After:**
+```php
+self::NonEuExport => 'Non-EU supply — zero-rated (goods, Art. 146) or outside scope of EU VAT (services, Art. 44).',
+```
 
-- `callVies()` now sends `checkVatApprox` with requester info:
-  - `requesterCountryCode` — tenant's country code from `CompanySettings::get('company', 'country_code')`
-  - `requesterVatNumber` — tenant's VAT number from `tenancy()->tenant->vat_number`
-- Update return type: `array{available: bool, valid: bool, name: ?string, address: ?string, country_code: string, vat_number: string, request_id: ?string}`
-- Parse `$result->requestIdentifier` from the SOAP response; null when unavailable
-- **WSDL note:** `checkVatApprox` may require a different WSDL endpoint (`checkVatApproxService.wsdl` instead of `checkVatService.wsdl`). Verify against the live VIES SOAP endpoint during implementation — inspect the existing WSDL to confirm whether `checkVatApprox` is already defined in it or requires a separate one.
-
-**5b. Add `fresh` parameter to `validate()`**
-
-- New signature: `validate(string $countryCode, string $vatNumber, bool $fresh = false): array`
-- When `$fresh = true`: call `Cache::forget($cacheKey)` before the lookup
-- Confirmation-time calls pass `fresh: true` to bypass the 24h cache
+That's the only change in this file. Exact article citation for a given invoice comes from `VatLegalReference::resolve(country, 'non_eu_export', $subCode)` at PDF render time (handled in `pdf-rewrite.md`).
 
 ---
 
-## Step 6: Restructure `CustomerInvoiceService`
+## Step 3 — Reverse-charge override recency + acknowledgement (F-009)
+
+**File:** `app/Filament/Resources/CustomerInvoices/Pages/ViewCustomerInvoice.php`
+
+The "Confirm with Reverse Charge" action during VIES unavailable state:
+
+### Recency gate
+
+Only show the button when `partner.vies_verified_at > now()->subDays(30)`:
+
+```php
+->visible(function (CustomerInvoice $record): bool {
+    $partner = $record->partner;
+    return $partner->vat_status === VatStatus::Confirmed
+        && $partner->vies_verified_at
+        && $partner->vies_verified_at->gt(now()->subDays(30));
+})
+```
+
+Below 30 days: button hidden; user sees "VIES unavailable — retry or confirm with VAT" only. Above: button appears with the role gate + acknowledgement.
+
+### Alt-proof acknowledgement
+
+Require a checkbox in the override modal:
+
+```php
+->schema([
+    Checkbox::make('alternative_proof_acknowledgement')
+        ->label('I have obtained alternative proof of the customer\'s taxable status (e.g. VAT certificate) and will retain it for the statutory period (BG: 10 years).')
+        ->required()
+        ->validationMessages(['required' => 'You must acknowledge alternative-proof retention before proceeding.']),
+])
+->action(function (array $data, CustomerInvoice $record): void {
+    // Store acknowledgement
+    $record->reverse_charge_override_acknowledgement = true;
+    // ... existing override logic
+})
+```
+
+Add a column to `customer_invoices`:
+```php
+$table->boolean('reverse_charge_override_acknowledgement')->default(false)->after('reverse_charge_override_reason');
+```
+
+### Configurable recency window
+
+Make the 30-day window configurable. Add to `config/vat-vies.php` (new file if not present):
+
+```php
+return [
+    'reverse_charge_override_recency_days' => env('VAT_VIES_RC_OVERRIDE_RECENCY_DAYS', 30),
+];
+```
+
+Read in the visibility check:
+```php
+->gt(now()->subDays(config('vat-vies.reverse_charge_override_recency_days')))
+```
+
+---
+
+## Step 4 — Partner mutation inside confirmation transaction (F-024)
 
 **File:** `app/Services/CustomerInvoiceService.php`
 
-### 6a. New public method: `runViesPreCheck(CustomerInvoice $invoice): array`
+Currently `runViesPreCheck()` directly mutates the partner. Refactor to return an **intent**, applied in `confirmWithScenario()`'s transaction.
 
-Runs the VIES re-check and determines the VAT scenario. Has a side effect: VIES-invalid updates the partner immediately.
+```php
+class PartnerMutationIntent
+{
+    public function __construct(
+        public readonly bool $downgradeToNotRegistered,
+        public readonly ?string $reason = null,
+    ) {}
 
-Logic:
-1. Load partner, get tenant country from CompanySettings
-2. Check if VIES re-check is needed: `partner.country_code != tenantCountry && isEuCountry(partner.country_code) && vat_status ∈ {Confirmed, Pending}`
-3. If no re-check needed → return `['needed' => false, 'scenario' => VatScenario::determine(...), 'preview' => computePreview()]`
-4. **Cooldown guard**: if `partner.vies_last_checked_at > now()->subMinute()`, return `['needed' => true, 'result' => 'cooldown', 'retry_after' => ...]` — caller shows "please wait" notification
-5. If re-check needed → call `ViesValidationService::validate(fresh: true)`, then update `partner.vies_last_checked_at = now()` regardless of result
-   - **Valid**: update partner (`vat_status = Confirmed`, `vies_verified_at = now()`, store `vat_number` if pending→confirmed)
-   - **Invalid**: update partner **immediately** (`vat_status = NotRegistered`, `vat_number = null`) — this is a side effect
-   - **Unavailable**: no partner change
-5. Return: `['needed' => true, 'result' => ViesResult, 'request_id' => string|null, 'checked_at' => Carbon, 'scenario' => VatScenario, 'preview' => [...subtotal, tax, total...]]`
+    public static function none(): self
+    {
+        return new self(downgradeToNotRegistered: false);
+    }
 
-Preview computation: in-memory VAT recalculation using the determined scenario's rates, without DB writes.
+    public static function downgrade(string $reason): self
+    {
+        return new self(downgradeToNotRegistered: true, reason: $reason);
+    }
+}
+```
 
-### 6b. New public method: `confirmWithScenario()`
+### Refactored pre-check
+
+```php
+/**
+ * Returns VIES result + a pending partner mutation intent (not applied yet).
+ */
+public function runViesPreCheck(CustomerInvoice $invoice): array
+{
+    // ... existing eligibility checks
+
+    $result = $this->vies->validate($partner->country_code, $vatNumber, fresh: true);
+
+    if (!$result['available']) {
+        return [
+            'needed' => true,
+            'result' => ViesResult::Unavailable,
+            'partner_mutation' => PartnerMutationIntent::none(),
+            'request_id' => null,
+            'checked_at' => null,
+        ];
+    }
+
+    if ($result['valid']) {
+        // Partner stays Confirmed (or upgrades from Pending to Confirmed — an intent, applied inside tx)
+        return [
+            'needed' => true,
+            'result' => ViesResult::Valid,
+            'partner_mutation' => PartnerMutationIntent::none(),  // or 'confirm' intent if pending
+            'request_id' => $result['request_id'],
+            'checked_at' => now(),
+        ];
+    }
+
+    // VIES said invalid — stage downgrade but don't apply yet
+    return [
+        'needed' => true,
+        'result' => ViesResult::Invalid,
+        'partner_mutation' => PartnerMutationIntent::downgrade('vies_invalid_at_invoice_confirmation'),
+        'request_id' => $result['request_id'],
+        'checked_at' => now(),
+    ];
+}
+```
+
+### Apply inside confirmWithScenario
 
 ```php
 public function confirmWithScenario(
@@ -125,220 +250,114 @@ public function confirmWithScenario(
     ?array $viesData = null,
     bool $treatAsB2c = false,
     ?ManualOverrideData $override = null,
-): void
-```
+    bool $isDomesticExempt = false,
+    ?string $subCode = null,
+): void {
+    DB::transaction(function () use ($invoice, $viesData, ...) {
+        // 1. Apply staged partner mutation FIRST (inside tx)
+        if ($viesData && ($viesData['partner_mutation'] ?? null)?->downgradeToNotRegistered) {
+            $this->applyPartnerDowngrade($invoice->partner, $viesData['partner_mutation']->reason, $invoice);
+        }
 
-Same work as current `confirm()`:
-- SO over-invoice guard
-- Transaction: determineVatType → status = Confirmed → SO qty updates → service delivery
-- Fiscal receipt dispatch
-- OSS accumulation
+        // 2. Now determine scenario with the updated partner state
+        // ... existing logic (including F-006 year fix)
 
-Additional work:
-- Store on invoice: `vat_scenario`, `vies_request_id`, `vies_checked_at`, `vies_result` from `$viesData`
-- If `$override` provided: store `reverse_charge_manual_override = true`, `reverse_charge_override_user_id`, `reverse_charge_override_at = now()`, `reverse_charge_override_reason`
-- Pass `tenantIsVatRegistered` to `VatScenario::determine()` (from `tenancy()->tenant->is_vat_registered`)
-- **Skip OSS accumulation when `vat_scenario === Exempt`** — `EuOssService::accumulate()` does not check tenant VAT registration status; calling it for an exempt tenant would incorrectly record OSS threshold data. Guard with `if ($scenario !== VatScenario::Exempt)` before the `accumulate()` call. Apply the same guard to `reverseAccumulation()` in the `cancel()` method.
+        // 3. Write invoice
+        // ... existing logic
 
-### 6c. Keep existing `confirm()` as thin wrapper
+        // If tx rolls back, partner downgrade rolls back too.
+    });
+}
 
-```php
-public function confirm(CustomerInvoice $invoice, bool $treatAsB2c = false): void
+protected function applyPartnerDowngrade(Partner $partner, string $reason, CustomerInvoice $invoice): void
 {
-    $this->confirmWithScenario($invoice, treatAsB2c: $treatAsB2c);
+    $partner->update([
+        'vat_status' => VatStatus::NotRegistered,
+        'vat_number' => null,
+        'vies_verified_at' => null,
+    ]);
+
+    activity()
+        ->performedOn($partner)
+        ->causedBy(auth()->user())
+        ->withProperties([
+            'reason' => $reason,
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+            'checked_at' => now()->toIso8601String(),
+        ])
+        ->log('Partner VAT downgraded to not_registered by VIES rejection');
+
+    Notification::make()
+        ->title('Partner VAT downgraded')
+        ->body("Partner '{$partner->company_name}' was marked as not VAT-registered...")
+        ->warning()
+        ->persistent()
+        ->send();
 }
 ```
 
-This preserves backward compatibility — all 20 existing tests continue to pass unchanged.
-
-### 6d. Update `determineVatType()` (private)
-
-- Accept `bool $tenantIsVatRegistered` parameter, pass to `VatScenario::determine()`
-- Handle `VatScenario::Exempt`: resolve zero-rate for tenant country, apply to all items (reuse existing `resolveZeroVatRate()`)
-- **Add `Exempt` to the `$targetVatRate = match($scenario)` expression** — place it in the same arm as `EuB2bReverseCharge` and `NonEuExport` (all resolve to zero-rate). Without this, `Exempt` hits the `default` arm and throws `LogicException`.
-- Store `vat_scenario` on the invoice inside this method
-
-### 6e. Create `ManualOverrideData` DTO
-
-**New file:** `app/DTOs/ManualOverrideData.php`
+### Regression test
 
 ```php
-readonly class ManualOverrideData
-{
-    public function __construct(
-        public int $userId,
-        public ReverseChargeOverrideReason $reason,
-    ) {}
-}
+it('does not mutate partner if confirmWithScenario fails after pre-check (F-024)', function () {
+    $partner = Partner::factory()->confirmed()->create(['country_code' => 'DE']);
+    $invoice = CustomerInvoice::factory()->draft()->forPartner($partner)->create();
+
+    ViesValidationService::shouldReceive('validate')
+        ->andReturn(['available' => true, 'valid' => false, ...]);
+
+    // Force confirmWithScenario to throw mid-transaction
+    $this->mock(SomeDownstreamService::class)->shouldReceive('foo')->andThrow(new \RuntimeException('boom'));
+
+    $viesData = app(CustomerInvoiceService::class)->runViesPreCheck($invoice);
+    expect(fn () => app(CustomerInvoiceService::class)->confirmWithScenario($invoice, viesData: $viesData))
+        ->toThrow(\RuntimeException::class);
+
+    // Partner was NOT downgraded — transaction rolled back
+    expect($partner->fresh()->vat_status)->toBe(VatStatus::Confirmed);
+});
 ```
 
 ---
 
-## Step 7: Add RBAC permission
+## Tests
 
-**File:** `database/seeders/RolesAndPermissionsSeeder.php`
+**File:** `tests/Feature/InvoiceRefactorTest.php`
 
-- Add permission: `override_reverse_charge_customer_invoice`
-- Assign to roles: `admin`, `accountant`
-- Post-implementation: run `tenants:seed --class=RolesAndPermissionsSeeder` on existing tenants
+Consolidates Step 1-4 tests:
 
----
+```php
+// Step 1 — OSS year
+it('scenario determination uses invoice issued_at year', function () { ... });
 
-## Step 8: Rewrite `ViewCustomerInvoice` confirmation UI
+// Step 3 — RC override recency
+it('hides reverse-charge override when vies_verified_at is older than 30 days', function () { ... });
+it('requires alternative-proof acknowledgement to use the override', function () { ... });
 
-**File:** `app/Filament/Resources/CustomerInvoices/Pages/ViewCustomerInvoice.php`
-
-### 8a. Livewire state properties
-
-Remove:
-- `$viesInvalidDetected`
-
-Add:
-- `public ?array $viesPreCheckResult = null` — result from `runViesPreCheck()`
-- `public bool $viesUnavailable = false` — triggers inline error state
-- `public ?string $lastViesAttemptAt = null` — for retry cooldown display
-
-### 8b. Header actions — replace confirm actions with:
-
-**Action 1: "Confirm Invoice"** — primary trigger
-- Visible: Draft status + `!$viesUnavailable`
-- On click (`->action()`):
-  1. Call `CustomerInvoiceService::runViesPreCheck($record)`
-  2. Result dispatches to one of three paths:
-     - **No VIES needed** or **VIES valid**: proceed to confirmation (see below)
-     - **VIES invalid**: partner already updated by precheck; send danger notification; return (page re-renders; user re-clicks to confirm normally with updated scenario)
-     - **VIES unavailable**: set `$viesUnavailable = true`; send warning notification; return
-  3. For the "proceed" path: use Filament Action modal with custom `->schema()` showing:
-     - VAT scenario badge (Placeholder component)
-     - Partner name + VAT number (if reverse charge)
-     - VIES reference: request_id + timestamp (if VIES was checked)
-     - Financial summary: subtotal / VAT / total
-     - Cancel closes modal; Confirm calls `confirmWithScenario()`
-  
-  **Implementation note:** The exact Filament v5 mechanism for running logic before the modal opens needs to be verified via `search-docs` during implementation. Options: `mountUsing()` hook, two-step action pattern (click → store state → show second action), or a custom Livewire method + `$this->mountAction()`.
-
-**Action 2: "Retry VIES Check"** — VIES unavailable state
-- Visible: `$viesUnavailable === true`
-- 1-minute cooldown enforced **server-side** in `runViesPreCheck()` using `partner.vies_last_checked_at`: if `< 1 minute ago`, return early with a "please wait" notification instead of calling VIES. No localStorage needed — the column already exists from the Area 2 migration.
-- Button disabled state: derive from `$lastViesAttemptAt` Livewire property (set from `partner.vies_last_checked_at`); Alpine.js countdown timer for UX only (re-enable after 60s)
-- Action: re-runs `runViesPreCheck()`; updates state based on result
-
-**Action 3: "Confirm with VAT"** — VIES unavailable fallback
-- Visible: `$viesUnavailable === true`
-- `requiresConfirmation()` — modal warns no reverse charge will apply
-- Any user can use this — no permission gate
-- Action: `confirmWithScenario(invoice, viesData: [result: Unavailable, ...], treatAsB2c: true)`
-
-**Action 4: "Confirm with Reverse Charge"** — VIES unavailable + confirmed partner
-- Visible: `$viesUnavailable === true && partner.vat_status === VatStatus::Confirmed`
-- **Permission gated**: `->authorize('override_reverse_charge_customer_invoice')`
-- Custom modal `->schema()`: Checkbox "I acknowledge this reverse charge is applied without current VIES verification" — must be checked to submit
-- Action: `confirmWithScenario(invoice, viesData: [...], override: new ManualOverrideData(auth()->id(), ViesUnavailable))`
-
-**Remove:** `confirmWithStandardVat` action entirely.
-
-### 8c. Unchanged actions
-
-Edit, Print Invoice, Create Credit Note, Create Debit Note, Cancel — no modifications.
+// Step 4 — Transactional boundary
+it('does not mutate partner when confirmWithScenario rolls back', function () { ... });
+```
 
 ---
 
-## Step 9: Update `CustomerInvoiceForm`
+## Gotchas / load-bearing details
 
-**File:** `app/Filament/Resources/CustomerInvoices/Schemas/CustomerInvoiceForm.php`
-
-### 9a. Partner select `helperText` — update existing
-
-- Pass `tenantIsVatRegistered: tenancy()->tenant->is_vat_registered` to `VatScenario::determine()`
-- For `pending` partners: append "VAT status pending — will be verified at confirmation"
-- Inline "Re-check VIES" button: defer to follow-up (complex Filament form integration); show text hint pointing to partner view page
-
-### 9b. `pricing_mode` selector — add constraint
-
-- Make reactive to `partner_id` (add `->live()` if not already)
-- Use `afterStateUpdated` on `partner_id` or a reactive closure on `pricing_mode`:
-  - When selected partner triggers any non-Domestic scenario → force `PricingMode::VatExclusive`, disable selector
-  - When Domestic or no partner → enable selector, allow user choice
-
-### 9c. `is_reverse_charge` toggle — make reactive
-
-- Set value based on stored partner data: `VatScenario::determine()` → if `EuB2bReverseCharge` then true, else false
-- Remains disabled/read-only (actual value is set at confirmation)
+1. **F-006 default value.** `?int $year = null` → caller opt-in. All invoice-flow callers MUST pass the invoice's year. The default-to-now exists only for the form preview case.
+2. **F-003 ECSL / ВИЕС-декларация is intentionally NOT here.** It's reporting, not invoice-determination. Flagged in backlog. Do not bolt it in.
+3. **F-009 recency window.** 30 days is a starting point. Revisit with the accountant before first real tenant. Make configurable so each tenant can tune.
+4. **F-024 DTO pattern** — the `PartnerMutationIntent` object keeps the pre-check side-effect-free. Don't skip the refactor and "just use a flag" — an intent object leaves room for future mutations (e.g. pending→confirmed) without further changes.
+5. **Transactional boundary for Pending→Confirmed upgrade** — when VIES returns valid for a Pending partner, the partner is effectively upgraded. Same principle: stage the intent, apply inside tx.
 
 ---
 
-## Step 10: Tests
+## Exit Criteria
 
-### Existing tests — NO regressions
-
-`tests/Feature/VatDeterminationTest.php` (20 tests) — all continue to pass because `confirm()` remains as a thin wrapper.
-
-### New tests
-
-**10a. Add to `tests/Feature/VatDeterminationTest.php`** — Category A:
-- `VatScenario::determine returns Exempt when tenant is not VAT registered`
-- `VatScenario::determine checks Exempt before partner logic` (Exempt even with EU B2B confirmed partner)
-
-**10b. New file: `tests/Feature/InvoiceViesConfirmationTest.php`**
-
-*VIES re-check outcomes (mock ViesValidationService):*
-1. VIES valid + confirmed partner → stays confirmed, scenario = reverse charge, VIES data stored
-2. VIES valid + pending partner → promoted to confirmed, scenario = reverse charge
-3. VIES invalid + confirmed partner → downgraded to not_registered, vat_number cleared
-4. VIES invalid + pending partner → set to not_registered
-5. VIES unavailable + confirmed partner → partner unchanged, unavailable state returned
-6. VIES unavailable + pending partner → partner unchanged, unavailable state returned
-7. No VIES check for domestic partner
-8. No VIES check for non-EU partner
-9. No VIES check for not_registered partner
-
-*Confirmation with VIES data:*
-10. confirmWithScenario stores vat_scenario on invoice
-11. confirmWithScenario stores vies_request_id + vies_checked_at + vies_result
-12. vat_scenario is immutable after confirmation (verify frozen value)
-13. Confirm with VAT (treatAsB2c) still runs OSS threshold check — stores correct scenario
-14. Confirm with Reverse Charge override stores audit trail columns
-15. Override without `override_reverse_charge_customer_invoice` permission is denied
-
-*Pricing mode constraint:*
-16. Non-domestic scenario forces pricing_mode to VatExclusive on form
-17. Domestic scenario allows pricing_mode choice
-
-*Exempt short-circuit:*
-18. Non-VAT-registered tenant: confirm stores vat_scenario = exempt
-19. Non-VAT-registered tenant: no VIES check runs regardless of partner
-20. Non-VAT-registered tenant: is_reverse_charge always false
-
----
-
-## Step 11: Finalize
-
-- `vendor/bin/pint --dirty --format agent`
-- `./vendor/bin/sail artisan test --parallel --compact`
-- Update `tasks/vat-vies/invoice.md` checklist
-
----
-
-## Design Decision Log
-
-- **Retry cooldown**: Spec originally said `localStorage` only. Changed to server-side enforcement using existing `partner.vies_last_checked_at` column (from Area 2 migration). Alpine.js countdown is UX-only; the actual 1-minute gate lives in `runViesPreCheck()`. Rationale: VIES calls go through the server anyway, and the column already exists.
-
----
-
-## Files Summary
-
-| File | Action | Notes |
-|------|--------|-------|
-| `app/Enums/ViesResult.php` | **Create** | 3 cases: valid/invalid/unavailable |
-| `app/Enums/ReverseChargeOverrideReason.php` | **Create** | 1 case: vies_unavailable |
-| `app/DTOs/ManualOverrideData.php` | **Create** | Readonly DTO (userId + reason) |
-| `database/migrations/tenant/..._add_vat_audit_columns_to_customer_invoices_table.php` | **Create** | 8 new columns on customer_invoices |
-| `app/Models/CustomerInvoice.php` | Modify | fillable, casts, overrideUser() relationship |
-| `app/Enums/VatScenario.php` | Modify | Add Exempt case + tenantIsVatRegistered param |
-| `app/Services/ViesValidationService.php` | Modify | checkVatApprox + fresh param + request_id |
-| `app/Services/CustomerInvoiceService.php` | Modify | runViesPreCheck + confirmWithScenario + determineVatType update |
-| `app/Filament/Resources/CustomerInvoices/Pages/ViewCustomerInvoice.php` | Modify | Full rewrite of confirmation actions |
-| `app/Filament/Resources/CustomerInvoices/Schemas/CustomerInvoiceForm.php` | Modify | Pricing mode constraint + helperText + RC toggle reactive |
-| `database/seeders/RolesAndPermissionsSeeder.php` | Modify | Add override_reverse_charge permission |
-| `tests/Feature/VatDeterminationTest.php` | Modify | Add 2 Exempt tests |
-| `tests/Feature/InvoiceViesConfirmationTest.php` | **Create** | ~20 new tests |
+- [ ] All refactor tests green
+- [ ] Full suite green
+- [ ] Manual: confirm a cross-year invoice (December 2025 invoice, confirmed January 2026) → OSS year is 2025
+- [ ] Manual: reverse-charge override button hidden for a partner with `vies_verified_at = 2 months ago`
+- [ ] Manual: override requires checkbox tick
+- [ ] Manual: force confirmation failure → partner state reverts
+- [ ] Pint clean
+- [ ] `invoice.md` refactor checkbox ticked
