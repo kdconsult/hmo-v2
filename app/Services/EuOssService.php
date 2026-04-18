@@ -69,7 +69,7 @@ class EuOssService
 
         EuOssAccumulation::accumulate(
             $partner->country_code,
-            (int) now()->year,
+            (int) ($invoice->issued_at?->year ?? now()->year),
             (float) $totalEur
         );
     }
@@ -105,7 +105,7 @@ class EuOssService
 
         EuOssAccumulation::accumulate(
             $partner->country_code,
-            (int) now()->year,
+            (int) ($invoice->issued_at?->year ?? now()->year),
             -(float) $totalEur
         );
     }

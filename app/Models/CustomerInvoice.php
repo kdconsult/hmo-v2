@@ -60,6 +60,7 @@ class CustomerInvoice extends Model
         'reverse_charge_override_user_id',
         'reverse_charge_override_at',
         'reverse_charge_override_reason',
+        'reverse_charge_override_acknowledgement',
         'notes',
     ];
 
@@ -80,6 +81,7 @@ class CustomerInvoice extends Model
         'reverse_charge_override_user_id',
         'reverse_charge_override_at',
         'reverse_charge_override_reason',
+        'reverse_charge_override_acknowledgement',
         'currency_code',
         'exchange_rate',
         'pricing_mode',
@@ -110,6 +112,7 @@ class CustomerInvoice extends Model
             'vies_result' => ViesResult::class,
             'vies_checked_at' => 'datetime',
             'reverse_charge_manual_override' => 'boolean',
+            'reverse_charge_override_acknowledgement' => 'boolean',
             'reverse_charge_override_at' => 'datetime',
             'reverse_charge_override_reason' => ReverseChargeOverrideReason::class,
             'exchange_rate' => 'decimal:6',

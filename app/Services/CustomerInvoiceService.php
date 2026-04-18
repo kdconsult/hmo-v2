@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\DTOs\ManualOverrideData;
+use App\DTOs\PartnerMutationIntent;
 use App\Enums\DocumentStatus;
 use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
@@ -16,6 +17,7 @@ use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
 use App\Models\EuCountryVatRate;
+use App\Models\Partner;
 use App\Models\VatRate;
 use App\Support\EuCountries;
 use Carbon\Carbon;
@@ -86,8 +88,8 @@ class CustomerInvoiceService
      * Run a VIES pre-check before invoice confirmation.
      *
      * Determines whether a VIES call is needed and executes it, returning data for the
-     * confirmation modal. Has a side effect on VIES-invalid results: the partner is immediately
-     * downgraded to NotRegistered and their vat_number cleared.
+     * confirmation modal. For valid VIES results, refreshes the partner's stored VAT number
+     * and verification timestamp immediately (idempotent, low-risk).
      *
      * VIES is only called when the partner is a cross-border EU partner with a confirmed VAT
      * number. Pending partners without a stored vat_number are silently skipped (treated as B2C).
@@ -97,7 +99,10 @@ class CustomerInvoiceService
      *   - `needed: true, result: ViesResult`  — VIES was called; see 'result' key
      *   - `needed: true, result: 'cooldown'`  — called too recently; retry after 'retry_after'
      *
-     * @return array{needed: bool, result?: ViesResult|string, request_id?: string|null, checked_at?: Carbon, retry_after?: Carbon}
+     * For ViesResult::Invalid, the partner mutation is NOT applied here — it is staged as a
+     * PartnerMutationIntent and applied atomically inside confirmWithScenario()'s transaction (F-024).
+     *
+     * @return array{needed: bool, result?: ViesResult|string, partner_mutation?: PartnerMutationIntent, request_id?: string|null, checked_at?: Carbon, retry_after?: Carbon}
      */
     public function runViesPreCheck(CustomerInvoice $invoice): array
     {
@@ -158,28 +163,24 @@ class CustomerInvoiceService
             return [
                 'needed' => true,
                 'result' => ViesResult::Unavailable,
+                'partner_mutation' => PartnerMutationIntent::none(),
                 'request_id' => null,
                 'checked_at' => now(),
             ];
         }
 
         if (! $result['valid']) {
-            // Side effect: downgrade partner immediately — their VAT number is no longer valid
-            $partner->vat_status = VatStatus::NotRegistered;
-            $partner->is_vat_registered = false;
-            $partner->vat_number = null;
-            $partner->vies_verified_at = null;
-            $partner->save();
-
+            // Stage downgrade intent — NOT applied here. Applied atomically inside confirmWithScenario() tx (F-024).
             return [
                 'needed' => true,
                 'result' => ViesResult::Invalid,
+                'partner_mutation' => PartnerMutationIntent::downgrade('vies_invalid_at_invoice_confirmation'),
                 'request_id' => $result['request_id'],
                 'checked_at' => now(),
             ];
         }
 
-        // Valid: refresh partner confirmation
+        // Valid: refresh partner confirmation (idempotent, low-risk — stays outside tx)
         $partner->vat_status = VatStatus::Confirmed;
         $partner->is_vat_registered = true;
         $partner->vat_number = strtoupper($vatPrefix.($result['vat_number'] ?? $vatSuffix));
@@ -189,6 +190,7 @@ class CustomerInvoiceService
         return [
             'needed' => true,
             'result' => ViesResult::Valid,
+            'partner_mutation' => PartnerMutationIntent::none(),
             'request_id' => $result['request_id'],
             'checked_at' => now(),
         ];
@@ -283,7 +285,13 @@ class CustomerInvoiceService
 
         $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
 
-        DB::transaction(function () use ($invoice, $treatAsB2c, $tenantIsVatRegistered, $isDomesticExempt, $subCode): void {
+        DB::transaction(function () use ($invoice, $viesData, $treatAsB2c, $tenantIsVatRegistered, $isDomesticExempt, $subCode): void {
+            // Apply staged partner mutation first so scenario determination sees the updated state (F-024).
+            $mutationIntent = $viesData['partner_mutation'] ?? null;
+            if ($mutationIntent instanceof PartnerMutationIntent && $mutationIntent->downgradeToNotRegistered) {
+                $invoice->loadMissing('partner');
+                $this->applyPartnerDowngrade($invoice->partner, $mutationIntent->reason ?? 'vies_invalid', $invoice);
+            }
             if ($isDomesticExempt) {
                 $tenantCountry = CompanySettings::get('company', 'country_code');
                 if (empty($tenantCountry)) {
@@ -398,6 +406,7 @@ class CustomerInvoiceService
             $tenantCountry,
             ignorePartnerVat: $treatAsB2c,
             tenantIsVatRegistered: $tenantIsVatRegistered,
+            year: (int) ($invoice->issued_at?->year ?? now()->year),
         );
 
         $invoice->vat_scenario = $scenario;
@@ -516,6 +525,7 @@ class CustomerInvoiceService
                 $tenantCountry,
                 ignorePartnerVat: false,
                 tenantIsVatRegistered: (bool) tenancy()->tenant?->is_vat_registered,
+                year: (int) ($invoice->issued_at?->year ?? now()->year),
             );
         } catch (DomainException) {
             return false;
@@ -535,6 +545,37 @@ class CustomerInvoiceService
             VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport => $this->inferGoodsOrServices($invoice),
             default => null,
         };
+    }
+
+    /**
+     * Downgrade a partner to not-VAT-registered, log the activity, and notify the user.
+     * Must be called inside a DB transaction (F-024).
+     */
+    private function applyPartnerDowngrade(Partner $partner, string $reason, CustomerInvoice $invoice): void
+    {
+        $partner->vat_status = VatStatus::NotRegistered;
+        $partner->is_vat_registered = false;
+        $partner->vat_number = null;
+        $partner->vies_verified_at = null;
+        $partner->save();
+
+        activity()
+            ->performedOn($partner)
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'reason' => $reason,
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'checked_at' => now()->toIso8601String(),
+            ])
+            ->log('Partner VAT downgraded to not_registered by VIES rejection');
+
+        Notification::make()
+            ->title('Partner VAT downgraded')
+            ->body("Partner '{$partner->company_name}' is no longer VAT-registered per VIES. Reverse charge will not apply.")
+            ->warning()
+            ->persistent()
+            ->send();
     }
 
     /**

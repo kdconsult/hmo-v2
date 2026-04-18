@@ -40,7 +40,7 @@ enum VatScenario: string
      * @throws \DomainException when $partner->country_code is empty/whitespace. Forgotten country
      *                          would silently route to NonEuExport (0% VAT); guard catches it.
      */
-    public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false, bool $tenantIsVatRegistered = true): self
+    public static function determine(Partner $partner, string $tenantCountryCode, bool $ignorePartnerVat = false, bool $tenantIsVatRegistered = true, ?int $year = null): self
     {
         if (! $tenantIsVatRegistered) {
             return self::Exempt;
@@ -65,7 +65,7 @@ enum VatScenario: string
             return self::EuB2bReverseCharge;
         }
 
-        if (EuOssAccumulation::isThresholdExceeded((int) now()->year)) {
+        if (EuOssAccumulation::isThresholdExceeded($year ?? (int) now()->year)) {
             return self::EuB2cOverThreshold;
         }
 
@@ -81,7 +81,7 @@ enum VatScenario: string
             self::EuB2bReverseCharge => 'EU B2B — reverse charge applies (0% VAT, Article 196).',
             self::EuB2cUnderThreshold => 'EU B2C — below OSS threshold, domestic VAT rate applies.',
             self::EuB2cOverThreshold => 'EU B2C — OSS threshold exceeded, destination country VAT rate applies.',
-            self::NonEuExport => 'Non-EU export — zero-rated (0% VAT).',
+            self::NonEuExport => 'Non-EU supply — zero-rated (goods, Art. 146) or outside scope of EU VAT (services, Art. 44).',
         };
     }
 

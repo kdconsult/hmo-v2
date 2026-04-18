@@ -478,14 +478,17 @@ Orchestrates customer invoice item totals, document totals, and invoice confirma
 - `runViesPreCheck(CustomerInvoice $invoice): array`
   - Executes a live VIES lookup for cross-border EU partners with `VatStatus::Confirmed`. Returns structured result array used to populate the confirmation modal.
   - Returns `['needed' => false]` for domestic, non-EU, non-VAT-registered tenants, or partners without a stored VAT number.
-  - Returns `['needed' => true, 'result' => ViesResult, 'request_id' => ?string, 'checked_at' => Carbon]` on a VIES call.
+  - Returns `['needed' => true, 'result' => ViesResult, 'partner_mutation' => PartnerMutationIntent, 'request_id' => ?string, 'checked_at' => Carbon]` on a VIES call.
   - Returns `['needed' => true, 'result' => 'cooldown', 'retry_after' => Carbon]` when called within 1 minute of last check (server-side rate limit).
-  - Side effect on invalid result: downgrades partner `vat_status` to `NotRegistered` and clears `vat_number`.
+  - For `ViesResult::Invalid`: stages a `PartnerMutationIntent::downgrade()` — does NOT mutate the partner directly. The downgrade is applied atomically inside `confirmWithScenario()`'s transaction (F-024). For `ViesResult::Valid`: refreshes partner's `vat_number` and `vies_verified_at` immediately (idempotent update, stays outside tx).
 
 **Private helpers:**
 
+- `applyPartnerDowngrade(Partner $partner, string $reason, CustomerInvoice $invoice): void`
+  - Called inside `confirmWithScenario()`'s transaction when a `PartnerMutationIntent::downgrade()` intent is present (F-024). Sets `vat_status = NotRegistered`, clears `vat_number` and `vies_verified_at`, writes an activity-log entry, and sends a persistent warning notification.
+
 - `wouldBecomeReverseCharge(CustomerInvoice $invoice, bool $treatAsB2c): bool`
-  - Calls `VatScenario::determine()` in dry-run mode. Returns `true` only when scenario resolves to `EuB2bReverseCharge` and `$treatAsB2c = false`. Used by the F-023 guard.
+  - Calls `VatScenario::determine()` in dry-run mode (passes invoice's chargeable-event year). Returns `true` only when scenario resolves to `EuB2bReverseCharge` and `$treatAsB2c = false`. Used by the F-023 guard.
 
 - `resolveSubCode(CustomerInvoice $invoice): ?string`
   - Returns `'default'` for `Exempt`; infers `'goods'` or `'services'` for `EuB2bReverseCharge` and `NonEuExport` (via `inferGoodsOrServices()`); returns `null` for all other scenarios (Domestic, B2C).
@@ -515,6 +518,7 @@ Handles EU One-Stop Shop (OSS) VAT compliance for cross-border B2C digital/goods
 - `accumulate(CustomerInvoice $invoice): void`
   - Guards: partner must be non-null, EU country, cross-border (≠ tenant country), B2C (no valid EU VAT).
   - Converts invoice total to EUR using `exchange_rate`. Calls `EuOssAccumulation::accumulate(countryCode, year, totalEur)`.
+  - Uses `$invoice->issued_at?->year ?? now()->year` — the invoice's chargeable-event year, not wall-clock year (F-006 fix for cross-year confirmations).
   - Called on every invoice confirmation; `EuOssAccumulation` tracks cumulative totals and records `threshold_exceeded_at` when the €10,000 cross-border threshold is first crossed.
 
 - `getDestinationVatRate(string $countryCode): float`

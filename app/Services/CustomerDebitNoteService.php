@@ -106,6 +106,7 @@ class CustomerDebitNoteService
                         $partner,
                         $tenantCountry,
                         tenantIsVatRegistered: true,
+                        year: (int) ($note->issued_at?->year ?? now()->year),
                     );
 
                     if (in_array($scenario, [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport], true)) {

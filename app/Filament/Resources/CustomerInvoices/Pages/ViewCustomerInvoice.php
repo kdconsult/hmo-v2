@@ -84,9 +84,11 @@ class ViewCustomerInvoice extends ViewRecord
                             }
 
                             if ($viesResult['result'] === ViesResult::Invalid) {
+                                // Stage the result (with downgrade intent) so second click skips re-check (F-024).
+                                $this->viesPreCheckResult = $viesResult;
                                 Notification::make()
                                     ->title('VAT number no longer valid')
-                                    ->body('VIES confirmed this partner\'s VAT number is invalid. Their VAT status has been reset. You may now confirm the invoice — reverse charge will not apply.')
+                                    ->body('VIES confirmed this partner\'s VAT number is invalid. Click Confirm Invoice to finalise — the partner\'s VAT status will be reset and reverse charge will not apply.')
                                     ->danger()
                                     ->send();
                                 throw new Halt;
@@ -240,9 +242,20 @@ class ViewCustomerInvoice extends ViewRecord
                 ->label('Confirm with Reverse Charge')
                 ->icon(Heroicon::OutlinedShieldExclamation)
                 ->color('danger')
-                ->visible(fn (CustomerInvoice $record): bool => $this->viesUnavailable
-                    && $record->partner?->vat_status === VatStatus::Confirmed
-                    && auth()->user()?->can('override_reverse_charge_customer_invoice'))
+                ->visible(function (CustomerInvoice $record): bool {
+                    if (! $this->viesUnavailable) {
+                        return false;
+                    }
+                    if (! auth()->user()?->can('override_reverse_charge_customer_invoice')) {
+                        return false;
+                    }
+                    $partner = $record->partner;
+                    $recencyDays = (int) config('vat-vies.reverse_charge_override_recency_days', 30);
+
+                    return $partner?->vat_status === VatStatus::Confirmed
+                        && $partner->vies_verified_at
+                        && $partner->vies_verified_at->gt(now()->subDays($recencyDays));
+                })
                 ->modalHeading('Apply Reverse Charge without Current VIES Verification?')
                 ->schema([
                     TextEntry::make('warning')
@@ -254,9 +267,16 @@ class ViewCustomerInvoice extends ViewRecord
                         ->label('I acknowledge that I am applying reverse charge without current VIES verification and take responsibility for this decision.')
                         ->required()
                         ->accepted(),
+                    Checkbox::make('alternative_proof_acknowledged')
+                        ->label('I have obtained alternative proof of the customer\'s taxable status (e.g. VAT certificate) and will retain it for the statutory period (10 years per EU VAT Directive Art. 138).')
+                        ->required()
+                        ->accepted()
+                        ->validationMessages(['accepted' => 'You must confirm you hold and will retain alternative proof before proceeding.']),
                 ])
                 ->action(function (array $data, CustomerInvoice $record): void {
                     try {
+                        $record->reverse_charge_override_acknowledgement = true;
+
                         app(CustomerInvoiceService::class)->confirmWithScenario(
                             $record,
                             viesData: [
@@ -360,9 +380,20 @@ class ViewCustomerInvoice extends ViewRecord
         $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
 
         $record->loadMissing('partner');
+
+        // When VIES returned Invalid, the partner downgrade is staged but not yet applied.
+        // Pass ignorePartnerVat: true so the preview reflects the post-downgrade B2C scenario (F-024).
+        $ignorePartnerVatForPreview = isset($viesResult['result']) && $viesResult['result'] === ViesResult::Invalid;
+
         try {
             $scenario = $record->partner
-                ? VatScenario::determine($record->partner, $tenantCountry, tenantIsVatRegistered: $tenantIsVatRegistered)
+                ? VatScenario::determine(
+                    $record->partner,
+                    $tenantCountry,
+                    ignorePartnerVat: $ignorePartnerVatForPreview,
+                    tenantIsVatRegistered: $tenantIsVatRegistered,
+                    year: (int) ($record->issued_at?->year ?? now()->year),
+                )
                 : null;
         } catch (DomainException) {
             $scenario = null;

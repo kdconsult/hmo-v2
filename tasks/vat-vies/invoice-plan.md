@@ -353,11 +353,11 @@ it('does not mutate partner when confirmWithScenario rolls back', function () { 
 
 ## Exit Criteria
 
-- [ ] All refactor tests green
-- [ ] Full suite green
+- [x] All refactor tests green
+- [x] Full suite green (668 passed, 8 todos)
 - [ ] Manual: confirm a cross-year invoice (December 2025 invoice, confirmed January 2026) → OSS year is 2025
 - [ ] Manual: reverse-charge override button hidden for a partner with `vies_verified_at = 2 months ago`
 - [ ] Manual: override requires checkbox tick
 - [ ] Manual: force confirmation failure → partner state reverts
-- [ ] Pint clean
+- [x] Pint clean
 - [ ] `invoice.md` refactor checkbox ticked

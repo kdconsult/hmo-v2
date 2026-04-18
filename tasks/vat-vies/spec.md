@@ -194,7 +194,7 @@ Runs when: partner is in a different EU country AND `vat_status ∈ {confirmed, 
 | VIES Response | Partner `vat_status` | Outcome |
 |---------------|---------------------|---------|
 | Valid | confirmed or pending | Partner: `vat_status = confirmed`, `vies_verified_at = now()`. Reverse charge applies. |
-| Invalid | confirmed or pending | Partner: `vat_status = not_registered`, `vat_number` cleared. No reverse charge. No retry. |
+| Invalid | confirmed or pending | Downgrade staged as intent. Applied atomically inside `confirmWithScenario()` tx (F-024). No reverse charge. |
 | Unavailable | confirmed | Retry flow. Opt-in to reverse charge available (role-gated, audit trail). |
 | Unavailable | pending | Charge VAT. No opt-in — no stored VAT number to stand behind. |
 
@@ -218,14 +218,14 @@ Runs when: partner is in a different EU country AND `vat_status ∈ {confirmed, 
 2. View shows VIES error state with three elements:
    - **Retry button** — 1-minute cooldown enforced at the service layer via `partners.vies_last_checked_at` (server-side; tamper-resistant; shared across devices). UI reads the server response to decide whether to show "retry" or "wait". `[review.md#f-017]`
    - **"Confirm with VAT"** — always available to any user; no reverse charge; no special permission
-   - **"Confirm with Reverse Charge"** — only shown when `partner.vat_status = confirmed`; role-gated; requires checkbox acknowledging responsibility; full audit trail stored on invoice. Future: recency gate + alt-proof acknowledgement `[review.md#f-009]`
+   - **"Confirm with Reverse Charge"** — only shown when `partner.vat_status = confirmed` AND `vies_verified_at > now()->subDays(30)` (configurable via `vat-vies.reverse_charge_override_recency_days`); role-gated; requires TWO checkboxes: (1) general accountability, (2) alt-proof retention acknowledgement (Art. 138 safe-harbor); full audit trail stored on invoice.
 
 **VIES invalid path:**
 
-1. Modal does not open
-2. Partner record updated immediately (`vat_status = not_registered`, `vat_number` cleared)
-3. View reflects new scenario (reverse charge toggle off, scenario text updated)
-4. User confirms normally — now as VAT scenario, no retry option
+1. Modal does not open; downgrade intent is staged (not yet applied) (F-024)
+2. Notification shown: "Click Confirm Invoice to finalise — partner VAT status will be reset"
+3. User clicks "Confirm Invoice" again → modal opens with B2C scenario preview (partner VAT ignored)
+4. On Confirm: partner downgraded atomically inside the invoice confirmation transaction (`vat_status = not_registered`, `vat_number` cleared, activity log written)
 
 ### Pricing Mode Constraint
 
@@ -243,6 +243,7 @@ When the determined VAT scenario is anything other than **Domestic**, pricing mo
 | `reverse_charge_override_user_id` | nullable FK → users | Who approved the override |
 | `reverse_charge_override_at` | nullable timestamp | When the override was approved |
 | `reverse_charge_override_reason` | nullable enum | `vies_unavailable` — only value for now |
+| `reverse_charge_override_acknowledgement` | boolean | True when user confirmed alt-proof retention (F-009 Art. 138 safe-harbor) |
 
 ### Form Changes
 

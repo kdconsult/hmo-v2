@@ -76,7 +76,7 @@ test('runViesPreCheck: VIES valid + confirmed partner → partner stays confirme
     });
 });
 
-test('runViesPreCheck: VIES invalid + confirmed partner → partner downgraded to NotRegistered', function () {
+test('runViesPreCheck: VIES invalid → returns Invalid result with downgrade intent; partner NOT yet mutated (F-024)', function () {
     $tenant = Tenant::factory()->vatRegistered()->create();
     $user = User::factory()->create();
     app(TenantOnboardingService::class)->onboard($tenant, $user);
@@ -104,11 +104,50 @@ test('runViesPreCheck: VIES invalid + confirmed partner → partner downgraded t
 
         $partner->refresh();
 
+        // Downgrade is staged as intent, NOT applied until confirmWithScenario() tx runs (F-024).
         expect($result['needed'])->toBeTrue()
             ->and($result['result'])->toBe(ViesResult::Invalid)
-            ->and($partner->vat_status)->toBe(VatStatus::NotRegistered)
-            ->and($partner->vat_number)->toBeNull()
-            ->and($partner->is_vat_registered)->toBeFalse();
+            ->and($result['partner_mutation']->downgradeToNotRegistered)->toBeTrue()
+            ->and($partner->vat_status)->toBe(VatStatus::Confirmed)
+            ->and($partner->vat_number)->toBe('DE123456789');
+    });
+});
+
+test('confirmWithScenario: VIES invalid viesData → partner downgraded inside transaction (F-024)', function () {
+    $tenant = Tenant::factory()->vatRegistered()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () use ($user) {
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->euWithVat('DE')->create([
+            'vat_status' => VatStatus::Confirmed,
+            'vat_number' => 'DE123456789',
+            'is_vat_registered' => true,
+            'vies_last_checked_at' => now()->subHour(),
+        ]);
+
+        $invoice = CustomerInvoice::factory()->create([
+            'partner_id' => $partner->id,
+            'payment_method' => PaymentMethod::BankTransfer,
+        ]);
+
+        $mockVies = mock(ViesValidationService::class);
+        $mockVies->shouldReceive('validate')->once()->andReturn(makeViesResponse(true, false));
+        app()->instance(ViesValidationService::class, $mockVies);
+
+        $this->actingAs($user);
+        $viesData = app(CustomerInvoiceService::class)->runViesPreCheck($invoice);
+
+        // Partner still confirmed at this point
+        expect($partner->fresh()->vat_status)->toBe(VatStatus::Confirmed);
+
+        // Now confirm — downgrade applied atomically inside tx
+        app(CustomerInvoiceService::class)->confirmWithScenario($invoice, viesData: $viesData);
+
+        expect($partner->fresh()->vat_status)->toBe(VatStatus::NotRegistered)
+            ->and($partner->fresh()->vat_number)->toBeNull();
     });
 });
 
