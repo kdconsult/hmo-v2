@@ -109,6 +109,8 @@ class CustomerCreditNoteService
             $deltaEur = -1.0 * $this->noteToParentEur($note, $parent);
             app(EuOssService::class)->adjust($parent, $deltaEur);
         });
+
+        $this->pinDocumentData($note->refresh());
     }
 
     /**
@@ -170,5 +172,21 @@ class CustomerCreditNoteService
         return $rate > 0
             ? (float) bcdiv((string) $note->total, (string) $rate, 6)
             : (float) $note->total;
+    }
+
+    private function pinDocumentData(CustomerCreditNote $note): void
+    {
+        $note->loadMissing('items');
+        $parent = CustomerInvoice::find($note->customer_invoice_id);
+
+        $source = DocumentHasher::resolveExchangeRateSource(
+            $note->currency_code,
+            $note->issued_at ?? now(),
+        );
+
+        $note->update([
+            'exchange_rate_source' => $source,
+            'document_hash' => DocumentHasher::forCreditNote($note, $parent),
+        ]);
     }
 }

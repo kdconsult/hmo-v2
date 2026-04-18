@@ -144,6 +144,8 @@ class CustomerDebitNoteService
                 app(EuOssService::class)->adjust($parent, $deltaEur);
             }
         });
+
+        $this->pinDocumentData($note->refresh());
     }
 
     /**
@@ -218,5 +220,21 @@ class CustomerDebitNoteService
         return $rate > 0
             ? (float) bcdiv((string) $note->total, (string) $rate, 6)
             : (float) $note->total;
+    }
+
+    private function pinDocumentData(CustomerDebitNote $note): void
+    {
+        $note->loadMissing('items');
+        $parent = $note->customer_invoice_id ? CustomerInvoice::find($note->customer_invoice_id) : null;
+
+        $source = DocumentHasher::resolveExchangeRateSource(
+            $note->currency_code,
+            $note->issued_at ?? now(),
+        );
+
+        $note->update([
+            'exchange_rate_source' => $source,
+            'document_hash' => DocumentHasher::forDebitNote($note, $parent),
+        ]);
     }
 }

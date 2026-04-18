@@ -113,12 +113,12 @@ Some of these (F-019 staleness, F-025 VIES raw address) are already absorbed int
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`pre-launch-plan.md`)
+- [x] Investigation complete
+- [x] Plan written (`pre-launch-plan.md`)
 - [ ] F-012 GDPR section + DSAR action
 - [ ] F-014 OSS threshold warning UI
-- [ ] F-015 FX service + audit column
-- [ ] F-016 document_hash + integrity command + tenant-delete gate
+- [x] F-015 FX service + audit column (`exchange_rate_source` pinned at confirmation; `DocumentHasher::resolveExchangeRateSource`)
+- [x] F-016 document_hash + integrity command (`DocumentHasher`, `pinDocumentData` in all 3 services, `hmo:integrity-check` command; tenant-delete gate deferred to lifecycle task)
 - [ ] F-022 service OSS coverage test
 - [ ] F-032 invoice numbering audit + regression test
 - [ ] Automated tests pass

@@ -357,6 +357,8 @@ class CustomerInvoiceService
         if (! in_array($invoice->vat_scenario, [VatScenario::Exempt, VatScenario::DomesticExempt], true)) {
             app(EuOssService::class)->accumulate($invoice);
         }
+
+        $this->pinDocumentData($invoice);
     }
 
     /**
@@ -588,5 +590,20 @@ class CustomerInvoiceService
         }
 
         return 'goods';
+    }
+
+    private function pinDocumentData(CustomerInvoice $invoice): void
+    {
+        $invoice->refresh()->loadMissing('items');
+
+        $source = DocumentHasher::resolveExchangeRateSource(
+            $invoice->currency_code,
+            $invoice->issued_at ?? now(),
+        );
+
+        $invoice->update([
+            'exchange_rate_source' => $source,
+            'document_hash' => DocumentHasher::forInvoice($invoice),
+        ]);
     }
 }

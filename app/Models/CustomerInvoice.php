@@ -98,6 +98,8 @@ class CustomerInvoice extends Model
         'notes',
         'internal_notes',
         'created_by',
+        'exchange_rate_source',
+        'document_hash',
     ];
 
     protected function casts(): array

@@ -96,6 +96,8 @@ class CustomerCreditNote extends Model
         'total',
         'issued_at',
         'created_by',
+        'exchange_rate_source',
+        'document_hash',
     ];
 
     protected function casts(): array
