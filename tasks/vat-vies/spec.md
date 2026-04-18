@@ -307,3 +307,13 @@ When `is_vat_registered = false`, the tenant legally cannot charge VAT, apply re
 ### Pricing Mode
 
 Hidden on all outgoing document forms when `is_vat_registered = false`. Stored value is ignored — all prices are treated as final amounts. No migration of existing values needed.
+
+---
+
+## Post-Phase E2E Bug Queue
+
+Bugs found during manual browser testing that are deferred until all phases are complete. After the final phase ships, a dedicated E2E session will surface all remaining issues and this list will be worked through systematically.
+
+| # | Found | Description | Severity |
+|---|-------|-------------|----------|
+| B-001 | 2026-04-18 | `CustomerInvoice` can be confirmed with zero line items — no guard at service or UI level. `CustomerInvoiceService::confirmWithScenario()` must validate `$invoice->items()->exists()` and throw (or return a blocking notification) before any other logic runs. Same guard should be applied to Credit Note and Debit Note confirmation. | High |

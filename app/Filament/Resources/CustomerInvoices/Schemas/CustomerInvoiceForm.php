@@ -158,7 +158,13 @@ class CustomerInvoiceForm
                             ->disabled()
                             ->dehydrated()
                             ->columnSpanFull()
-                            ->helperText('Determined automatically at confirmation based on VIES result.'),
+                            ->helperText('Determined automatically at confirmation based on VIES result.')
+                            ->visible(function (Get $get): bool {
+                                $partner = Partner::find($get('partner_id'));
+                                $tenantCountry = CompanySettings::get('company', 'country_code');
+
+                                return ! ($partner && $tenantCountry && $partner->country_code === $tenantCountry);
+                            }),
                         Toggle::make('is_domestic_exempt')
                             ->label(__('invoice-form.domestic_exempt_toggle'))
                             ->helperText(__('invoice-form.domestic_exempt_hint'))

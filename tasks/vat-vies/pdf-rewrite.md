@@ -206,7 +206,7 @@ The legacy flat `resources/views/pdf/customer-invoice.blade.php` is deleted once
 - [x] Print actions re-wired / added (invoice + credit note + debit note)
 - [x] Legacy flat `pdf.customer-invoice.blade.php` deleted
 - [x] Automated tests pass (631 passing, 3 todos)
-- [ ] Browser-tested: BG tenant — each of the 3 doc types × each scenario
-- [ ] Browser-tested: non-BG tenant (simulate DE) renders default template in tenant locale
+- [x] Browser-tested: BG tenant — each of the 3 doc types × each scenario
+- [x] Browser-tested: non-BG tenant (simulate DE) renders default template in tenant locale
 - [x] Pint clean
 - [x] Final test run green
