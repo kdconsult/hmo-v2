@@ -53,6 +53,11 @@ class PartnerVatService
         $partner->vat_status = VatStatus::Confirmed;
         $partner->vat_number = $confirmedVat;
         $partner->vies_verified_at = now();
+
+        if (filled($result['address'] ?? null)) {
+            $partner->vies_raw_address = $result['address'];
+        }
+
         $partner->save();
 
         return VatStatus::Confirmed;

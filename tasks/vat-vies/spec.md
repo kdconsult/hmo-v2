@@ -125,6 +125,7 @@ Same as Area 1 (tenant). All carry over:
 | VAT number | text (locked) | yes | Populated exclusively from VIES valid response; read-only in UI |
 | Company name | text | yes | Pre-filled from VIES response; editable |
 | Address | text/fields | yes | Pre-filled from VIES response; editable |
+| VIES raw address | text (hidden) | yes | Verbatim address string from VIES — preserved as fallback (F-025) |
 | VAT verified at | timestamp | yes | Set on each successful VIES confirmation |
 | VAT status | enum | yes | `not_registered` / `confirmed` / `pending` |
 
@@ -156,6 +157,7 @@ Same as Area 1 (tenant). All carry over:
 - **Manual** — always available; "Validate VAT" action on partner view page; runs full VIES flow; updates status + VAT number
 - **At invoice confirmation** — re-check runs before the confirmation action fires; details and edge cases resolved in Area 3 (invoice) discussion
 - **Periodic automatic** — out of scope
+- **Staleness warning** — when `vat_status = pending` and `vies_last_checked_at < now()->subDays(7)`, the partner view page surfaces a warning entry in the infolist. The partner list table shows a yellow clock icon for Pending, green check-badge for Confirmed (F-019).
 
 ---
 

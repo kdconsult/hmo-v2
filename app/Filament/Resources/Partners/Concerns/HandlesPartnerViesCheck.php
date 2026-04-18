@@ -69,6 +69,10 @@ trait HandlesPartnerViesCheck
             data_set($this->data, 'name', $result['name']);
         }
 
+        if (filled($result['address'] ?? null)) {
+            data_set($this->data, 'vies_raw_address', $result['address']);
+        }
+
         Notification::make()->success()
             ->title('VAT registration confirmed')
             ->body($confirmedVat)

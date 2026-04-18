@@ -92,6 +92,8 @@ class PartnerForm
                                 Hidden::make('vat_status')
                                     ->default(VatStatus::NotRegistered->value),
 
+                                Hidden::make('vies_raw_address'),
+
                                 Toggle::make('is_vat_registered')
                                     ->label('Partner is VAT Registered')
                                     ->live()

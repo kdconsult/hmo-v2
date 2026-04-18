@@ -45,6 +45,7 @@ class Partner extends Model
         'vat_status',
         'vies_verified_at',
         'vies_last_checked_at',
+        'vies_raw_address',
     ];
 
     protected function casts(): array

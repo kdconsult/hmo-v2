@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Partners\Tables;
 
 use App\Enums\PartnerType;
+use App\Enums\VatStatus;
+use App\Models\Partner;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -22,6 +24,20 @@ class PartnersTable
     {
         return $table
             ->columns([
+                IconColumn::make('vat_status_icon')
+                    ->label('')
+                    ->icon(fn (Partner $record): ?string => match ($record->vat_status) {
+                        VatStatus::Confirmed => 'heroicon-s-check-badge',
+                        VatStatus::Pending => 'heroicon-s-clock',
+                        VatStatus::NotRegistered => null,
+                        default => null,
+                    })
+                    ->color(fn (Partner $record): string => match ($record->vat_status) {
+                        VatStatus::Confirmed => 'success',
+                        VatStatus::Pending => 'warning',
+                        default => 'gray',
+                    })
+                    ->tooltip(fn (Partner $record): ?string => $record->vat_status?->value),
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
