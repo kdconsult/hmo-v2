@@ -90,30 +90,38 @@ class CustomerDebitNoteService
                 $finalSubCode = $parent->vat_scenario_sub_code;
                 $isRc = $parent->is_reverse_charge;
             } else {
-                // Standalone debit note — fresh determination
-                $partner = $note->partner;
-                $tenantCountry = TenantVatStatus::country() ?? 'BG';
-                $isRegistered = TenantVatStatus::isRegistered();
-
-                $scenario = VatScenario::determine(
-                    $partner,
-                    $tenantCountry,
-                    tenantIsVatRegistered: $isRegistered,
-                );
-
-                if (in_array($scenario, [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport], true)) {
-                    $itemKind = $this->classifyItems($note);
-                    if ($itemKind === 'mixed' && $subCode === null) {
-                        throw new \DomainException(
-                            'Standalone debit note with mixed goods and services requires an explicit sub_code (goods or services).'
-                        );
-                    }
-                    $finalSubCode = $subCode ?? ($itemKind === 'services' ? 'services' : 'goods');
+                // Standalone debit note.
+                if (! TenantVatStatus::isRegistered()) {
+                    // Non-registered tenant — force Exempt (ЗДДС чл. 113, ал. 9).
+                    // Blocks override does NOT apply when a parent exists (F-021).
+                    $scenario = VatScenario::Exempt;
+                    $finalSubCode = 'default';
+                    $isRc = false;
                 } else {
-                    $finalSubCode = $subCode ?? 'default';
-                }
+                    // Registered tenant — fresh determination.
+                    $partner = $note->partner;
+                    $tenantCountry = TenantVatStatus::country() ?? 'BG';
 
-                $isRc = $scenario === VatScenario::EuB2bReverseCharge;
+                    $scenario = VatScenario::determine(
+                        $partner,
+                        $tenantCountry,
+                        tenantIsVatRegistered: true,
+                    );
+
+                    if (in_array($scenario, [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport], true)) {
+                        $itemKind = $this->classifyItems($note);
+                        if ($itemKind === 'mixed' && $subCode === null) {
+                            throw new \DomainException(
+                                'Standalone debit note with mixed goods and services requires an explicit sub_code (goods or services).'
+                            );
+                        }
+                        $finalSubCode = $subCode ?? ($itemKind === 'services' ? 'services' : 'goods');
+                    } else {
+                        $finalSubCode = $subCode ?? 'default';
+                    }
+
+                    $isRc = $scenario === VatScenario::EuB2bReverseCharge;
+                }
             }
 
             if ($scenario?->requiresVatRateChange()) {

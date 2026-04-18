@@ -6,8 +6,10 @@ use App\Enums\DebitNoteReason;
 use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
 use App\Models\CustomerDebitNote;
+use App\Models\CustomerDebitNoteItem;
 use App\Models\CustomerInvoice;
 use App\Models\Partner;
+use App\Models\VatRate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -80,5 +82,15 @@ class CustomerDebitNoteFactory extends Factory
         return $this->state(fn () => [
             'customer_invoice_id' => null,
         ]);
+    }
+
+    public function withItems(int $count = 1): static
+    {
+        return $this->has(
+            CustomerDebitNoteItem::factory()
+                ->count($count)
+                ->state(fn () => ['vat_rate_id' => VatRate::factory()->standard()]),
+            'items'
+        );
     }
 }

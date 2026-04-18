@@ -3,7 +3,7 @@
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Plan:** `tasks/vat-vies/blocks-credit-debit-plan.md`
 > **Review:** `review.md` (F-004, F-021)
-> **Status:** 📋 PLANNED
+> **Status:** ✅ COMPLETE
 > **Depends on:** `blocks.md` landed (shared `TenantVatStatus` helper), `invoice-credit-debit.md` landed (credit/debit scenario logic)
 
 ---
@@ -148,13 +148,15 @@ No "Import from invoice" rate override needed. The old plan's override requireme
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`blocks-credit-debit-plan.md`)
-- [ ] Form blocks landed for both note types
-- [ ] Items RM restrictions landed
-- [ ] `applyExemptScenario()` helper defined + used only for standalone non-registered path
-- [ ] Inheritance test passes (F-021)
-- [ ] PDF renders correctly in all four cases (parent-attached × Exempt/Non-Exempt, standalone × non-registered/registered)
+- [x] Investigation complete
+- [x] Plan written (`blocks-credit-debit-plan.md`) — revised with all 6 advisor findings
+- [x] Form blocks landed for both note types (`pricing_mode` visibility gated on `TenantVatStatus::isRegistered()`)
+- [x] Items RM restrictions landed (gate = `requiresVatRateChange()` for parent-attached; `!isRegistered()` for standalone debit)
+- [x] No `applyExemptScenario()` helper — guard inlined in standalone branch, falls through to shared tail (no early-return bypass of `warnOnLateIssuance()`)
+- [x] F-021 inheritance tests pass (parent Domestic/EuB2bRC/Exempt all inherited correctly; tenant deregistration irrelevant)
+- [x] Standalone debit + non-registered → Exempt confirmed by tests
+- [x] Items forced to 0% tests pass for both note types
+- [x] Import-from-invoice confirmed as no-op (copies rates as-is; no override code present)
+- [x] Pint clean
+- [x] Final test run green (665 passed, 0 failures)
 - [ ] Browser-tested end-to-end
-- [ ] Pint clean
-- [ ] Final test run green

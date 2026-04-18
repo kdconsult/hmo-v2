@@ -6,8 +6,10 @@ use App\Enums\CreditNoteReason;
 use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
 use App\Models\CustomerCreditNote;
+use App\Models\CustomerCreditNoteItem;
 use App\Models\CustomerInvoice;
 use App\Models\Partner;
+use App\Models\VatRate;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -73,5 +75,15 @@ class CustomerCreditNoteFactory extends Factory
             'vat_scenario_sub_code' => $parent->vat_scenario_sub_code,
             'is_reverse_charge' => $parent->is_reverse_charge,
         ]);
+    }
+
+    public function withItems(int $count = 1): static
+    {
+        return $this->has(
+            CustomerCreditNoteItem::factory()
+                ->count($count)
+                ->state(fn () => ['vat_rate_id' => VatRate::factory()->standard()]),
+            'items'
+        );
     }
 }

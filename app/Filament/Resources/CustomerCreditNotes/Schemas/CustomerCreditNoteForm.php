@@ -8,6 +8,7 @@ use App\Enums\PricingMode;
 use App\Models\Currency;
 use App\Models\CustomerInvoice;
 use App\Services\CurrencyRateService;
+use App\Support\TenantVatStatus;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -103,7 +104,8 @@ class CustomerCreditNoteForm
                         Select::make('pricing_mode')
                             ->options(PricingMode::class)
                             ->required()
-                            ->default(PricingMode::VatExclusive->value),
+                            ->default(PricingMode::VatExclusive->value)
+                            ->visible(fn (): bool => TenantVatStatus::isRegistered()),
                         TextInput::make('partner_id')
                             ->hidden()
                             ->dehydrated(),

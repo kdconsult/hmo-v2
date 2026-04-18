@@ -68,6 +68,9 @@ class CustomerCreditNoteService
     public function confirmWithScenario(CustomerCreditNote $note): void
     {
         DB::transaction(function () use ($note): void {
+            // Credit notes always have a parent (schema: customer_invoice_id NOT NULL).
+            // Inheritance wins unconditionally — tenant's current VAT status does NOT override (F-021,
+            // Art. 90 Directive 2006/112/EC: correction mirrors original supply's taxable basis).
             $parent = $note->customerInvoice()->with('partner')->first();
 
             if (! $parent) {

@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1–4 complete; Wave 1 hotfix + legal-references + pdf-rewrite + domestic-exempt + blocks + invoice-credit-debit shipped.** 657 tests pass (8 todos). Next: `tasks/vat-vies/blocks-credit-debit.md` (blocks for credit/debit notes). See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit driving the remaining waves.
+**VAT/VIES Areas 1–4 complete; all six pre-launch waves shipped** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit). 665 tests pass (8 todos). Next: `tasks/vat-vies/pre-launch.md`. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -200,7 +200,13 @@ VAT/VIES Wave 1 complete: **Post-review hotfix bundle** (`tasks/vat-vies/hotfix.
 
 VAT/VIES Wave 2 — pdf-rewrite + domestic-exempt shipped (2026-04-18): Per-country PDF template resolver (`PdfTemplateResolver`). Six templates: `customer-invoice/{default,bg}`, `customer-credit-note/{default,bg}`, `customer-debit-note/{default,bg}`. Seven shared Blade components. `VatScenario::DomesticExempt` enum case. `customer_invoices.supplied_at` + `vat_scenario_sub_code` columns (backfill on all 3 doc tables). Translation files `lang/{bg,en}/invoice-pdf.php` + `invoice-form.php`. Service guards F-023 (refuse reverse-charge without tenant VAT number) + F-028 (5-day late issuance warning). Invoice form: `supplied_at` DatePicker + domestic-exempt toggle + sub-code picker. Items RM 0% rate restriction for DomesticExempt/Exempt/ReverseCharge. Credit/Debit Note print actions. 39 new tests.
 
-Next: `tasks/vat-vies/blocks.md` (Area 4 — UI blocks for Exempt/Pending/non-VAT-registered tenant scenarios). Then `blocks-credit-debit.md`, `invoice-credit-debit.md`, `pre-launch.md`.
+VAT/VIES Wave 3 — blocks (Area 4) shipped (2026-04-18): `TenantVatStatus` helper (`isRegistered()`, `country()`, `zeroExemptRate()`). Invoice form: `pricing_mode` hidden when non-registered; `is_reverse_charge` toggle hidden; VIES helper hidden for pending partners. `CustomerInvoiceService::confirmWithScenario()`: non-registered tenant short-circuits to `VatScenario::Exempt` before any VIES check or scenario determination; `applyZeroRateToItems()` for all items; OSS accumulation skipped. Items RM: `vat_rate_id` options restricted to 0% when non-registered or scenario `requiresVatRateChange()`.
+
+VAT/VIES Wave 4 — invoice-credit-debit shipped (2026-04-18): Migration adds `vat_scenario`, `vat_scenario_sub_code`, `is_reverse_charge`, `triggering_event_date` to both note tables. `CustomerCreditNoteService::confirmWithScenario()`: inherits all three VAT fields from confirmed parent (Art. 90/219 Directive + чл. 115 ЗДДС); applies zero rates when `requiresVatRateChange()`; 5-day issuance warning; OSS negative delta via `EuOssService::adjust()`. `CustomerDebitNoteService::confirmWithScenario()`: parent path inherits; standalone path runs fresh `VatScenario::determine()` + sub-code guard for mixed goods/services. `EuOssService::adjust()` — signed delta accumulation using parent's `issued_at->year`. Model immutability guards on all four note models/items (mirrors invoice hotfix). Credit/debit note PDF templates updated with Art. 219 parent-invoice reference (number + date). Form: `triggering_event_date` DatePicker; inheritance banner helper text. 26 new tests (657 total).
+
+VAT/VIES Wave 5 — blocks-credit-debit shipped (2026-04-18): F-021 inheritance rule enforced: parent-attached notes always inherit parent's VAT scenario regardless of tenant's current registration status (Art. 90/219 Directive — correction mirrors original supply). `CustomerDebitNoteService::confirmWithScenario()`: standalone path guards non-registered tenant → `VatScenario::Exempt` inline before fresh `determine()`, falls through to shared tail so `warnOnLateIssuance()` always fires. Legal comment added to `CustomerCreditNoteService::confirmWithScenario()` (no standalone path; schema enforces parent). Forms: `pricing_mode` hidden via `TenantVatStatus::isRegistered()` on both note forms. Items RMs: `vat_rate_id` options gate = `parent->vat_scenario->requiresVatRateChange()` for parent-attached notes; `!TenantVatStatus::isRegistered()` for standalone debit RM. Import-from-invoice action confirmed as no-op (copies rates as-is; inheritance drives correctness). `withItems()` factory state added to both note factories. 8 new tests (665 total).
+
+Next: `tasks/vat-vies/pre-launch.md`.
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -286,3 +292,6 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | ViesValidationService unit tests + prefix-stripping bug fix (makeSoapClient seam, 10 tests covering SOAP params/parsing/caching/unavailability) | **580** |
 | VAT/VIES Wave 1 — hotfix (F-030 country_code / F-031 immutability frozen-list / F-005 VIES cache tenant-id / doc drift) + legal-references foundation (VatLegalReference model + 16 BG rows + TenantTemplateManager wiring) | **592** |
 | VAT/VIES Wave 2 — pdf-rewrite + domestic-exempt (PdfTemplateResolver, 6 templates, 7 components, supplied_at + vat_scenario_sub_code columns, F-023/F-028 guards, DomesticExempt form UX, 39 new tests) | **631** |
+| VAT/VIES Wave 3 — blocks/Area 4 (TenantVatStatus helper, invoice form blocks, confirmWithScenario Exempt short-circuit, items RM 0% gate) | **~639** |
+| VAT/VIES Wave 4 — invoice-credit-debit (note VAT columns, confirmWithScenario inherit/standalone, EuOssService::adjust, PDF Art. 219 reference, immutability guards, 26 new tests) | **657** |
+| VAT/VIES Wave 5 — blocks-credit-debit (F-021 inheritance rule, standalone non-registered → Exempt, form/items RM gating, withItems() factory states, 8 new tests) | **665** |

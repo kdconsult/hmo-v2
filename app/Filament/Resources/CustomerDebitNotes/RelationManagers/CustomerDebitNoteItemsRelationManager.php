@@ -8,6 +8,7 @@ use App\Models\CustomerInvoiceItem;
 use App\Models\ProductVariant;
 use App\Models\VatRate;
 use App\Services\CustomerDebitNoteService;
+use App\Support\TenantVatStatus;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -133,7 +134,25 @@ class CustomerDebitNoteItemsRelationManager extends RelationManager
 
                 Select::make('vat_rate_id')
                     ->label('VAT Rate')
-                    ->options(VatRate::active()->orderBy('rate')->pluck('name', 'id'))
+                    ->options(function (): array {
+                        /** @var CustomerDebitNote $note */
+                        $note = $this->getOwnerRecord();
+                        $parent = $note->customerInvoice;
+
+                        $restrict = $parent
+                            ? (bool) $parent->vat_scenario?->requiresVatRateChange()
+                            : ! TenantVatStatus::isRegistered();
+
+                        if ($restrict) {
+                            $country = TenantVatStatus::country() ?? 'BG';
+                            $zero = VatRate::where('country_code', $country)->where('rate', 0)->first()
+                                ?? TenantVatStatus::zeroExemptRate();
+
+                            return [$zero->id => $zero->name];
+                        }
+
+                        return VatRate::active()->orderBy('rate')->pluck('name', 'id')->toArray();
+                    })
                     ->searchable()
                     ->required(),
             ]);

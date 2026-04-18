@@ -27,12 +27,12 @@
 | Invoice PDF rewrite (Art. 226 compliance) | `pdf-rewrite.md` | legal-references | ✅ SHIPPED |
 | DomesticExempt scenario (чл. 39–49 ЗДДС) | `domestic-exempt.md` | legal-references | ✅ SHIPPED |
 | Credit / debit note VAT determination | `invoice-credit-debit.md` | pdf-rewrite, domestic-exempt | ✅ SHIPPED |
-| Non-VAT-registered blocks — credit / debit notes | `blocks-credit-debit.md` | blocks, invoice-credit-debit | 📋 PLANNED |
-| Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | 📋 PLANNED |
+| Non-VAT-registered blocks — credit / debit notes | `blocks-credit-debit.md` | blocks, invoice-credit-debit | ✅ SHIPPED |
+| Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | ⏭️ NEXT |
 
 ### Recommended execution order
 
-`hotfix` → `legal-references` → `pdf-rewrite` → `domestic-exempt` → `blocks` → `invoice-credit-debit` → `blocks-credit-debit` → done-task refactor plans (tenant/partner/invoice) → `pre-launch`.
+`hotfix` → `legal-references` → `pdf-rewrite` → `domestic-exempt` → `blocks` → `invoice-credit-debit` → `blocks-credit-debit` ✅ → done-task refactor plans (tenant/partner/invoice) → `pre-launch`.
 
 ---
 
