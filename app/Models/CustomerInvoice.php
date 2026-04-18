@@ -72,6 +72,7 @@ class CustomerInvoice extends Model
         'invoice_type',
         'is_reverse_charge',
         'vat_scenario',
+        'vat_scenario_sub_code',
         'vies_request_id',
         'vies_checked_at',
         'vies_result',
@@ -90,6 +91,7 @@ class CustomerInvoice extends Model
         'amount_due',
         'payment_method',
         'issued_at',
+        'supplied_at',
         'due_date',
         'notes',
         'internal_notes',
@@ -118,6 +120,7 @@ class CustomerInvoice extends Model
             'amount_paid' => 'decimal:2',
             'amount_due' => 'decimal:2',
             'issued_at' => 'date',
+            'supplied_at' => 'date',
             'due_date' => 'date',
         ];
     }

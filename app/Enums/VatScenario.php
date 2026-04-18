@@ -10,12 +10,16 @@ enum VatScenario: string
 {
     case Exempt = 'exempt';
     case Domestic = 'domestic';
+    case DomesticExempt = 'domestic_exempt';
     case EuB2bReverseCharge = 'eu_b2b_reverse_charge';
     case EuB2cUnderThreshold = 'eu_b2c_under_threshold';
     case EuB2cOverThreshold = 'eu_b2c_over_threshold';
     case NonEuExport = 'non_eu_export';
 
     /**
+     * NOTE: DomesticExempt is NOT returned by this method — it is user-selected.
+     * See tasks/vat-vies/domestic-exempt-plan.md.
+     *
      * Determine the correct VAT scenario for a cross-border transaction.
      *
      * Branching order (EU VAT Directive 2006/112/EC):
@@ -73,6 +77,7 @@ enum VatScenario: string
         return match ($this) {
             self::Exempt => 'Exempt — tenant is not VAT registered.',
             self::Domestic => 'Domestic sale — standard VAT applies.',
+            self::DomesticExempt => 'Domestic exemption — zero-rated under a specific ЗДДС article (39–49).',
             self::EuB2bReverseCharge => 'EU B2B — reverse charge applies (0% VAT, Article 196).',
             self::EuB2cUnderThreshold => 'EU B2C — below OSS threshold, domestic VAT rate applies.',
             self::EuB2cOverThreshold => 'EU B2C — OSS threshold exceeded, destination country VAT rate applies.',
@@ -88,7 +93,7 @@ enum VatScenario: string
     {
         return match ($this) {
             self::Domestic, self::EuB2cUnderThreshold => false,
-            self::Exempt, self::EuB2bReverseCharge, self::EuB2cOverThreshold, self::NonEuExport => true,
+            self::Exempt, self::DomesticExempt, self::EuB2bReverseCharge, self::EuB2cOverThreshold, self::NonEuExport => true,
         };
     }
 }

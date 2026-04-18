@@ -28,6 +28,7 @@ class CustomerDebitNote extends Model
         'pricing_mode',
         'reason',
         'reason_description',
+        'vat_scenario_sub_code',
         'subtotal',
         'tax_amount',
         'total',

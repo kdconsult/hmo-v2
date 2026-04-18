@@ -14,6 +14,7 @@ use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
 use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Services\CustomerInvoiceService;
+use App\Services\PdfTemplateResolver;
 use Barryvdh\DomPDF\Facade\Pdf;
 use DomainException;
 use Filament\Actions\Action;
@@ -125,6 +126,8 @@ class ViewCustomerInvoice extends ViewRecord
                         app(CustomerInvoiceService::class)->confirmWithScenario(
                             $record,
                             viesData: $storedViesData,
+                            isDomesticExempt: $record->vat_scenario === VatScenario::DomesticExempt,
+                            subCode: $record->vat_scenario_sub_code,
                         );
 
                         $this->viesPreCheckResult = null;
@@ -287,15 +290,26 @@ class ViewCustomerInvoice extends ViewRecord
                 ->color('gray')
                 ->visible(fn (CustomerInvoice $record): bool => $record->status === DocumentStatus::Confirmed)
                 ->action(function (CustomerInvoice $record) {
-                    $record->loadMissing(['partner', 'items.productVariant', 'items.vatRate']);
+                    $record->loadMissing(['partner.addresses', 'items.productVariant', 'items.vatRate']);
 
-                    return response()->streamDownload(
-                        function () use ($record) {
-                            $pdf = Pdf::loadView('pdf.customer-invoice', ['invoice' => $record]);
-                            echo $pdf->output();
-                        },
-                        "invoice-{$record->invoice_number}.pdf"
-                    );
+                    $resolver = app(PdfTemplateResolver::class);
+                    $view = $resolver->resolve('customer-invoice');
+                    $locale = $resolver->localeFor('customer-invoice');
+
+                    $previous = app()->getLocale();
+                    app()->setLocale($locale);
+
+                    try {
+                        return response()->streamDownload(
+                            function () use ($view, $record) {
+                                $pdf = Pdf::loadView($view, ['invoice' => $record]);
+                                echo $pdf->output();
+                            },
+                            "invoice-{$record->invoice_number}.pdf"
+                        );
+                    } finally {
+                        app()->setLocale($previous);
+                    }
                 }),
 
             Action::make('create_credit_note')

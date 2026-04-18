@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\CustomerInvoices\RelationManagers;
 
+use App\Enums\VatScenario;
+use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
 use App\Models\ProductVariant;
@@ -139,7 +141,32 @@ class CustomerInvoiceItemsRelationManager extends RelationManager
 
                 Select::make('vat_rate_id')
                     ->label('VAT Rate')
-                    ->options(VatRate::active()->orderBy('rate')->pluck('name', 'id'))
+                    ->options(function (): array {
+                        /** @var CustomerInvoice $parent */
+                        $parent = $this->getOwnerRecord();
+
+                        $forcesZero = $parent->vat_scenario === VatScenario::DomesticExempt
+                            || $parent->vat_scenario === VatScenario::Exempt
+                            || $parent->is_reverse_charge;
+
+                        $country = CompanySettings::get('company', 'country_code');
+
+                        if ($forcesZero) {
+                            $zero = VatRate::query()
+                                ->where('country_code', $country)
+                                ->where('rate', 0)
+                                ->where('is_active', true)
+                                ->first();
+
+                            return $zero ? [$zero->id => $zero->name] : [];
+                        }
+
+                        return VatRate::active()
+                            ->where('country_code', $country)
+                            ->orderBy('rate')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
                     ->searchable()
                     ->required(),
 

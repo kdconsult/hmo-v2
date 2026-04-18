@@ -6,6 +6,8 @@ use App\Enums\DocumentStatus;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Models\CustomerCreditNote;
 use App\Services\CustomerCreditNoteService;
+use App\Services\PdfTemplateResolver;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -32,6 +34,34 @@ class ViewCustomerCreditNote extends ViewRecord
                     app(CustomerCreditNoteService::class)->confirm($record);
                     Notification::make()->title('Credit note confirmed')->success()->send();
                     $this->redirect(static::getResource()::getUrl('view', ['record' => $record]));
+                }),
+
+            Action::make('print_credit_note')
+                ->label('Print Credit Note')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->color('gray')
+                ->visible(fn (CustomerCreditNote $record): bool => $record->status === DocumentStatus::Confirmed)
+                ->action(function (CustomerCreditNote $record) {
+                    $record->loadMissing(['partner.addresses', 'items.productVariant', 'items.vatRate', 'customerInvoice']);
+
+                    $resolver = app(PdfTemplateResolver::class);
+                    $view = $resolver->resolve('customer-credit-note');
+                    $locale = $resolver->localeFor('customer-credit-note');
+
+                    $previous = app()->getLocale();
+                    app()->setLocale($locale);
+
+                    try {
+                        return response()->streamDownload(
+                            function () use ($view, $record) {
+                                $pdf = Pdf::loadView($view, ['note' => $record]);
+                                echo $pdf->output();
+                            },
+                            "credit-note-{$record->credit_note_number}.pdf"
+                        );
+                    } finally {
+                        app()->setLocale($previous);
+                    }
                 }),
 
             Action::make('cancel')

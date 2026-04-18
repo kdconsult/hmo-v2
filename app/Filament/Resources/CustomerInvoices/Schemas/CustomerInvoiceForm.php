@@ -12,6 +12,7 @@ use App\Models\CompanySettings;
 use App\Models\Currency;
 use App\Models\Partner;
 use App\Models\SalesOrder;
+use App\Models\VatLegalReference;
 use App\Services\CurrencyRateService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -22,6 +23,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
 
 class CustomerInvoiceForm
 {
@@ -157,6 +159,55 @@ class CustomerInvoiceForm
                             ->dehydrated()
                             ->columnSpanFull()
                             ->helperText('Determined automatically at confirmation based on VIES result.'),
+                        Toggle::make('is_domestic_exempt')
+                            ->label(__('invoice-form.domestic_exempt_toggle'))
+                            ->helperText(__('invoice-form.domestic_exempt_hint'))
+                            ->live()
+                            ->dehydrated(false)
+                            ->visible(function (Get $get): bool {
+                                $partner = Partner::find($get('partner_id'));
+                                $tenantCountry = CompanySettings::get('company', 'country_code');
+
+                                return $partner && $partner->country_code === $tenantCountry;
+                            })
+                            ->afterStateHydrated(function ($component, ?Model $record): void {
+                                if ($record?->vat_scenario === VatScenario::DomesticExempt) {
+                                    $component->state(true);
+                                }
+                            })
+                            ->afterStateUpdated(function (bool $state, callable $set): void {
+                                if (! $state) {
+                                    $set('vat_scenario', null);
+                                    $set('vat_scenario_sub_code', null);
+
+                                    return;
+                                }
+
+                                $set('vat_scenario', VatScenario::DomesticExempt->value);
+
+                                $country = CompanySettings::get('company', 'country_code');
+                                $default = VatLegalReference::forCountry($country)
+                                    ->ofScenario('domestic_exempt')
+                                    ->default()
+                                    ->first();
+
+                                if ($default) {
+                                    $set('vat_scenario_sub_code', $default->sub_code);
+                                }
+                            }),
+                        Select::make('vat_scenario_sub_code')
+                            ->label(__('invoice-form.exemption_article'))
+                            ->options(function (): array {
+                                $country = CompanySettings::get('company', 'country_code');
+
+                                return VatLegalReference::listForScenario($country, 'domestic_exempt')
+                                    ->mapWithKeys(fn ($ref) => [
+                                        $ref->sub_code => "{$ref->legal_reference} — {$ref->getTranslation('description', app()->getLocale(), false)}",
+                                    ])
+                                    ->toArray();
+                            })
+                            ->visible(fn (Get $get): bool => (bool) $get('is_domestic_exempt'))
+                            ->required(fn (Get $get): bool => (bool) $get('is_domestic_exempt')),
                     ]),
 
                 Section::make('Pricing & Currency')
@@ -231,6 +282,11 @@ class CustomerInvoiceForm
                             ->default(now()->toDateString())
                             ->live(onBlur: true)
                             ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
+                        DatePicker::make('supplied_at')
+                            ->label(__('invoice-form.date_of_supply'))
+                            ->helperText(__('invoice-form.date_of_supply_hint'))
+                            ->nullable()
+                            ->default(fn (Get $get) => $get('issued_at')),
                         DatePicker::make('due_date')
                             ->nullable(),
                         Select::make('payment_method')

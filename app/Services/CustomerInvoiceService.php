@@ -20,6 +20,7 @@ use App\Models\VatRate;
 use App\Support\EuCountries;
 use Carbon\Carbon;
 use DomainException;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 
 class CustomerInvoiceService
@@ -202,6 +203,8 @@ class CustomerInvoiceService
      * @param  array|null  $viesData  Result from runViesPreCheck(); null if no VIES check ran
      * @param  bool  $treatAsB2c  When true, partner VAT data is ignored (B2C path)
      * @param  ManualOverrideData|null  $override  When set, stores reverse charge manual override audit trail
+     * @param  bool  $isDomesticExempt  When true, force VatScenario::DomesticExempt and apply 0% rate under the given sub_code
+     * @param  ?string  $subCode  Required when $isDomesticExempt is true; identifies the ЗДДС article (e.g. 'art_45')
      *
      * @throws DomainException when an item would over-invoice its SO line
      */
@@ -210,6 +213,8 @@ class CustomerInvoiceService
         ?array $viesData = null,
         bool $treatAsB2c = false,
         ?ManualOverrideData $override = null,
+        bool $isDomesticExempt = false,
+        ?string $subCode = null,
     ): void {
         if ($invoice->status !== DocumentStatus::Draft) {
             throw new DomainException('Only draft invoices can be confirmed.');
@@ -238,6 +243,29 @@ class CustomerInvoiceService
             }
         }
 
+        // DomesticExempt input validation.
+        if ($isDomesticExempt && empty($subCode)) {
+            throw new DomainException('DomesticExempt confirmation requires a sub_code.');
+        }
+
+        // F-023: reverse-charge requires tenant VAT number.
+        if ($this->wouldBecomeReverseCharge($invoice, $treatAsB2c) && empty(tenancy()->tenant?->vat_number)) {
+            throw new DomainException(
+                'Cannot issue a reverse-charge invoice: tenant VAT number is not configured. '.
+                'Set it in Company Settings before confirming.'
+            );
+        }
+
+        // F-028: 5-day issuance rule warning (non-blocking).
+        $supplied = $invoice->supplied_at ?? $invoice->issued_at;
+        if ($invoice->issued_at && $supplied && $invoice->issued_at->diffInDays($supplied) > 5) {
+            Notification::make()
+                ->title(__('invoice-form.late_issuance_title'))
+                ->body(__('invoice-form.late_issuance_body'))
+                ->warning()
+                ->send();
+        }
+
         // Store VIES audit data on the invoice
         if ($viesData && isset($viesData['result']) && $viesData['result'] instanceof ViesResult) {
             $invoice->vies_result = $viesData['result'];
@@ -255,8 +283,30 @@ class CustomerInvoiceService
 
         $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
 
-        DB::transaction(function () use ($invoice, $treatAsB2c, $tenantIsVatRegistered): void {
-            $this->determineVatType($invoice, $treatAsB2c, $tenantIsVatRegistered);
+        DB::transaction(function () use ($invoice, $treatAsB2c, $tenantIsVatRegistered, $isDomesticExempt, $subCode): void {
+            if ($isDomesticExempt) {
+                $tenantCountry = CompanySettings::get('company', 'country_code');
+                if (empty($tenantCountry)) {
+                    throw new DomainException('Company country code is not configured.');
+                }
+                $invoice->vat_scenario = VatScenario::DomesticExempt;
+                $invoice->vat_scenario_sub_code = $subCode;
+                $invoice->is_reverse_charge = false;
+
+                $targetRate = $this->resolveZeroVatRate($tenantCountry);
+                $invoice->loadMissing('items');
+                foreach ($invoice->items as $item) {
+                    $item->vat_rate_id = $targetRate->id;
+                    $item->save();
+                    $item->setRelation('customerInvoice', $invoice);
+                    $item->setRelation('vatRate', $targetRate);
+                    $this->recalculateItemTotals($item);
+                }
+                $this->recalculateDocumentTotals($invoice);
+            } else {
+                $this->determineVatType($invoice, $treatAsB2c, $tenantIsVatRegistered);
+                $invoice->vat_scenario_sub_code = $this->resolveSubCode($invoice);
+            }
 
             $invoice->status = DocumentStatus::Confirmed;
             $invoice->save();
@@ -302,9 +352,9 @@ class CustomerInvoiceService
             FiscalReceiptRequested::dispatch($invoice);
         }
 
-        // Skip OSS accumulation for Exempt scenario — tenant is not VAT registered
+        // Skip OSS accumulation for Exempt and DomesticExempt scenarios — no cross-border B2C accumulation applies
         $invoice->loadMissing('partner');
-        if ($invoice->vat_scenario !== VatScenario::Exempt) {
+        if (! in_array($invoice->vat_scenario, [VatScenario::Exempt, VatScenario::DomesticExempt], true)) {
             app(EuOssService::class)->accumulate($invoice);
         }
     }
@@ -441,5 +491,69 @@ class CustomerInvoiceService
 
             $invoice->update(['status' => DocumentStatus::Cancelled]);
         });
+    }
+
+    /**
+     * F-023 helper: would this invoice resolve to EU B2B reverse-charge given current state?
+     * Used to short-circuit confirmation when the tenant has no VAT number configured.
+     */
+    private function wouldBecomeReverseCharge(CustomerInvoice $invoice, bool $treatAsB2c): bool
+    {
+        if ($treatAsB2c) {
+            return false;
+        }
+
+        $tenantCountry = CompanySettings::get('company', 'country_code');
+        if (empty($tenantCountry)) {
+            return false;
+        }
+
+        $invoice->loadMissing('partner');
+
+        try {
+            $scenario = VatScenario::determine(
+                $invoice->partner,
+                $tenantCountry,
+                ignorePartnerVat: false,
+                tenantIsVatRegistered: (bool) tenancy()->tenant?->is_vat_registered,
+            );
+        } catch (DomainException) {
+            return false;
+        }
+
+        return $scenario === VatScenario::EuB2bReverseCharge;
+    }
+
+    /**
+     * Resolve the sub_code for the current invoice's vat_scenario.
+     * Returns null when no sub_code applies (domestic / B2C / OSS scenarios).
+     */
+    private function resolveSubCode(CustomerInvoice $invoice): ?string
+    {
+        return match ($invoice->vat_scenario) {
+            VatScenario::Exempt => 'default',
+            VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport => $this->inferGoodsOrServices($invoice),
+            default => null,
+        };
+    }
+
+    /**
+     * Heuristic: classify an invoice as 'goods' or 'services' for sub_code selection.
+     * Returns 'services' only when every line is a Service product; otherwise 'goods' (BG SME majority assumption).
+     */
+    private function inferGoodsOrServices(CustomerInvoice $invoice): string
+    {
+        $invoice->loadMissing('items.productVariant.product');
+
+        $types = $invoice->items
+            ->map(fn ($i) => $i->productVariant?->product?->type)
+            ->unique()
+            ->filter();
+
+        if ($types->count() === 1 && $types->first() === ProductType::Service) {
+            return 'services';
+        }
+
+        return 'goods';
     }
 }
