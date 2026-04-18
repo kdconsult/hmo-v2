@@ -82,8 +82,8 @@ test('isRegistered reflects live tenant state after update', function () {
     $tenant->run(function () use ($tenant) {
         expect(TenantVatStatus::isRegistered())->toBeFalse();
 
-        // Simulate tenant registering for VAT
-        $tenant->update(['is_vat_registered' => true]);
+        // Simulate tenant registering for VAT (must include vat_number per DB constraint)
+        $tenant->update(['is_vat_registered' => true, 'vat_number' => 'BG123456789', 'vies_verified_at' => now()]);
 
         expect(TenantVatStatus::isRegistered())->toBeTrue();
     });

@@ -250,14 +250,6 @@ class CustomerInvoiceService
             throw new DomainException('DomesticExempt confirmation requires a sub_code.');
         }
 
-        // F-023: reverse-charge requires tenant VAT number.
-        if ($this->wouldBecomeReverseCharge($invoice, $treatAsB2c) && empty(tenancy()->tenant?->vat_number)) {
-            throw new DomainException(
-                'Cannot issue a reverse-charge invoice: tenant VAT number is not configured. '.
-                'Set it in Company Settings before confirming.'
-            );
-        }
-
         // F-028: 5-day issuance rule warning (non-blocking).
         $supplied = $invoice->supplied_at ?? $invoice->issued_at;
         if ($invoice->issued_at && $supplied && $invoice->issued_at->diffInDays($supplied) > 5) {

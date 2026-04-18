@@ -30,7 +30,7 @@ class TenantOnboardingService
      */
     public function onboard(Tenant $tenant, User $ownerUser): void
     {
-        $tenant->run(function () use ($ownerUser) {
+        $tenant->run(function () use ($tenant, $ownerUser) {
             if (! app()->environment('testing')) {
                 $this->runSeeder(RolesAndPermissionsSeeder::class);
                 $this->runSeeder(CurrencySeeder::class);
@@ -39,6 +39,11 @@ class TenantOnboardingService
                 $this->runSeeder(EuCountryVatRatesSeeder::class);
                 $this->runSeeder(VatLegalReferenceSeeder::class);
             }
+
+            // Seed company settings that depend on registration data.
+            // Done here (not in seeders) so they use the actual tenant's registration values.
+            CompanySettings::set('company', 'country_code', strtoupper($tenant->country_code));
+            CompanySettings::set('company', 'is_vat_registered', false);
 
             // Create the TenantUser for the owner if it doesn't exist yet
             TenantUser::firstOrCreate(

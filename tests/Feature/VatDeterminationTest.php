@@ -298,7 +298,8 @@ test('confirm throws DomainException when company country code is not configured
     app(TenantOnboardingService::class)->onboard($tenant, $user);
 
     $tenant->run(function () {
-        // Do NOT set CompanySettings country_code
+        // Onboarding now seeds country_code; clear it to simulate the "not configured" state.
+        CompanySettings::set('company', 'country_code', null);
         $invoice = CustomerInvoice::factory()->create([
             'payment_method' => PaymentMethod::BankTransfer,
         ]);

@@ -29,10 +29,12 @@ afterEach(function () {
     tenancy()->end();
 });
 
-// F-023 — reverse-charge without tenant VAT number must not confirm.
-it('refuses reverse-charge confirmation when tenant VAT number is null', function () {
-    // Clear tenant VAT while keeping is_vat_registered=true — forces the guard to fire.
-    $this->tenant->update(['vat_number' => null, 'is_vat_registered' => true]);
+// F-023 — the DB CHECK constraint (NOT is_vat_registered OR vat_number IS NOT NULL) now
+// enforces this invariant at the data layer. A non-VAT-registered tenant invoicing an EU B2B
+// partner correctly confirms as a B2C scenario (not reverse charge), since scenario determination
+// uses the tenant's is_vat_registered flag.
+it('non-registered tenant invoicing EU B2B partner confirms as B2C (not reverse charge)', function () {
+    $this->tenant->update(['is_vat_registered' => false, 'vat_number' => null]);
 
     $this->tenant->run(function () {
         CompanySettings::set('company', 'country_code', 'BG');
@@ -54,11 +56,10 @@ it('refuses reverse-charge confirmation when tenant VAT number is null', functio
             'sales_order_item_id' => null,
         ]);
 
-        expect(fn () => app(CustomerInvoiceService::class)->confirmWithScenario($invoice))
-            ->toThrow(DomainException::class, 'VAT number is not configured');
+        app(CustomerInvoiceService::class)->confirmWithScenario($invoice);
 
-        // Invoice must remain in Draft.
-        expect($invoice->fresh()->status)->toBe(DocumentStatus::Draft);
+        expect($invoice->fresh()->status)->toBe(DocumentStatus::Confirmed)
+            ->and($invoice->fresh()->is_reverse_charge)->toBeFalse();
     });
 });
 

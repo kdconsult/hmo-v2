@@ -12,6 +12,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Notifications\NewTenantRegisteredNotification;
 use App\Services\TenantOnboardingService;
+use App\Services\ViesValidationService;
 use App\Support\EuCountries;
 use App\Support\TenantUrl;
 use Illuminate\Contracts\View\View;
@@ -42,8 +43,6 @@ class RegisterTenant extends Component
 
     public string $country_code = 'BG';
 
-    public string $vat_number = '';
-
     public string $eik = '';
 
     // Auto-filled from country
@@ -53,7 +52,18 @@ class RegisterTenant extends Component
 
     public string $locale = 'bg_BG';
 
-    // Step 3: Plan
+    // Step 3: VAT Registration (optional)
+    public bool $isVatRegistered = false;
+
+    public string $vatLookup = '';
+
+    public string $confirmedVatNumber = '';
+
+    public string $vatCheckMessage = '';
+
+    public string $vatCheckType = '';
+
+    // Step 4: Plan
     public ?int $plan_id = null;
 
     public function mount(): void
@@ -70,6 +80,63 @@ class RegisterTenant extends Component
             $this->timezone = $country['timezone'];
             $this->locale = $country['locale'];
         }
+    }
+
+    public function updatedIsVatRegistered(bool $value): void
+    {
+        if (! $value) {
+            $this->vatLookup = '';
+            $this->confirmedVatNumber = '';
+            $this->vatCheckMessage = '';
+            $this->vatCheckType = '';
+        }
+    }
+
+    public function checkVies(): void
+    {
+        $this->confirmedVatNumber = '';
+        $this->vatCheckMessage = '';
+        $this->vatCheckType = '';
+
+        $lookupValue = trim($this->vatLookup);
+        if (blank($lookupValue)) {
+            $this->vatCheckMessage = 'Enter a VAT number first.';
+            $this->vatCheckType = 'warning';
+
+            return;
+        }
+
+        $prefix = EuCountries::vatPrefixForCountry($this->country_code) ?? $this->country_code;
+        $fullVat = strtoupper($prefix.$lookupValue);
+
+        $regex = EuCountries::vatNumberRegex($this->country_code);
+        if ($regex && ! preg_match($regex, $fullVat)) {
+            $example = EuCountries::vatNumberExample($this->country_code);
+            $this->vatCheckMessage = 'Invalid VAT number format'.($example ? ". Expected: {$example}" : '').'.';
+            $this->vatCheckType = 'danger';
+
+            return;
+        }
+
+        $result = app(ViesValidationService::class)->validate($prefix, $lookupValue);
+
+        if (! $result['available']) {
+            $this->vatCheckMessage = 'VIES is currently unavailable. You can skip this step and verify later in Company Settings.';
+            $this->vatCheckType = 'warning';
+
+            return;
+        }
+
+        if (! $result['valid']) {
+            $this->vatCheckMessage = "VAT number {$fullVat} was not found in VIES. Check the number and try again, or skip this step.";
+            $this->vatCheckType = 'danger';
+
+            return;
+        }
+
+        $this->confirmedVatNumber = strtoupper($prefix.($result['vat_number'] ?? $lookupValue));
+        $this->vatCheckMessage = "Confirmed: {$this->confirmedVatNumber}";
+        $this->vatCheckType = 'success';
     }
 
     public function nextStep(): void
@@ -107,6 +174,8 @@ class RegisterTenant extends Component
 
         // Tenant::create() triggers CREATE DATABASE in PostgreSQL, which cannot
         // run inside a transaction block — writes are not wrapped here.
+        $confirmedVat = $this->confirmedVatNumber ?: null;
+
         $tenant = Tenant::create([
             'name' => $this->company_name,
             'slug' => $slug,
@@ -115,7 +184,9 @@ class RegisterTenant extends Component
             'locale' => $this->locale,
             'timezone' => $this->timezone,
             'default_currency_code' => $this->currency_code,
-            'vat_number' => $this->vat_number ?: null,
+            'vat_number' => $confirmedVat,
+            'is_vat_registered' => $confirmedVat !== null,
+            'vies_verified_at' => $confirmedVat !== null ? now() : null,
             'eik' => $this->eik,
             'plan_id' => $this->plan_id,
             'subscription_status' => SubscriptionStatus::Trial->value,
@@ -151,7 +222,8 @@ class RegisterTenant extends Component
                 'country_code' => ['required', 'string', 'size:2', Rule::in(EuCountries::codes())],
                 'eik' => ['required', 'string', 'max:20', 'unique:tenants,eik'],
             ]),
-            3 => $this->validate([
+            3 => null, // VAT step is entirely optional
+            4 => $this->validate([
                 'plan_id' => ['required', 'exists:plans,id'],
             ]),
             default => null,

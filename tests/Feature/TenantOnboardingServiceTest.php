@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\CompanySettings;
 use App\Models\Currency;
 use App\Models\Tenant;
 use App\Models\TenantUser;
@@ -68,5 +69,27 @@ test('onboard does not create duplicate TenantUser if called twice', function ()
 
     $tenant->run(function () use ($user) {
         expect(TenantUser::where('user_id', $user->id)->count())->toBe(1);
+    });
+});
+
+test('onboard seeds company.country_code from tenant registration data (F-tenant-step3)', function () {
+    $user = User::factory()->create();
+    $tenant = Tenant::factory()->create(['country_code' => 'DE']);
+
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        expect(CompanySettings::get('company', 'country_code'))->toBe('DE');
+    });
+});
+
+test('onboard seeds company.is_vat_registered as false by default (F-tenant-step3)', function () {
+    $user = User::factory()->create();
+    $tenant = Tenant::factory()->create(['country_code' => 'BG', 'is_vat_registered' => true, 'vat_number' => 'BG123456789']);
+
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        expect(CompanySettings::get('company', 'is_vat_registered'))->toBeFalsy();
     });
 });

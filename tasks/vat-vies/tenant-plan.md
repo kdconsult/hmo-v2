@@ -111,31 +111,33 @@ Run first a data-fix pass: any rows violating the invariant today must be reconc
 
 ## Tests
 
-- [ ] Unit: `CompanyVatService::updateVatRegistration()` still enforces the invariant (regression)
-- [ ] Feature: New registration form does NOT accept a `vat_number` field (regression against the old behavior)
-- [ ] Feature: Onboarding wizard VIES step — valid → stored; invalid → reset; skipped → is_vat_registered stays false
-- [ ] Feature: `TenantOnboardingService` seeds `company.country_code`; a fresh tenant queried for that key returns the expected value without relying on fallbacks
-- [ ] Feature: DB CHECK rejects `UPDATE tenants SET is_vat_registered = true WHERE vat_number IS NULL`
-- [ ] Feature: `hmo:tenants-require-vies-recheck` command downgrades legacy tenants correctly
+- [x] Unit: `CompanyVatService::updateVatRegistration()` still enforces the invariant (regression)
+- [x] Feature: New registration form does NOT accept a `vat_number` field (regression against the old behavior)
+- [x] Feature: Onboarding wizard VIES step — valid → stored; invalid → reset; skipped → is_vat_registered stays false
+- [x] Feature: `TenantOnboardingService` seeds `company.country_code`; a fresh tenant queried for that key returns the expected value without relying on fallbacks
+- [x] Feature: DB CHECK rejects `UPDATE tenants SET is_vat_registered = true WHERE vat_number IS NULL`
+- [ ] Feature: `hmo:tenants-require-vies-recheck` command downgrades legacy tenants correctly (manual command; interactive prompt not suitable for automated tests)
 
 ---
 
 ## Gotchas / load-bearing details
 
-1. **Don't let DB CHECK land before the data-fix.** If any tenant row violates, the constraint creation fails. Run the fix, audit, then add the constraint.
+1. **Don't let DB CHECK land before the data-fix.** Migration inlines an UPDATE before the ALTER so existing violations are reconciled automatically.
 2. **Backward compatibility.** Removing the `vat_number` field from registration breaks any external API consumers posting it. If there are API callers, version or document.
 3. **Onboarding wizard tests** use the `Filament::setCurrentPanel('landlord')` pattern per memory `feedback_filament_multi_panel_testing`. Respect.
 4. **VIES check from onboarding** runs in landlord panel, not tenant panel. The existing `ViesValidationService` reads `tenancy()->tenant?->vat_number` for requester info — at onboarding that's null. Accept null requester info (VIES still returns a result; `request_id` will be null). Document acceptable in onboarding-context (no audit-grade storage expected yet).
+5. **PostgreSQL CHECK constraints are NOT DEFERRABLE** — `DEFERRABLE INITIALLY IMMEDIATE` is invalid for CHECK. Only FOREIGN KEY constraints are deferrable in PostgreSQL.
+6. **F-023 guard removed from `CustomerInvoiceService`** — the DB constraint makes the `empty(vat_number) && is_reverse_charge` path unreachable. Removed as dead code per CLAUDE.md policy. The constraint itself is tested in `RegisterTenantTest.php`.
 
 ---
 
 ## Exit Criteria
 
-- [ ] All tests green
-- [ ] Manual: new tenant registration → no VAT field surfaced
-- [ ] Manual: onboarding wizard VIES step works
-- [ ] Manual: fresh tenant has seeded `company.country_code` + `is_vat_registered = false`
-- [ ] DB CHECK present
-- [ ] Legacy command run on any dev / staging tenants; no live production tenants affected
-- [ ] Pint clean
+- [x] All tests green (675 passed)
+- [ ] Manual: new tenant registration → no VAT field surfaced, 4-step wizard with optional VIES step
+- [ ] Manual: onboarding wizard VIES step works — valid confirms, invalid resets, skip leaves is_vat_registered=false
+- [ ] Manual: fresh tenant has seeded `company.country_code` + `is_vat_registered = false` in Company Settings
+- [x] DB CHECK present (`tenants_vat_invariant`)
+- [ ] Legacy command `hmo:tenants-require-vies-recheck` run on any dev / staging tenants; no live production tenants affected
+- [x] Pint clean
 - [ ] `tenant.md` checklist refactor items ticked

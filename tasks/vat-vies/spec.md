@@ -13,9 +13,9 @@
 
 | # | Area | Task | Status |
 |---|------|------|--------|
-| 1 | Tenant company VAT setup | `tenant.md` | ✅ SHIPPED — refactor queue in `tenant-plan.md` |
-| 2 | Partner VAT setup | `partner.md` | ✅ SHIPPED — refactor queue in `partner-plan.md` |
-| 3 | Invoice VAT determination | `invoice.md` | ✅ SHIPPED — refactor queue in `invoice-plan.md` |
+| 1 | Tenant company VAT setup | `tenant.md` | ✅ SHIPPED + refactored (`tenant-plan.md` ✅) |
+| 2 | Partner VAT setup | `partner.md` | ✅ SHIPPED + refactored (`partner-plan.md` ✅) |
+| 3 | Invoice VAT determination | `invoice.md` | ✅ SHIPPED + refactored (`invoice-plan.md` ✅) |
 | 4 | Non-VAT-registered tenant blocks (invoice) | `blocks.md` | ✅ SHIPPED |
 
 ### Cross-cutting / derived tasks (added after 2026-04-17 review)
@@ -97,9 +97,11 @@ Configured once during onboarding and revisitable in Company Settings. Highest l
 - `is_vat_registered = true` in DB only ever coexists with a non-null VAT number
 
 **Data guarantees:**
-- `is_vat_registered = true` ↔ `vat_number IS NOT NULL` — invariant enforced at service layer, not just UI
+- `is_vat_registered = true` ↔ `vat_number IS NOT NULL` — invariant enforced at DB level (`tenants_vat_invariant` CHECK constraint) AND service layer
 - Placeholder field never touches the DB
 - VAT number in DB comes exclusively from a VIES valid response
+- Registration wizard (`RegisterTenant`) never accepts a raw `vat_number` field; VAT is confirmed via the optional VIES step (step 3 of 4) or via Company Settings post-registration
+- `TenantOnboardingService` seeds `company.country_code` and `company.is_vat_registered = false` for every new tenant
 
 ### Scope boundary
 

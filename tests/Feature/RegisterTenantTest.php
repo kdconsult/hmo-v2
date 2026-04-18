@@ -8,8 +8,11 @@ use App\Mail\WelcomeTenant;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\ViesValidationService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Exceptions\PublicPropertyNotFoundException;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -136,6 +139,7 @@ test('submit creates user, tenant, and domain', function () {
         ->set('country_code', 'BG')
         ->set('eik', '111111111')
         ->call('nextStep')
+        ->call('nextStep') // VAT step skipped
         ->set('plan_id', $freePlan->id)
         ->call('submit');
 
@@ -149,7 +153,9 @@ test('submit creates user, tenant, and domain', function () {
         ->and($tenant->subscription_status)->toBe(SubscriptionStatus::Trial)
         ->and($tenant->trial_ends_at)->not->toBeNull()
         ->and($tenant->plan_id)->toBe($freePlan->id)
-        ->and($tenant->default_currency_code)->toBe('EUR');
+        ->and($tenant->default_currency_code)->toBe('EUR')
+        ->and($tenant->vat_number)->toBeNull()
+        ->and($tenant->is_vat_registered)->toBeFalse();
 });
 
 test('submit sends welcome email', function () {
@@ -167,6 +173,7 @@ test('submit sends welcome email', function () {
         ->set('country_code', 'DE')
         ->set('eik', '222222222')
         ->call('nextStep')
+        ->call('nextStep') // VAT step skipped
         ->set('plan_id', $freePlan->id)
         ->call('submit');
 
@@ -194,6 +201,7 @@ test('submit is blocked after 5 attempts from the same IP', function () {
         ->set('country_code', 'BG')
         ->set('eik', '444444444')
         ->call('nextStep')
+        ->call('nextStep') // VAT step skipped
         ->set('plan_id', $freePlan->id)
         ->call('submit')
         ->assertHasErrors(['email']);
@@ -216,6 +224,7 @@ test('submit attaches user to tenant central pivot', function () {
         ->set('country_code', 'BG')
         ->set('eik', '333333333')
         ->call('nextStep')
+        ->call('nextStep') // VAT step skipped
         ->set('plan_id', $freePlan->id)
         ->call('submit');
 
@@ -223,4 +232,112 @@ test('submit attaches user to tenant central pivot', function () {
     $tenant = Tenant::where('name', 'My Company')->first();
 
     expect($tenant->users()->where('user_id', $user->id)->exists())->toBeTrue();
+});
+
+// --- VAT step (Step 3) ---
+
+test('registration form no longer accepts a raw vat_number field', function () {
+    $component = Livewire::test(RegisterTenant::class);
+
+    // vat_number was removed — setting it should do nothing (property doesn't exist)
+    expect(fn () => $component->set('vat_number', 'BG123456789'))
+        ->toThrow(PublicPropertyNotFoundException::class);
+});
+
+test('VAT step can be skipped — tenant created with is_vat_registered false', function () {
+    Mail::fake();
+    $freePlan = Plan::where('slug', 'free')->first();
+
+    Livewire::test(RegisterTenant::class)
+        ->set('name', 'Skip VAT')
+        ->set('email', 'skipvat@example.com')
+        ->set('password', 'password')
+        ->set('password_confirmation', 'password')
+        ->call('nextStep')
+        ->set('company_name', 'Skip Co')
+        ->set('country_code', 'BG')
+        ->set('eik', '555555555')
+        ->call('nextStep')
+        ->call('nextStep') // skip VAT step
+        ->set('plan_id', $freePlan->id)
+        ->call('submit');
+
+    $tenant = Tenant::where('name', 'Skip Co')->first();
+    expect($tenant->is_vat_registered)->toBeFalse()
+        ->and($tenant->vat_number)->toBeNull();
+});
+
+test('VAT step VIES valid → tenant created with confirmed VAT', function () {
+    Mail::fake();
+
+    $mock = Mockery::mock(ViesValidationService::class);
+    $mock->shouldReceive('validate')
+        ->once()
+        ->andReturn([
+            'available' => true,
+            'valid' => true,
+            'name' => 'Test GmbH',
+            'address' => 'Hauptstr. 1, Berlin',
+            'country_code' => 'DE',
+            'vat_number' => '123456789',
+            'request_id' => 'req-001',
+        ]);
+    app()->instance(ViesValidationService::class, $mock);
+
+    $freePlan = Plan::where('slug', 'free')->first();
+
+    Livewire::test(RegisterTenant::class)
+        ->set('name', 'Vies User')
+        ->set('email', 'vies@example.com')
+        ->set('password', 'password')
+        ->set('password_confirmation', 'password')
+        ->call('nextStep')
+        ->set('company_name', 'Test GmbH')
+        ->set('country_code', 'DE')
+        ->set('eik', '666666666')
+        ->call('nextStep')
+        ->set('isVatRegistered', true)
+        ->set('vatLookup', '123456789')
+        ->call('checkVies')
+        ->assertSet('vatCheckType', 'success')
+        ->assertSet('confirmedVatNumber', 'DE123456789')
+        ->call('nextStep')
+        ->set('plan_id', $freePlan->id)
+        ->call('submit');
+
+    $tenant = Tenant::where('name', 'Test GmbH')->first();
+    expect($tenant->is_vat_registered)->toBeTrue()
+        ->and($tenant->vat_number)->toBe('DE123456789')
+        ->and($tenant->vies_verified_at)->not->toBeNull();
+});
+
+test('VAT step VIES invalid → vatCheckMessage shown, confirmedVatNumber stays empty', function () {
+    $mock = Mockery::mock(ViesValidationService::class);
+    $mock->shouldReceive('validate')
+        ->once()
+        ->andReturn([
+            'available' => true,
+            'valid' => false,
+            'name' => null,
+            'address' => null,
+            'country_code' => 'BG',
+            'vat_number' => '000000000',
+            'request_id' => null,
+        ]);
+    app()->instance(ViesValidationService::class, $mock);
+
+    Livewire::test(RegisterTenant::class)
+        ->set('country_code', 'BG')
+        ->set('isVatRegistered', true)
+        ->set('vatLookup', '000000000')
+        ->call('checkVies')
+        ->assertSet('vatCheckType', 'danger')
+        ->assertSet('confirmedVatNumber', '');
+});
+
+test('DB CHECK constraint prevents is_vat_registered=true with null vat_number', function () {
+    $tenant = Tenant::factory()->create(['is_vat_registered' => false, 'vat_number' => null]);
+
+    expect(fn () => $tenant->update(['is_vat_registered' => true]))
+        ->toThrow(QueryException::class);
 });
