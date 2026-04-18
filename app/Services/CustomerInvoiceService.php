@@ -9,6 +9,7 @@ use App\Enums\PaymentMethod;
 use App\Enums\PricingMode;
 use App\Enums\ProductType;
 use App\Enums\SalesOrderStatus;
+use App\Enums\SeriesType;
 use App\Enums\VatScenario;
 use App\Enums\VatStatus;
 use App\Enums\ViesResult;
@@ -17,6 +18,7 @@ use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
 use App\Models\CustomerInvoiceItem;
 use App\Models\EuCountryVatRate;
+use App\Models\NumberSeries;
 use App\Models\Partner;
 use App\Models\VatRate;
 use App\Support\EuCountries;
@@ -306,6 +308,15 @@ class CustomerInvoiceService
             } else {
                 $this->determineVatType($invoice, $treatAsB2c, $tenantIsVatRegistered);
                 $invoice->vat_scenario_sub_code = $this->resolveSubCode($invoice);
+            }
+
+            if ($invoice->invoice_number === null) {
+                $series = NumberSeries::getDefault(SeriesType::Invoice);
+                if (! $series) {
+                    throw new DomainException('No invoice number series configured. Go to Settings → Number Series.');
+                }
+                $invoice->document_series_id = $series->id;
+                $invoice->invoice_number = $series->generateNumber();
             }
 
             $invoice->status = DocumentStatus::Confirmed;

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\OssThresholdExceeded;
 use Illuminate\Database\Eloquent\Model;
 
 class EuOssAccumulation extends Model
@@ -28,13 +29,18 @@ class EuOssAccumulation extends Model
             ['accumulated_amount_eur' => 0]
         );
 
+        // Capture whether any record for this year already crossed the threshold BEFORE this write.
+        $alreadyCrossed = static::where('year', $year)->whereNotNull('threshold_exceeded_at')->exists();
+
         $record->accumulated_amount_eur = bcadd((string) $record->accumulated_amount_eur, (string) $amountEur, 2);
+        $record->save(); // Save first so DB sum reflects the new amount when we query below.
 
-        if ($record->threshold_exceeded_at === null && static::isThresholdExceeded($year)) {
+        if (! $alreadyCrossed && static::isThresholdExceeded($year)) {
             $record->threshold_exceeded_at = now();
-        }
+            $record->save();
 
-        $record->save();
+            OssThresholdExceeded::dispatch($year);
+        }
 
         return $record;
     }

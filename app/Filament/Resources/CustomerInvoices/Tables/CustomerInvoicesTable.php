@@ -26,6 +26,7 @@ class CustomerInvoicesTable
             ->columns([
                 TextColumn::make('invoice_number')
                     ->label('Invoice #')
+                    ->placeholder('Draft')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('partner.name')

@@ -2,13 +2,19 @@
 
 declare(strict_types=1);
 
+use App\Enums\PaymentMethod;
 use App\Enums\VatStatus;
 use App\Models\CompanySettings;
 use App\Models\CustomerInvoice;
+use App\Models\CustomerInvoiceItem;
 use App\Models\EuOssAccumulation;
 use App\Models\Partner;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\VatRate;
+use App\Services\CustomerInvoiceService;
 use App\Services\EuOssService;
 use App\Services\TenantOnboardingService;
 
@@ -235,5 +241,48 @@ test('shouldApplyOss returns true when B2C cross-border EU and threshold exceede
         ]);
 
         expect(app(EuOssService::class)->shouldApplyOss($partner))->toBeTrue();
+    });
+});
+
+// F-022 regression: OSS accumulation must fire for service-type items, not just goods
+test('confirmWithScenario triggers OSS accumulation for invoices with service-type items', function () {
+    $tenant = Tenant::factory()->vatRegistered()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        CompanySettings::set('company', 'country_code', 'BG');
+
+        $partner = Partner::factory()->customer()->create(['country_code' => 'DE']);
+
+        $product = Product::factory()->service()->create();
+        $variant = ProductVariant::factory()->create(['product_id' => $product->id]);
+        $zeroRate = VatRate::where('rate', 0)->first();
+
+        $invoice = CustomerInvoice::factory()->create([
+            'partner_id' => $partner->id,
+            'currency_code' => 'EUR',
+            'exchange_rate' => '1.000000',
+            'payment_method' => PaymentMethod::BankTransfer,
+            'total' => '200.00',
+        ]);
+
+        CustomerInvoiceItem::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => '1.0000',
+            'unit_price' => '200.0000',
+            'vat_rate_id' => $zeroRate?->id,
+            'line_total' => '200.00',
+            'line_total_with_vat' => '200.00',
+        ]);
+
+        app(CustomerInvoiceService::class)->confirmWithScenario($invoice);
+
+        $accumulated = EuOssAccumulation::where('year', (int) now()->year)
+            ->where('country_code', 'DE')
+            ->sum('accumulated_amount_eur');
+
+        expect((float) $accumulated)->toBeGreaterThan(0.0);
     });
 });

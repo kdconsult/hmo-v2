@@ -3,11 +3,8 @@
 namespace App\Filament\Resources\CustomerInvoices\Pages;
 
 use App\Enums\InvoiceType;
-use App\Enums\SeriesType;
 use App\Filament\Resources\CustomerInvoices\CustomerInvoiceResource;
-use App\Models\NumberSeries;
 use App\Models\SalesOrder;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -37,24 +34,6 @@ class CreateCustomerInvoice extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        if (empty($data['invoice_number'])) {
-            $series = NumberSeries::getDefault(SeriesType::Invoice);
-
-            if (! $series) {
-                Notification::make()
-                    ->title('No number series configured')
-                    ->body('Go to Settings → Number Series and create one for Invoices.')
-                    ->danger()
-                    ->persistent()
-                    ->send();
-
-                $this->halt();
-            }
-
-            $data['document_series_id'] = $series->id;
-            $data['invoice_number'] = $series->generateNumber();
-        }
-
         $data['created_by'] = Auth::id();
 
         return $data;

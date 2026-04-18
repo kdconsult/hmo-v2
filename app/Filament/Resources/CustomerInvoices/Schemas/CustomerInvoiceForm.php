@@ -10,6 +10,7 @@ use App\Enums\VatScenario;
 use App\Enums\VatStatus;
 use App\Models\CompanySettings;
 use App\Models\Currency;
+use App\Models\EuOssAccumulation;
 use App\Models\Partner;
 use App\Models\SalesOrder;
 use App\Models\VatLegalReference;
@@ -20,6 +21,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -32,6 +34,27 @@ class CustomerInvoiceForm
     {
         return $schema
             ->components([
+                Callout::make('EU OSS Threshold Warning')
+                    ->description(function (): string {
+                        $year = (int) now()->year;
+                        $total = (float) EuOssAccumulation::where('year', $year)->sum('accumulated_amount_eur');
+
+                        return 'Current EU B2C accumulation: €'.number_format($total, 2).' / €10,000';
+                    })
+                    ->status(function (): string {
+                        $year = (int) now()->year;
+                        $total = (float) EuOssAccumulation::where('year', $year)->sum('accumulated_amount_eur');
+
+                        return $total >= 10000.0 ? 'danger' : 'warning';
+                    })
+                    ->visible(function (): bool {
+                        $year = (int) now()->year;
+                        $total = (float) EuOssAccumulation::where('year', $year)->sum('accumulated_amount_eur');
+
+                        return $total >= 8000.0;
+                    })
+                    ->columnSpanFull(),
+
                 Section::make('Invoice Details')
                     ->columns(2)
                     ->schema([

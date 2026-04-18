@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Partners\Pages;
 
 use App\Enums\VatStatus;
+use App\Events\DataSubjectRequestReceived;
 use App\Filament\Resources\Partners\Concerns\HandlesPartnerViesCheck;
 use App\Filament\Resources\Partners\PartnerResource;
 use App\Services\PartnerVatService;
@@ -22,6 +23,32 @@ class ViewPartner extends ViewRecord
     {
         return [
             EditAction::make(),
+
+            Action::make('data_subject_request')
+                ->label('Data Subject Request')
+                ->icon(Heroicon::ShieldCheck)
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalHeading('Log GDPR Data Subject Request')
+                ->modalDescription('This will record a data subject access request (GDPR Art. 15) for this partner in the activity log.')
+                ->action(function (): void {
+                    $partner = $this->record;
+                    $userId = auth()->id();
+
+                    activity()
+                        ->performedOn($partner)
+                        ->causedBy(auth()->user())
+                        ->withProperties(['type' => 'dsar', 'gdpr_article' => 'Art. 15'])
+                        ->log('data_subject_request');
+
+                    DataSubjectRequestReceived::dispatch($partner, $userId);
+
+                    Notification::make()
+                        ->title('Data subject request logged')
+                        ->body('The request has been recorded in the activity log.')
+                        ->success()
+                        ->send();
+                }),
 
             Action::make('validate_vat')
                 ->label('Validate VAT')

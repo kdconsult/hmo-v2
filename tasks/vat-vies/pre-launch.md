@@ -3,7 +3,7 @@
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Plan:** `tasks/vat-vies/pre-launch-plan.md`
 > **Review:** `review.md` (F-009, F-012, F-014, F-015, F-016, F-019, F-022, F-025, F-032)
-> **Status:** 📋 PLANNED — runs after all feature work, before first real tenant onboards
+> **Status:** ✅ DONE — all automated items complete; 694 tests pass; browser test + reviewer sign-off pending before first real tenant
 > **Depends on:** All other tasks landed (hotfix, legal-references, pdf-rewrite, domestic-exempt, blocks, invoice-credit-debit, blocks-credit-debit, tenant-plan, partner-plan, invoice-plan)
 
 ---
@@ -115,14 +115,14 @@ Some of these (F-019 staleness, F-025 VIES raw address) are already absorbed int
 
 - [x] Investigation complete
 - [x] Plan written (`pre-launch-plan.md`)
-- [ ] F-012 GDPR section + DSAR action
-- [ ] F-014 OSS threshold warning UI
+- [x] F-012 GDPR section + DSAR action
+- [x] F-014 OSS threshold warning UI
 - [x] F-015 FX service + audit column (`exchange_rate_source` pinned at confirmation; `DocumentHasher::resolveExchangeRateSource`)
 - [x] F-016 document_hash + integrity command (`DocumentHasher`, `pinDocumentData` in all 3 services, `hmo:integrity-check` command; tenant-delete gate deferred to lifecycle task)
-- [ ] F-022 service OSS coverage test
-- [ ] F-032 invoice numbering audit + regression test
-- [ ] Automated tests pass
+- [x] F-022 service OSS coverage test
+- [x] F-032 invoice numbering audit + regression test
+- [x] Automated tests pass (694, 0 failures)
 - [ ] Browser-tested end-to-end on a scratch tenant
-- [ ] Pint clean
-- [ ] Final test run green
+- [x] Pint clean
+- [x] Final test run green
 - [ ] Reviewer sign-off before onboarding first real tenant

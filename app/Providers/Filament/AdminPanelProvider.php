@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Resources\Partners\Widgets\PartnerOverview;
+use App\Filament\Widgets\OssThresholdWidget;
 use App\Http\Middleware\AdminPanelAuthenticate;
 use App\Http\Middleware\EnsureActiveSubscription;
 use App\Http\Middleware\SetSubdomainUrlDefault;
@@ -53,6 +54,7 @@ class AdminPanelProvider extends PanelProvider
                 AccountWidget::class,
                 FilamentInfoWidget::class,
                 PartnerOverview::class,
+                OssThresholdWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

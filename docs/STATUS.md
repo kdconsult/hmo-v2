@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1–4 complete; all six pre-launch waves shipped + all three refactor plans implemented + pre-launch Steps 3+4 shipped** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit → invoice-plan → partner-plan → tenant-plan → pre-launch F-015/F-016). 684 tests pass (8 todos). Next: remaining pre-launch items in `tasks/vat-vies/pre-launch.md` (F-012, F-014, F-022, F-032). See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
+**VAT/VIES Areas 1–4 complete; all pre-launch polish complete** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit → invoice-plan → partner-plan → tenant-plan → pre-launch all items). 694 tests pass (8 todos). Remaining gate: browser-tested on a scratch tenant + reviewer sign-off before first real tenant onboards. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -206,7 +206,7 @@ VAT/VIES Wave 4 — invoice-credit-debit shipped (2026-04-18): Migration adds `v
 
 VAT/VIES Wave 5 — blocks-credit-debit shipped (2026-04-18): F-021 inheritance rule enforced: parent-attached notes always inherit parent's VAT scenario regardless of tenant's current registration status (Art. 90/219 Directive — correction mirrors original supply). `CustomerDebitNoteService::confirmWithScenario()`: standalone path guards non-registered tenant → `VatScenario::Exempt` inline before fresh `determine()`, falls through to shared tail so `warnOnLateIssuance()` always fires. Legal comment added to `CustomerCreditNoteService::confirmWithScenario()` (no standalone path; schema enforces parent). Forms: `pricing_mode` hidden via `TenantVatStatus::isRegistered()` on both note forms. Items RMs: `vat_rate_id` options gate = `parent->vat_scenario->requiresVatRateChange()` for parent-attached notes; `!TenantVatStatus::isRegistered()` for standalone debit RM. Import-from-invoice action confirmed as no-op (copies rates as-is; inheritance drives correctness). `withItems()` factory state added to both note factories. 8 new tests (665 total).
 
-Next: `tasks/vat-vies/pre-launch.md`.
+Pre-launch polish complete (2026-04-18): F-012 DSAR action (activity log + `DataSubjectRequestReceived` event); F-014 OSS threshold dashboard widget + invoice form callout + `OssThresholdExceeded` event (first-crossing only); F-022 OSS service coverage regression test; F-032 invoice numbering moved from draft creation to confirmation (`invoice_number` nullable on draft, allocated inside `confirmWithScenario()` transaction — no gaps from draft deletion, BG 10-digit zero-padded format). 694 tests pass.
 
 See `tasks/phase-3.2-plan.md` for full spec.
 
@@ -297,3 +297,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | VAT/VIES Wave 5 — blocks-credit-debit (F-021 inheritance rule, standalone non-registered → Exempt, form/items RM gating, withItems() factory states, 8 new tests) | **665** |
 | Session 4 refactor plans — invoice-plan (F-006/F-007/F-009/F-024), partner-plan (F-019/F-025), tenant-plan (4-step registration wizard, DB invariant `tenants_vat_invariant`, TenantOnboardingService country_code seed, hmo:tenants-require-vies-recheck command, F-023 guard removed as dead code) | **675** |
 | Pre-launch Steps 3+4 — F-015 `exchange_rate_source` pinned at confirmation + F-016 `document_hash` SHA-256 canonical hash on all 3 document types + `hmo:integrity-check` command + `DocumentHasher` service | **684** |
+| Pre-launch polish complete — F-012 DSAR action + event, F-014 OSS threshold widget + form callout + first-crossing event, F-022 service OSS coverage test, F-032 invoice numbering at confirmation (nullable draft, BG 10-digit format, no gaps from draft deletion) | **694** |
