@@ -761,21 +761,15 @@ the items repeater is empty. The user must manually re-enter every line item.
 **Why:** The most common CCN scenario is crediting the entire invoice or specific lines.
 Pre-filling from the parent invoice eliminates data entry errors and saves time.
 
-**How:**
-In `CreateCustomerCreditNote::mount()`, after filling partner/invoice fields:
-```php
-$items = $invoice->items->map(fn ($item) => [
-    'product_variant_id' => $item->product_variant_id,
-    'description' => $item->description,
-    'quantity' => $item->quantity,
-    'unit_price' => $item->unit_price,
-    'vat_rate_id' => $item->vat_rate_id,
-])->toArray();
+**How (implemented 2026-04-18):** Items use a RelationManager, not an inline Repeater, so
+`fillForm(['items' => ...])` does not work. Instead `afterCreate()` calls
+`CustomerCreditNoteService::autoFillItemsFromInvoice()`. Uses `remainingCreditableQuantity()`
+to skip fully-consumed items. Calls `recalculateItemTotals()` + `recalculateDocumentTotals()`
+after inserting. `setRelation()` avoids extra queries for the recalculation.
 
-$this->fillForm([..., 'items' => $items]);
-```
-
-**Files:** `app/Filament/Resources/CustomerCreditNotes/Pages/CreateCustomerCreditNote.php`
+**Files:**
+- `app/Filament/Resources/CustomerCreditNotes/Pages/CreateCustomerCreditNote.php`
+- `app/Services/CustomerCreditNoteService.php`
 
 ---
 
@@ -810,8 +804,11 @@ foreach ($ccn->items as $item) {
 Debit notes record additional charges against an invoice — reason is still required,
 items should still pre-fill, qty should still be bounded.
 
+**CDN-F3 implemented (2026-04-18):** Same `afterCreate()` + service method pattern as CCN-F3.
+Uses full invoice item quantities (no "remaining debitable" concept for debit notes).
+`CustomerDebitNoteService::autoFillItemsFromInvoice()` added.
+
 **Files:**
-- `app/Filament/Resources/CustomerDebitNotes/CustomerDebitNoteForm.php`
 - `app/Filament/Resources/CustomerDebitNotes/Pages/CreateCustomerDebitNote.php`
 - `app/Services/CustomerDebitNoteService.php`
 
@@ -825,9 +822,13 @@ the items repeater is empty.
 **Why:** Returns are almost always for items that were delivered. Pre-filling from the DN
 prevents mistakes and saves entry time.
 
-**How:** Mirror CCN-F3 pattern but source from `DeliveryNote::items`.
+**How (implemented 2026-04-18):** `afterCreate()` calls `SalesReturnService::autoFillItemsFromDeliveryNote()`.
+Uses `remainingReturnableQuantity()` to skip fully-returned items. No VAT recalc needed
+(SR items have no VAT columns).
 
-**Files:** `app/Filament/Resources/SalesReturns/Pages/CreateSalesReturn.php`
+**Files:**
+- `app/Filament/Resources/SalesReturns/Pages/CreateSalesReturn.php`
+- `app/Services/SalesReturnService.php`
 
 ---
 

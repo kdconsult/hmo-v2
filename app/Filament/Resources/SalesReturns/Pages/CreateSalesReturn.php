@@ -6,6 +6,7 @@ use App\Enums\SeriesType;
 use App\Filament\Resources\SalesReturns\SalesReturnResource;
 use App\Models\DeliveryNote;
 use App\Models\NumberSeries;
+use App\Services\SalesReturnService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -61,5 +62,14 @@ class CreateSalesReturn extends CreateRecord
         }
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        if (! $this->record->delivery_note_id) {
+            return;
+        }
+
+        app(SalesReturnService::class)->autoFillItemsFromDeliveryNote($this->record);
     }
 }

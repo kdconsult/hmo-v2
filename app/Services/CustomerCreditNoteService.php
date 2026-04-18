@@ -62,6 +62,50 @@ class CustomerCreditNoteService
     }
 
     /**
+     * Auto-fill a credit note's items from its parent invoice using remaining creditable quantities.
+     * Skips invoice items fully consumed by prior credit notes. Safe to call after create.
+     */
+    public function autoFillItemsFromInvoice(CustomerCreditNote $ccn): void
+    {
+        $invoice = CustomerInvoice::with(['items.vatRate'])->find($ccn->customer_invoice_id);
+
+        if (! $invoice) {
+            return;
+        }
+
+        $sortOrder = 1;
+
+        foreach ($invoice->items as $invoiceItem) {
+            $remaining = $invoiceItem->remainingCreditableQuantity();
+
+            if (bccomp($remaining, '0', 4) <= 0) {
+                continue;
+            }
+
+            $item = CustomerCreditNoteItem::create([
+                'customer_credit_note_id' => $ccn->id,
+                'customer_invoice_item_id' => $invoiceItem->id,
+                'product_variant_id' => $invoiceItem->product_variant_id,
+                'description' => $invoiceItem->description,
+                'quantity' => $remaining,
+                'unit_price' => $invoiceItem->unit_price,
+                'vat_rate_id' => $invoiceItem->vat_rate_id,
+                'vat_amount' => '0.00',
+                'line_total' => '0.00',
+                'line_total_with_vat' => '0.00',
+                'sort_order' => $sortOrder++,
+            ]);
+
+            $item->setRelation('customerCreditNote', $ccn);
+            $item->setRelation('vatRate', $invoiceItem->vatRate);
+
+            $this->recalculateItemTotals($item);
+        }
+
+        $this->recalculateDocumentTotals($ccn);
+    }
+
+    /**
      * Confirm a credit note, inheriting the parent invoice's VAT scenario (Art. 219 / чл. 115 ЗДДС).
      * Parent must be Confirmed. Currency must match parent.
      */

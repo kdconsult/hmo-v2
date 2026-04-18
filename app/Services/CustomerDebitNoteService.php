@@ -63,6 +63,44 @@ class CustomerDebitNoteService
     }
 
     /**
+     * Auto-fill a debit note's items from its parent invoice at full original quantities.
+     * Debit notes represent additional charges — there is no "remaining debitable" concept.
+     */
+    public function autoFillItemsFromInvoice(CustomerDebitNote $cdn): void
+    {
+        $invoice = CustomerInvoice::with(['items.vatRate'])->find($cdn->customer_invoice_id);
+
+        if (! $invoice) {
+            return;
+        }
+
+        $sortOrder = 1;
+
+        foreach ($invoice->items as $invoiceItem) {
+            $item = CustomerDebitNoteItem::create([
+                'customer_debit_note_id' => $cdn->id,
+                'customer_invoice_item_id' => $invoiceItem->id,
+                'product_variant_id' => $invoiceItem->product_variant_id,
+                'description' => $invoiceItem->description,
+                'quantity' => $invoiceItem->quantity,
+                'unit_price' => $invoiceItem->unit_price,
+                'vat_rate_id' => $invoiceItem->vat_rate_id,
+                'vat_amount' => '0.00',
+                'line_total' => '0.00',
+                'line_total_with_vat' => '0.00',
+                'sort_order' => $sortOrder++,
+            ]);
+
+            $item->setRelation('customerDebitNote', $cdn);
+            $item->setRelation('vatRate', $invoiceItem->vatRate);
+
+            $this->recalculateItemTotals($item);
+        }
+
+        $this->recalculateDocumentTotals($cdn);
+    }
+
+    /**
      * Confirm a debit note with VAT scenario logic (Art. 219 / чл. 115 ЗДДС).
      * Parent-attached: inherit parent's scenario. Standalone: fresh VatScenario::determine().
      *

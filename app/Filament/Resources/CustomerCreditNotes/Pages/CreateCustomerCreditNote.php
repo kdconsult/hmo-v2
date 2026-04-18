@@ -6,6 +6,7 @@ use App\Enums\SeriesType;
 use App\Filament\Resources\CustomerCreditNotes\CustomerCreditNoteResource;
 use App\Models\CustomerInvoice;
 use App\Models\NumberSeries;
+use App\Services\CustomerCreditNoteService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -70,5 +71,14 @@ class CreateCustomerCreditNote extends CreateRecord
         $data['created_by'] = Auth::id();
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        if (! $this->record->customer_invoice_id) {
+            return;
+        }
+
+        app(CustomerCreditNoteService::class)->autoFillItemsFromInvoice($this->record);
     }
 }

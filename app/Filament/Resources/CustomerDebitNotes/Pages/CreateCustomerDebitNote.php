@@ -6,6 +6,7 @@ use App\Enums\SeriesType;
 use App\Filament\Resources\CustomerDebitNotes\CustomerDebitNoteResource;
 use App\Models\CustomerInvoice;
 use App\Models\NumberSeries;
+use App\Services\CustomerDebitNoteService;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -64,5 +65,14 @@ class CreateCustomerDebitNote extends CreateRecord
         $data['created_by'] = Auth::id();
 
         return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        if (! $this->record->customer_invoice_id) {
+            return;
+        }
+
+        app(CustomerDebitNoteService::class)->autoFillItemsFromInvoice($this->record);
     }
 }

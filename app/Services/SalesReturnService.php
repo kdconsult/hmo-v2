@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Enums\MovementType;
 use App\Enums\SalesReturnStatus;
+use App\Models\DeliveryNote;
 use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -13,6 +15,35 @@ class SalesReturnService
     public function __construct(
         private readonly StockService $stockService,
     ) {}
+
+    /**
+     * Auto-fill a sales return's items from its parent delivery note using remaining returnable quantities.
+     * Skips DN items fully consumed by prior sales returns.
+     */
+    public function autoFillItemsFromDeliveryNote(SalesReturn $sr): void
+    {
+        $dn = DeliveryNote::with('items')->find($sr->delivery_note_id);
+
+        if (! $dn) {
+            return;
+        }
+
+        foreach ($dn->items as $dnItem) {
+            $remaining = $dnItem->remainingReturnableQuantity();
+
+            if (bccomp($remaining, '0', 4) <= 0) {
+                continue;
+            }
+
+            SalesReturnItem::create([
+                'sales_return_id' => $sr->id,
+                'delivery_note_item_id' => $dnItem->id,
+                'product_variant_id' => $dnItem->product_variant_id,
+                'quantity' => $remaining,
+                'unit_cost' => $dnItem->unit_cost,
+            ]);
+        }
+    }
 
     /**
      * Confirm a Sales Return: receive all items back into stock.

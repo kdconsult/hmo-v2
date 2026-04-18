@@ -179,3 +179,51 @@ test('debit note without invoice link can be created independently', function ()
             ->and((float) $item->line_total_with_vat)->toBe(600.0);
     });
 });
+
+test('autoFillItemsFromInvoice creates debit note items from invoice items at full quantity', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $vatRate = VatRate::factory()->create(['rate' => 20.00]);
+        $invoice = CustomerInvoice::factory()->confirmed()->create([
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+        $invoiceItem = CustomerInvoiceItem::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'quantity' => '3.0000',
+            'unit_price' => '200.0000',
+            'description' => 'Service B',
+            'vat_rate_id' => $vatRate->id,
+        ]);
+
+        $cdn = CustomerDebitNote::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+
+        app(CustomerDebitNoteService::class)->autoFillItemsFromInvoice($cdn);
+
+        $cdn->refresh();
+        $items = $cdn->items()->get();
+
+        expect($items)->toHaveCount(1);
+
+        $item = $items->first();
+        expect($item->customer_invoice_item_id)->toBe($invoiceItem->id)
+            ->and($item->description)->toBe('Service B')
+            ->and((string) $item->quantity)->toBe('3.0000')
+            ->and((string) $item->unit_price)->toBe('200.0000')
+            ->and($item->vat_rate_id)->toBe($vatRate->id);
+
+        // 3 * 200 = 600 net, 20% VAT = 120
+        expect((float) $item->line_total)->toBe(600.0)
+            ->and((float) $item->vat_amount)->toBe(120.0)
+            ->and((float) $item->line_total_with_vat)->toBe(720.0);
+
+        expect((float) $cdn->subtotal)->toBe(600.0)
+            ->and((float) $cdn->tax_amount)->toBe(120.0)
+            ->and((float) $cdn->total)->toBe(720.0);
+    });
+});

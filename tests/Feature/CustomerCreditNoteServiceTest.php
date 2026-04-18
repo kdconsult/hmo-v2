@@ -200,3 +200,91 @@ test('creditedQuantity excludes items from cancelled credit notes', function () 
             ->and($invoiceItem->remainingCreditableQuantity())->toBe('6.0000');
     });
 });
+
+test('autoFillItemsFromInvoice creates credit note items from invoice items', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $vatRate = VatRate::factory()->create(['rate' => 20.00]);
+        $invoice = CustomerInvoice::factory()->confirmed()->create([
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+        $invoiceItem = CustomerInvoiceItem::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'quantity' => '5.0000',
+            'unit_price' => '100.0000',
+            'description' => 'Widget A',
+            'vat_rate_id' => $vatRate->id,
+        ]);
+
+        $ccn = CustomerCreditNote::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+
+        app(CustomerCreditNoteService::class)->autoFillItemsFromInvoice($ccn);
+
+        $ccn->refresh();
+        $items = $ccn->items()->get();
+
+        expect($items)->toHaveCount(1);
+
+        $item = $items->first();
+        expect($item->customer_invoice_item_id)->toBe($invoiceItem->id)
+            ->and($item->product_variant_id)->toBe($invoiceItem->product_variant_id)
+            ->and($item->description)->toBe('Widget A')
+            ->and((string) $item->quantity)->toBe('5.0000')
+            ->and((string) $item->unit_price)->toBe('100.0000')
+            ->and($item->vat_rate_id)->toBe($vatRate->id);
+
+        // Totals must be recalculated: 5 * 100 = 500 net, 20% VAT = 100
+        expect((float) $item->line_total)->toBe(500.0)
+            ->and((float) $item->vat_amount)->toBe(100.0)
+            ->and((float) $item->line_total_with_vat)->toBe(600.0);
+
+        // Document totals also updated
+        expect((float) $ccn->subtotal)->toBe(500.0)
+            ->and((float) $ccn->tax_amount)->toBe(100.0)
+            ->and((float) $ccn->total)->toBe(600.0);
+    });
+});
+
+test('autoFillItemsFromInvoice skips invoice items already fully credited', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $vatRate = VatRate::factory()->create(['rate' => 20.00]);
+        $invoice = CustomerInvoice::factory()->confirmed()->create([
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+        $invoiceItem = CustomerInvoiceItem::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'quantity' => '5.0000',
+            'unit_price' => '100.0000',
+            'vat_rate_id' => $vatRate->id,
+        ]);
+
+        // Fully credit the item via a confirmed CCN
+        $existingCcn = CustomerCreditNote::factory()->confirmed()->create([
+            'customer_invoice_id' => $invoice->id,
+        ]);
+        CustomerCreditNoteItem::factory()->create([
+            'customer_credit_note_id' => $existingCcn->id,
+            'customer_invoice_item_id' => $invoiceItem->id,
+            'quantity' => '5.0000',
+        ]);
+
+        $newCcn = CustomerCreditNote::factory()->create([
+            'customer_invoice_id' => $invoice->id,
+            'pricing_mode' => PricingMode::VatExclusive,
+        ]);
+
+        app(CustomerCreditNoteService::class)->autoFillItemsFromInvoice($newCcn);
+
+        expect($newCcn->items()->count())->toBe(0);
+    });
+});

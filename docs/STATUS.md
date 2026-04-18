@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1–4 complete; all pre-launch polish complete** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit → invoice-plan → partner-plan → tenant-plan → pre-launch all items). 694 tests pass (8 todos). Remaining gate: browser-tested on a scratch tenant + reviewer sign-off before first real tenant onboards. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
+**VAT/VIES Areas 1–4 complete; all pre-launch polish complete** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit → invoice-plan → partner-plan → tenant-plan → pre-launch all items). **CCN-F3 / CDN-F3 / SR-F1** auto-fill-from-parent implemented via service methods (`autoFillItemsFromInvoice` / `autoFillItemsFromDeliveryNote`). 699 tests pass (8 todos). Remaining gate: browser-tested on a scratch tenant + reviewer sign-off before first real tenant onboards. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -298,3 +298,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | Session 4 refactor plans — invoice-plan (F-006/F-007/F-009/F-024), partner-plan (F-019/F-025), tenant-plan (4-step registration wizard, DB invariant `tenants_vat_invariant`, TenantOnboardingService country_code seed, hmo:tenants-require-vies-recheck command, F-023 guard removed as dead code) | **675** |
 | Pre-launch Steps 3+4 — F-015 `exchange_rate_source` pinned at confirmation + F-016 `document_hash` SHA-256 canonical hash on all 3 document types + `hmo:integrity-check` command + `DocumentHasher` service | **684** |
 | Pre-launch polish complete — F-012 DSAR action + event, F-014 OSS threshold widget + form callout + first-crossing event, F-022 service OSS coverage test, F-032 invoice numbering at confirmation (nullable draft, BG 10-digit format, no gaps from draft deletion) | **694** |
+| CCN-F3 / CDN-F3 / SR-F1 — auto-fill items from parent on create (`afterCreate()` → service methods `autoFillItemsFromInvoice` / `autoFillItemsFromDeliveryNote`; CCN uses `remainingCreditableQuantity()`, SR uses `remainingReturnableQuantity()`, CDN uses full invoice qty; 5 new tests) | **699** |

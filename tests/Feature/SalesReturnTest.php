@@ -203,3 +203,87 @@ test('remaining returnable quantity excludes cancelled returns', function () {
             ->and($dnItem->remainingReturnableQuantity())->toBe('6.0000');
     });
 });
+
+test('autoFillItemsFromDeliveryNote creates sales return items from delivery note items', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $product = Product::factory()->stock()->create();
+        $variant = $product->defaultVariant;
+        $warehouse = Warehouse::where('code', 'MAIN')->first();
+
+        $dn = DeliveryNote::factory()->confirmed()->create([
+            'warehouse_id' => $warehouse->id,
+        ]);
+        $dnItem = DeliveryNoteItem::factory()->create([
+            'delivery_note_id' => $dn->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => '8.0000',
+            'unit_cost' => '25.0000',
+        ]);
+
+        $sr = SalesReturn::factory()->draft()->create([
+            'delivery_note_id' => $dn->id,
+            'partner_id' => $dn->partner_id,
+            'warehouse_id' => $warehouse->id,
+        ]);
+
+        app(SalesReturnService::class)->autoFillItemsFromDeliveryNote($sr);
+
+        $items = $sr->items()->get();
+
+        expect($items)->toHaveCount(1);
+
+        $item = $items->first();
+        expect($item->delivery_note_item_id)->toBe($dnItem->id)
+            ->and($item->product_variant_id)->toBe($variant->id)
+            ->and((string) $item->quantity)->toBe('8.0000')
+            ->and((string) $item->unit_cost)->toBe('25.0000');
+    });
+});
+
+test('autoFillItemsFromDeliveryNote skips delivery note items already fully returned', function () {
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create();
+    app(TenantOnboardingService::class)->onboard($tenant, $user);
+
+    $tenant->run(function () {
+        $product = Product::factory()->stock()->create();
+        $variant = $product->defaultVariant;
+        $warehouse = Warehouse::where('code', 'MAIN')->first();
+
+        $dn = DeliveryNote::factory()->confirmed()->create([
+            'warehouse_id' => $warehouse->id,
+        ]);
+        $dnItem = DeliveryNoteItem::factory()->create([
+            'delivery_note_id' => $dn->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => '5.0000',
+            'unit_cost' => '10.0000',
+        ]);
+
+        // Fully return the item via an existing confirmed SR
+        $existingSr = SalesReturn::factory()->create([
+            'delivery_note_id' => $dn->id,
+            'status' => SalesReturnStatus::Confirmed,
+        ]);
+        SalesReturnItem::factory()->create([
+            'sales_return_id' => $existingSr->id,
+            'delivery_note_item_id' => $dnItem->id,
+            'product_variant_id' => $variant->id,
+            'quantity' => '5.0000',
+        ]);
+
+        $newSr = SalesReturn::factory()->draft()->create([
+            'delivery_note_id' => $dn->id,
+            'partner_id' => $dn->partner_id,
+            'warehouse_id' => $warehouse->id,
+        ]);
+
+        app(SalesReturnService::class)->autoFillItemsFromDeliveryNote($newSr);
+
+        expect($newSr->items()->count())->toBe(0);
+    });
+});
