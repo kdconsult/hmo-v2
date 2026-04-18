@@ -1458,6 +1458,25 @@ transfer(variant, fromWarehouse, toWarehouse, qty, ?fromLocation, ?toLocation)
 
 ---
 
+### PdfTemplateResolver (`App\Services\PdfTemplateResolver`)
+Resolves the correct Blade template path and render locale for PDF generation, supporting per-country statutory templates.
+
+```
+resolve(docType, ?countryCode = null)
+  → checks View::exists("pdf.{docType}.{country}") where country comes from $countryCode ?? tenant->country_code
+  → returns "pdf.{docType}.{country}" if view exists, else "pdf.{docType}.default"
+
+localeFor(docType, ?countryCode = null)
+  → returns "{country}" locale when a country-specific template exists (statutory requirement)
+  → returns tenant->locale ?? config('app.fallback_locale') for the default template
+```
+
+**Used by:** all three invoice-family print actions — `ViewCustomerInvoice::print_invoice`, `ViewCustomerCreditNote::print_credit_note`, `ViewCustomerDebitNote::print_debit_note`.
+
+**Template convention:** `resources/views/pdf/{docType}/{country}.blade.php` (e.g. `pdf/customer-invoice/bg.blade.php`); `pdf/{docType}/default.blade.php` is the universal fallback.
+
+---
+
 ## 7. Summary Table
 
 | Entity | Scope | Purpose | Key Trait |
@@ -1530,6 +1549,8 @@ Phases 1, 2, and 3.1 are complete. Phase 3.2 is building the outbound sales pipe
 - ✅ 3.2.5: DeliveryNoteResource + DeliveryNoteService (issueReserved per stock item, SO qty update, PDF template)
 - ✅ 3.2.6: CustomerInvoice Resource + CustomerInvoiceService + EuOssService + PDF template
 - ✅ 3.2.7: CustomerCreditNote + CustomerDebitNote Resources + services
+- ✅ VAT/VIES Wave 1: VIES pre-check + confirmWithScenario (EuB2bReverseCharge, NonEuExport, Exempt, Domestic)
+- ✅ VAT/VIES Wave 2: DomesticExempt scenario + VatLegalReference model/seeder + per-country PDF rewrite (PdfTemplateResolver; country-specific Blade templates for all three invoice-family doc types; supplied_at field)
 - ⬜ 3.2.8: SalesReturn Resource
 - ⬜ 3.2.9: AdvancePayment Resource
 

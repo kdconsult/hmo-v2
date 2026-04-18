@@ -458,14 +458,46 @@ Orchestrates customer invoice item totals, document totals, and invoice confirma
 - `recalculateDocumentTotals(CustomerInvoice $invoice): void`
   - Sums `line_total` and `vat_amount` across all items. Sets `amount_due = total - amount_paid`.
 
-- `confirm(CustomerInvoice $invoice): void`
-  - Inside `DB::transaction()`:
-    1. Sets `status = Confirmed`.
-    2. If SO-linked: calls `SalesOrderService::updateInvoicedQuantities($so)`.
-    3. For each invoice item linked to a service-type SO item (non-Stock): sets `soItem->qty_delivered = soItem->qty_invoiced` (services are "delivered" when invoiced, not via DN).
-    4. Refreshes SO items and transitions SO to `Delivered` if now fully delivered.
-  - After transaction: dispatches `FiscalReceiptRequested` if `payment_method === PaymentMethod::Cash`.
-  - Calls `EuOssService::accumulate($invoice)` to track cross-border B2C EU totals.
+- `confirmWithScenario(CustomerInvoice $invoice, ?array $viesData = null, bool $treatAsB2c = false, ?ManualOverrideData $override = null, bool $isDomesticExempt = false, ?string $subCode = null): void`
+  - Primary confirmation method (Wave 2). Replaces the simpler `confirm()` path for VAT-aware flows.
+  - **Over-invoice guard:** Checks each SO-linked item against already-confirmed invoice quantities; throws `DomainException` on over-invoice.
+  - **DomesticExempt input guard:** Throws `DomainException` when `$isDomesticExempt = true` but `$subCode` is empty.
+  - **F-023 guard:** Calls `wouldBecomeReverseCharge()` before entering the transaction. Throws `DomainException` (blocking) when the invoice would resolve to `EuB2bReverseCharge` but the tenant `vat_number` is null.
+  - **F-028 guard (non-blocking):** When `issued_at - supplied_at > 5 days`, sends a Filament warning notification (`invoice-form.late_issuance_*` lang keys) but does not abort confirmation.
+  - **VIES audit:** Stores `vies_result`, `vies_request_id`, `vies_checked_at` from `$viesData` when a `ViesResult` enum instance is present.
+  - **Manual override audit:** When `$override` is set, stores `reverse_charge_manual_override = true` plus user ID, timestamp, and reason.
+  - **DomesticExempt short-circuit** (inside `DB::transaction`): when `$isDomesticExempt = true`, bypasses `VatScenario::determine()` entirely, sets `vat_scenario = DomesticExempt`, `vat_scenario_sub_code = $subCode`, `is_reverse_charge = false`, resolves and applies the tenant's zero-rate `VatRate` to all items, recalculates totals.
+  - **Standard VAT path** (inside `DB::transaction`): calls private `determineVatType()` (which calls `VatScenario::determine()`) and then `resolveSubCode()`.
+  - Sets `status = Confirmed`; updates SO invoiced quantities and auto-advances service SO items to delivered.
+  - After transaction: dispatches `FiscalReceiptRequested` when `payment_method === PaymentMethod::Cash`.
+  - **OSS accumulation:** Skipped for both `Exempt` and `DomesticExempt` scenarios; called for all other scenarios.
+
+- `confirm(CustomerInvoice $invoice, bool $treatAsB2c = false): void`
+  - Thin backward-compatibility wrapper — delegates to `confirmWithScenario()` with no VIES data or override.
+
+- `runViesPreCheck(CustomerInvoice $invoice): array`
+  - Executes a live VIES lookup for cross-border EU partners with `VatStatus::Confirmed`. Returns structured result array used to populate the confirmation modal.
+  - Returns `['needed' => false]` for domestic, non-EU, non-VAT-registered tenants, or partners without a stored VAT number.
+  - Returns `['needed' => true, 'result' => ViesResult, 'request_id' => ?string, 'checked_at' => Carbon]` on a VIES call.
+  - Returns `['needed' => true, 'result' => 'cooldown', 'retry_after' => Carbon]` when called within 1 minute of last check (server-side rate limit).
+  - Side effect on invalid result: downgrades partner `vat_status` to `NotRegistered` and clears `vat_number`.
+
+**Private helpers:**
+
+- `wouldBecomeReverseCharge(CustomerInvoice $invoice, bool $treatAsB2c): bool`
+  - Calls `VatScenario::determine()` in dry-run mode. Returns `true` only when scenario resolves to `EuB2bReverseCharge` and `$treatAsB2c = false`. Used by the F-023 guard.
+
+- `resolveSubCode(CustomerInvoice $invoice): ?string`
+  - Returns `'default'` for `Exempt`; infers `'goods'` or `'services'` for `EuB2bReverseCharge` and `NonEuExport` (via `inferGoodsOrServices()`); returns `null` for all other scenarios (Domestic, B2C).
+
+- `inferGoodsOrServices(CustomerInvoice $invoice): string`
+  - Returns `'services'` when every line item is a `ProductType::Service`; otherwise returns `'goods'`.
+
+- `resolveZeroVatRate(string $countryCode): VatRate`
+  - First-or-creates a `VatRate` with `type = 'zero'` for the tenant's country. Used by DomesticExempt, Exempt, EuB2bReverseCharge, and NonEuExport paths.
+
+- `resolveOssVatRate(string $destinationCountry): VatRate`
+  - Looks up the destination country's standard rate via `EuCountryVatRate::getStandardRate()`; throws `DomainException` if not found. Used by the `EuB2cOverThreshold` path.
 
 ---
 
@@ -516,6 +548,64 @@ Same structure as `CustomerCreditNoteService` — applies to debit notes.
 
 - `recalculateItemTotals(CustomerDebitNoteItem $item): void`
 - `recalculateDocumentTotals(CustomerDebitNote $debitNote): void`
+
+---
+
+### VatScenario Enum (Wave 2 additions)
+
+Location: `/app/Enums/VatScenario.php`
+
+| Case | Value | Returned by `determine()`? | Notes |
+|------|-------|--------------------------|-------|
+| `Exempt` | `'exempt'` | Yes | Tenant not VAT-registered; short-circuits all partner checks |
+| `Domestic` | `'domestic'` | Yes | Partner country = tenant country |
+| `DomesticExempt` | `'domestic_exempt'` | **No** | User-toggled on the draft form; never returned by `determine()`. Applies zero rate under a ЗДДС article (39–49). |
+| `EuB2bReverseCharge` | `'eu_b2b_reverse_charge'` | Yes | EU partner with confirmed VAT (Article 196) |
+| `EuB2cUnderThreshold` | `'eu_b2c_under_threshold'` | Yes | EU B2C, OSS threshold not yet exceeded |
+| `EuB2cOverThreshold` | `'eu_b2c_over_threshold'` | Yes | EU B2C, OSS threshold exceeded; destination-country rate applies |
+| `NonEuExport` | `'non_eu_export'` | Yes | Partner country not in EU |
+
+`requiresVatRateChange()` returns `true` for: `Exempt`, `DomesticExempt`, `EuB2bReverseCharge`, `EuB2cOverThreshold`, `NonEuExport`. Returns `false` for `Domestic` and `EuB2cUnderThreshold`.
+
+---
+
+### PdfTemplateResolver
+
+Location: `/app/Services/PdfTemplateResolver.php`
+
+Resolves the correct Blade view and rendering locale for PDF document generation. Supports country-specific templates with statutory locale enforcement.
+
+**Methods:**
+
+- `resolve(string $docType, ?string $countryCode = null): string`
+  - Derives a candidate view `pdf.{docType}.{country}` (lower-cased country code) from the explicit `$countryCode` or the current tenant's `country_code`.
+  - Returns the candidate when the view file exists; otherwise returns `pdf.{docType}.default`.
+
+- `localeFor(string $docType, ?string $countryCode = null): string`
+  - Uses the same country resolution logic as `resolve()`.
+  - When a country-specific template exists: returns the country code as locale (e.g. `'bg'` for the BG template), regardless of the tenant's UI locale — statutory requirement.
+  - When falling back to the default template: returns `tenancy()->tenant?->locale` with fallback to `config('app.fallback_locale', 'en')`.
+
+**Convention:** Country templates live at `resources/views/pdf/{docType}/{country}.blade.php`. The default template is `resources/views/pdf/{docType}/default.blade.php`.
+
+---
+
+### VatLegalReference
+
+Location: `/app/Models/VatLegalReference.php`
+
+Tenant-scoped lookup table keyed by `(country_code, vat_scenario, sub_code)`. Drives the statutory "legal basis" line on invoice, credit-note, and debit-note PDFs for zero-rate, exempt, and reverse-charge scenarios.
+
+**Key static methods:**
+
+- `resolve(string $countryCode, string $scenario, string $subCode = 'default'): self`
+  - Exact match on `(country_code, vat_scenario, sub_code)` first; falls back to `sub_code = 'default'` for the same country+scenario when `$subCode` differs from `'default'`.
+  - Throws `DomainException` when neither match exists (unseeded combo).
+
+- `listForScenario(string $countryCode, string $scenario): Collection`
+  - Returns all references for a country+scenario, ordered by `is_default DESC, sort_order ASC`. Used to populate sub-code select dropdowns in the UI.
+
+**PDF partial:** `resources/views/pdf/components/_vat-treatment.blade.php` calls `VatLegalReference::resolve()` inside a `try/catch(\DomainException)` — a missing reference silently hides the legal-basis row rather than crashing the PDF render.
 
 ---
 
@@ -988,6 +1078,10 @@ Location: `/app/Console/Commands/SyncEuVatRatesCommand.php`
 | **QuotationService** | `/app/Services/QuotationService.php` | Quotation item/document totals, status transitions, convertToSalesOrder |
 | **SalesOrderService** | `/app/Services/SalesOrderService.php` | SO item/document totals, status transitions, stock reservation/unreservation, qty tracking |
 | **DeliveryNoteService** | `/app/Services/DeliveryNoteService.php` | DN confirmation: issueReserved per stock item, SO qty update |
+| **CustomerInvoiceService** | `/app/Services/CustomerInvoiceService.php` | Invoice confirmation via `confirmWithScenario()` with VAT scenario, VIES audit trail, F-023/F-028 guards |
+| **PdfTemplateResolver** | `/app/Services/PdfTemplateResolver.php` | Resolves country-specific PDF Blade view and statutory locale |
+| **VatScenario Enum** | `/app/Enums/VatScenario.php` | 7-case VAT scenario enum; `DomesticExempt` is user-toggled, not returned by `determine()` |
+| **VatLegalReference** | `/app/Models/VatLegalReference.php` | Tenant legal-basis lookup keyed by (country, scenario, sub_code); drives PDF legal-basis line |
 | **VatCalculationService** | `/app/Services/VatCalculationService.php` | VAT math (net/gross) |
 | **ViesValidationService** | `/app/Services/ViesValidationService.php` | EU VAT number validation + 24h cache |
 | **PlanLimitService** | `/app/Services/PlanLimitService.php` | User/document limit enforcement |

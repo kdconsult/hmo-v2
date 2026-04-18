@@ -1014,13 +1014,16 @@ All Sales group resources use `NavigationGroup::Sales` for `$navigationGroup`.
 
 - `invoice_number` — Auto-filled from `SeriesType::Invoice` series; disabled + dehydrated
 - `invoice_type` — Select: Standard / Advance (default: Standard)
-- `partner_id` — Required, active customers only; disabled (read-only) when `sales_order_id` is set
+- `partner_id` — Required, active customers only; disabled (read-only) when `sales_order_id` is set; `afterStateUpdated` auto-detects `VatScenario`, sets `is_reverse_charge`, and forces VAT-exclusive pricing for non-domestic scenarios; `helperText` shows scenario description (warns if partner has no country)
 - `sales_order_id` — Optional, live; `afterStateUpdated` auto-fills partner, currency, exchange_rate, pricing_mode from SO; options filtered to Confirmed + PartiallyDelivered + Delivered SOs
-- `is_reverse_charge` — Toggle; disabled + dehydrated (manual-only; no auto-detection)
-- `pricing_mode` — disabled when SO-linked
+- `is_reverse_charge` — Toggle; disabled + dehydrated; `visible()` hidden when partner country equals tenant country (only shown for cross-border invoices); helper text notes it is set automatically at confirmation based on VIES result
+- `is_domestic_exempt` — Toggle (NEW); `dehydrated(false)` — ephemeral, not persisted directly; `visible()` only when partner country equals tenant country; `afterStateHydrated` sets `true` when `$record->vat_scenario === VatScenario::DomesticExempt` on edit; `afterStateUpdated` writes `vat_scenario = 'domestic_exempt'` (and pre-selects the default `vat_scenario_sub_code`) when toggled on, or clears both fields when toggled off
+- `vat_scenario_sub_code` — Select (NEW); `visible()` and `required()` only when `is_domestic_exempt` is on; options populated from `VatLegalReference::listForScenario(country, 'domestic_exempt')` — formatted as `"{legal_reference} — {description}"`
+- `pricing_mode` — disabled when SO-linked or when partner is in a non-domestic VAT scenario
 - `currency_code` — disabled when SO-linked; `afterStateUpdated` uses `CurrencyRateService::makeAfterCurrencyChanged('issued_at')`
 - `exchange_rate` — `CurrencyRateService::makeSaveRateAction('issued_at')`
-- `issued_at` — Required, default today; `afterStateUpdated` uses `CurrencyRateService::makeAfterDateChanged()`
+- `issued_at` — Required, default today; live (onBlur); `afterStateUpdated` uses `CurrencyRateService::makeAfterDateChanged()`
+- `supplied_at` (NEW) — DatePicker in the Dates & Payment section, after `issued_at`; nullable; defaults to `$get('issued_at')`; label from `__('invoice-form.date_of_supply')`
 - `due_date` — Optional
 - `payment_method` — Optional; triggers `FiscalReceiptRequested` on Cash when confirmed
 - `notes`, `internal_notes`
@@ -1034,10 +1037,13 @@ All Sales group resources use `NavigationGroup::Sales` for `$navigationGroup`.
 #### View Page Header Actions
 
 - **Edit** — visible when `isEditable()`
-- **Confirm Invoice** — Draft → Confirmed; calls `CustomerInvoiceService::confirm()`
-- **Print Invoice** (PDF) — visible when Confirmed; streams `pdf/customer-invoice.blade.php` via DomPDF
-- **Create Credit Note** — visible when Confirmed; URL link to CustomerCreditNote create page with `?customer_invoice_id=`
-- **Create Debit Note** — visible when Confirmed; URL link to CustomerDebitNote create page with `?customer_invoice_id=`
+- **Confirm Invoice** — visible when Draft and VIES not unavailable; `mountUsing` runs `CustomerInvoiceService::runViesPreCheck()` — throws `Halt` on cooldown, `ViesResult::Invalid`, or `ViesResult::Unavailable`; modal shows VAT Treatment badge, optional VIES Verification section (request ID + timestamp), and invoice totals preview; `action` calls `CustomerInvoiceService::confirmWithScenario()` passing `isDomesticExempt` and `subCode` from the record
+- **Retry VIES Check** — visible only when VIES unavailable (`$this->viesUnavailable`); re-runs pre-check; on success opens confirmation modal
+- **Confirm with VAT** — visible only when VIES unavailable; confirms with `treatAsB2c: true`; standard VAT applied
+- **Confirm with Reverse Charge** — visible only when VIES unavailable AND partner VAT confirmed AND user has `override_reverse_charge_customer_invoice` permission; requires checkbox acknowledgement; records override with `ReverseChargeOverrideReason::ViesUnavailable`
+- **Print Invoice** (`print_invoice`) — visible when Confirmed; resolves template via `PdfTemplateResolver::resolve('customer-invoice')`; sets locale via `localeFor('customer-invoice')` in try/finally; eager-loads `partner.addresses`, `items.productVariant`, `items.vatRate`; streams PDF as `invoice-{number}.pdf` via DomPDF
+- **Create Credit Note** — visible when Confirmed or Paid; URL link to CustomerCreditNote create page with `?customer_invoice_id=`
+- **Create Debit Note** — visible when Confirmed or Paid; URL link to CustomerDebitNote create page with `?customer_invoice_id=`
 - **Cancel** — visible for Draft and Confirmed; sets status to Cancelled
 
 #### Related Documents Panel
@@ -1050,6 +1056,7 @@ Shows: linked SalesOrder, CustomerCreditNotes, CustomerDebitNotes
 - **"Import from SO" header action** — visible when invoice has a linked SO; bulk-creates items from all SO lines with `remainingInvoiceableQuantity() > 0`; auto-fills `sales_order_item_id`, variant, quantity, unit_price
 - `sales_order_item_id` — Optional; when SO-linked, dropdown shows remaining-invoiceable SO items; `afterStateUpdated` auto-fills variant, quantity, unit_price
 - `product_variant_id` — Required; visible when no SO is linked
+- `vat_rate_id` — Select; options are restricted to the tenant's 0% rate for the tenant country when the parent invoice has `vat_scenario` ∈ {DomesticExempt, Exempt} OR `is_reverse_charge = true`; otherwise shows full active rate list for the tenant country ordered by rate
 - `after()` hooks call `CustomerInvoiceService::recalculateItemTotals()` and `recalculateDocumentTotals()`
 
 ---
@@ -1078,7 +1085,8 @@ Shows: linked SalesOrder, CustomerCreditNotes, CustomerDebitNotes
 #### View Page Header Actions
 
 - **Edit** — visible when `isEditable()`
-- **Confirm Credit Note** — Draft → Confirmed
+- **Confirm Credit Note** — Draft → Confirmed; calls `CustomerCreditNoteService::confirm()`
+- **Print Credit Note** (`print_credit_note`) — visible when Confirmed; resolves template via `PdfTemplateResolver::resolve('customer-credit-note')`; sets locale via `localeFor('customer-credit-note')` in try/finally; eager-loads `partner.addresses`, `items.productVariant`, `items.vatRate`, `customerInvoice`; streams PDF as `credit-note-{number}.pdf` via DomPDF
 - **Cancel** — visible for Draft and Confirmed
 
 #### Related Documents Panel
@@ -1117,7 +1125,8 @@ Shows: linked CustomerInvoice
 #### View Page Header Actions
 
 - **Edit** — visible when `isEditable()`
-- **Confirm Debit Note** — Draft → Confirmed
+- **Confirm Debit Note** — Draft → Confirmed; calls `CustomerDebitNoteService::confirm()`
+- **Print Debit Note** (`print_debit_note`) — visible when Confirmed; resolves template via `PdfTemplateResolver::resolve('customer-debit-note')`; sets locale via `localeFor('customer-debit-note')` in try/finally; eager-loads `partner.addresses`, `items.productVariant`, `items.vatRate`, `customerInvoice`; streams PDF as `debit-note-{number}.pdf` via DomPDF
 - **Cancel** — visible for Draft and Confirmed
 
 #### Related Documents Panel
