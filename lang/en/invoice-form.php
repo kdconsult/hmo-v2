@@ -8,4 +8,5 @@ return [
     'domestic_exempt_toggle' => 'Domestic VAT exemption',
     'domestic_exempt_hint' => 'Mark this invoice as exempt under a specific ЗДДС article (39–49).',
     'exemption_article' => 'Exemption article',
+    'exempt_non_registered_tenant' => 'Exempt — tenant is not VAT-registered.',
 ];

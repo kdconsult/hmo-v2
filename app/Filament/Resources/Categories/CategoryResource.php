@@ -10,6 +10,7 @@ use App\Filament\Resources\Categories\Pages\ViewCategory;
 use App\Models\Category;
 use App\Models\Unit;
 use App\Models\VatRate;
+use App\Support\TenantVatStatus;
 use App\Support\TranslatableLocales;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -83,7 +84,17 @@ class CategoryResource extends Resource
                     ->schema([
                         Select::make('default_vat_rate_id')
                             ->label('Default VAT Rate')
-                            ->options(fn () => VatRate::active()->pluck('name', 'id'))
+                            ->options(function () {
+                                if (! TenantVatStatus::isRegistered()) {
+                                    $zero = TenantVatStatus::zeroExemptRate();
+
+                                    return [$zero->id => $zero->name];
+                                }
+
+                                return VatRate::active()
+                                    ->when(TenantVatStatus::country(), fn ($q, $c) => $q->forCountry($c))
+                                    ->pluck('name', 'id');
+                            })
                             ->searchable()
                             ->preload()
                             ->nullable()

@@ -135,21 +135,21 @@ This avoids sprinkling `CompanySettings::get(...)` calls and keeps the read path
 
 ## Refactor Findings
 
-> Filled during / after implementation.
+Steps 5/6 of `blocks-plan.md` not implemented — `previewScenario()` has no consumer anywhere in the codebase (grep confirmed), and `buildConfirmationSchema()` in `ViewCustomerInvoice` already handles `VatScenario::Exempt` correctly (zero VAT preview, Exempt badge, no VIES section). Service-layer enforcement is in `confirmWithScenario()` which already short-circuits to `Exempt` via `VatScenario::determine()`. No UI changes needed on the confirmation modal.
 
 ---
 
 ## Checklist
 
-- [ ] Investigation complete
-- [ ] Plan written (`blocks-plan.md`)
-- [ ] `TenantVatStatus` helper created
-- [ ] Form + items RM blocks landed
-- [ ] Service short-circuit in place
-- [ ] Product + category forms restricted
+- [x] Investigation complete
+- [x] Plan written (`blocks-plan.md`)
+- [x] `TenantVatStatus` helper created (`isRegistered()`, `country()`, `zeroExemptRate()`)
+- [x] Form + items RM blocks landed
+- [x] Service short-circuit in place (via existing `VatScenario::determine()` — no new code needed)
+- [x] Product + category forms restricted
 - [ ] PDF renders correct legal notice (cross-verified against `pdf-rewrite.md`)
-- [ ] Automated tests pass
+- [x] Automated tests pass (12 passing + 5 UI todos; 643 total suite green)
 - [ ] Browser-tested: non-registered tenant creates → confirms → prints invoice
 - [ ] Browser-tested: tenant flips to registered → form reopens full VAT controls
-- [ ] Pint clean
-- [ ] Final test run green
+- [x] Pint clean
+- [x] Final test run green (643 passed, 8 todos, 0 failures)

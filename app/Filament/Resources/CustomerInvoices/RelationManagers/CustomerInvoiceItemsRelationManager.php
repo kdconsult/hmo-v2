@@ -10,6 +10,7 @@ use App\Models\ProductVariant;
 use App\Models\SalesOrderItem;
 use App\Models\VatRate;
 use App\Services\CustomerInvoiceService;
+use App\Support\TenantVatStatus;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -145,7 +146,8 @@ class CustomerInvoiceItemsRelationManager extends RelationManager
                         /** @var CustomerInvoice $parent */
                         $parent = $this->getOwnerRecord();
 
-                        $forcesZero = $parent->vat_scenario === VatScenario::DomesticExempt
+                        $forcesZero = ! TenantVatStatus::isRegistered()
+                            || $parent->vat_scenario === VatScenario::DomesticExempt
                             || $parent->vat_scenario === VatScenario::Exempt
                             || $parent->is_reverse_charge;
 

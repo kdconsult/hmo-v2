@@ -2,7 +2,7 @@
 
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Plan:** `tasks/vat-vies/legal-references-plan.md`
-> **Status:** 📋 PLANNED — ready to build
+> **Status:** ✅ SHIPPED (2026-04-18)
 > **Depends on:** `hotfix.md` landed (so we build on a stable schema)
 > **Unblocks:** `pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md`, `blocks-credit-debit.md`, `invoice-credit-debit.md`
 

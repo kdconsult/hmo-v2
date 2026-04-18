@@ -14,6 +14,7 @@ use App\Models\Partner;
 use App\Models\SalesOrder;
 use App\Models\VatLegalReference;
 use App\Services\CurrencyRateService;
+use App\Support\TenantVatStatus;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -102,12 +103,16 @@ class CustomerInvoiceForm
                                     return null;
                                 }
 
+                                if (! TenantVatStatus::isRegistered()) {
+                                    return __('invoice-form.exempt_non_registered_tenant');
+                                }
+
                                 $tenantCountry = CompanySettings::get('company', 'country_code');
                                 if (! $tenantCountry) {
                                     return null;
                                 }
 
-                                $tenantIsVatRegistered = (bool) tenancy()->tenant?->is_vat_registered;
+                                $tenantIsVatRegistered = true;
 
                                 try {
                                     $description = VatScenario::determine(
@@ -160,6 +165,10 @@ class CustomerInvoiceForm
                             ->columnSpanFull()
                             ->helperText('Determined automatically at confirmation based on VIES result.')
                             ->visible(function (Get $get): bool {
+                                if (! TenantVatStatus::isRegistered()) {
+                                    return false;
+                                }
+
                                 $partner = Partner::find($get('partner_id'));
                                 $tenantCountry = CompanySettings::get('company', 'country_code');
 
@@ -171,6 +180,10 @@ class CustomerInvoiceForm
                             ->live()
                             ->dehydrated(false)
                             ->visible(function (Get $get): bool {
+                                if (! TenantVatStatus::isRegistered()) {
+                                    return false;
+                                }
+
                                 $partner = Partner::find($get('partner_id'));
                                 $tenantCountry = CompanySettings::get('company', 'country_code');
 
@@ -223,6 +236,7 @@ class CustomerInvoiceForm
                             ->options(PricingMode::class)
                             ->required()
                             ->default(PricingMode::VatExclusive->value)
+                            ->visible(fn () => TenantVatStatus::isRegistered())
                             ->disabled(function (Get $get): bool {
                                 // Locked when linked to a SO
                                 if (! empty($get('sales_order_id'))) {

@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\CompanySettings;
 use App\Models\Unit;
 use App\Models\VatRate;
+use App\Support\TenantVatStatus;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -97,7 +98,24 @@ class ProductForm
                             ->nullable(),
                         Select::make('vat_rate_id')
                             ->label('VAT Rate')
-                            ->options(VatRate::query()->active()->pluck('name', 'id'))
+                            ->options(function () {
+                                if (! TenantVatStatus::isRegistered()) {
+                                    $zero = TenantVatStatus::zeroExemptRate();
+
+                                    return [$zero->id => $zero->name];
+                                }
+
+                                return VatRate::active()
+                                    ->when(TenantVatStatus::country(), fn ($q, $c) => $q->forCountry($c))
+                                    ->pluck('name', 'id');
+                            })
+                            ->default(function () {
+                                if (! TenantVatStatus::isRegistered()) {
+                                    return TenantVatStatus::zeroExemptRate()->id;
+                                }
+
+                                return null;
+                            })
                             ->searchable()
                             ->nullable(),
                     ]),
