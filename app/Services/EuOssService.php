@@ -111,6 +111,41 @@ class EuOssService
     }
 
     /**
+     * Adjust OSS accumulation for a credit or debit note against a parent invoice.
+     * Negative deltaEur for credit notes (reduce); positive for debit notes (add).
+     * Uses the parent invoice's year and FX rate so the ledger reconciles with the original accumulation.
+     */
+    public function adjust(CustomerInvoice $parent, float $deltaEur): void
+    {
+        $partner = $parent->partner;
+
+        if (! $partner || empty($partner->country_code)) {
+            return;
+        }
+
+        if (! in_array($partner->country_code, EuCountries::codes(), true)) {
+            return;
+        }
+
+        $tenantCountry = CompanySettings::get('company', 'country_code');
+        if ($partner->country_code === $tenantCountry) {
+            return;
+        }
+
+        if ($partner->hasValidEuVat()) {
+            return;
+        }
+
+        $year = (int) ($parent->issued_at?->year ?? now()->year);
+
+        EuOssAccumulation::accumulate(
+            $partner->country_code,
+            $year,
+            $deltaEur
+        );
+    }
+
+    /**
      * Get the standard VAT rate for a destination EU country.
      */
     public function getDestinationVatRate(string $countryCode): float

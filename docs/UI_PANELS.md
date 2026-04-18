@@ -1071,10 +1071,12 @@ Shows: linked SalesOrder, CustomerCreditNotes, CustomerDebitNotes
 #### Form Schema (CustomerCreditNoteForm)
 
 - `credit_note_number` — Auto-filled from `SeriesType::CreditNote` series; disabled + dehydrated
-- `customer_invoice_id` — Required; options filtered to Confirmed invoices for the selected partner
-- `partner_id` — Required, active customers; auto-filled from invoice when invoice is selected
+- `customer_invoice_id` — Required; options filtered to Confirmed/Paid invoices; `afterStateUpdated` copies `partner_id`, `currency_code`, `exchange_rate`, `pricing_mode` from parent; shows helper text "VAT treatment inherited from parent invoice" when parent has a `vat_scenario`
+- `partner_id` — Hidden, dehydrated; auto-filled from parent invoice
+- `issued_at` — Required; triggers currency rate auto-fill
+- `triggering_event_date` — Optional date (чл. 115 ЗДДС); the event (return, price correction, etc.) that prompted the note; used by 5-day late-issuance warning
 - `pricing_mode` — Copied from linked invoice
-- `currency_code`, `exchange_rate`, `issued_at`, `reason`, `reason_description`
+- `currency_code`, `exchange_rate`, `reason`, `reason_description`
 
 #### Table Schema (CustomerCreditNotesTable)
 
@@ -1085,7 +1087,7 @@ Shows: linked SalesOrder, CustomerCreditNotes, CustomerDebitNotes
 #### View Page Header Actions
 
 - **Edit** — visible when `isEditable()`
-- **Confirm Credit Note** — Draft → Confirmed; calls `CustomerCreditNoteService::confirm()`
+- **Confirm Credit Note** — Draft → Confirmed; calls `CustomerCreditNoteService::confirmWithScenario()` — inherits parent's VAT scenario, applies zero-rate if needed, fires 5-day warning, records negative OSS delta
 - **Print Credit Note** (`print_credit_note`) — visible when Confirmed; resolves template via `PdfTemplateResolver::resolve('customer-credit-note')`; sets locale via `localeFor('customer-credit-note')` in try/finally; eager-loads `partner.addresses`, `items.productVariant`, `items.vatRate`, `customerInvoice`; streams PDF as `credit-note-{number}.pdf` via DomPDF
 - **Cancel** — visible for Draft and Confirmed
 
@@ -1112,9 +1114,11 @@ Shows: linked CustomerInvoice
 #### Form Schema (CustomerDebitNoteForm)
 
 - `debit_note_number` — Auto-filled from `SeriesType::DebitNote` series; disabled + dehydrated
-- `customer_invoice_id` — Optional; links to a Confirmed invoice
+- `customer_invoice_id` — Optional; links to a Confirmed invoice; `afterStateUpdated` copies `partner_id`, `currency_code`, `exchange_rate`, `pricing_mode` from parent when set; shows VAT treatment inherited helper text
 - `partner_id` — Required, active customers; auto-filled from invoice when selected
-- `pricing_mode`, `currency_code`, `exchange_rate`, `issued_at`, `reason`, `reason_description`
+- `issued_at` — Required; triggers currency rate auto-fill
+- `triggering_event_date` — Optional date (чл. 115 ЗДДС); same 5-day warning logic as credit note
+- `pricing_mode`, `currency_code`, `exchange_rate`, `reason`, `reason_description`
 
 #### Table Schema (CustomerDebitNotesTable)
 
@@ -1125,7 +1129,7 @@ Shows: linked CustomerInvoice
 #### View Page Header Actions
 
 - **Edit** — visible when `isEditable()`
-- **Confirm Debit Note** — Draft → Confirmed; calls `CustomerDebitNoteService::confirm()`
+- **Confirm Debit Note** — Draft → Confirmed; calls `CustomerDebitNoteService::confirmWithScenario()` — parent-attached: inherits parent VAT scenario + positive OSS delta; standalone: fresh `VatScenario::determine()`
 - **Print Debit Note** (`print_debit_note`) — visible when Confirmed; resolves template via `PdfTemplateResolver::resolve('customer-debit-note')`; sets locale via `localeFor('customer-debit-note')` in try/finally; eager-loads `partner.addresses`, `items.productVariant`, `items.vatRate`, `customerInvoice`; streams PDF as `debit-note-{number}.pdf` via DomPDF
 - **Cancel** — visible for Draft and Confirmed
 

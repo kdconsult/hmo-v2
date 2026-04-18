@@ -11,6 +11,7 @@ return [
     'date_of_supply' => 'Дата на данъчно събитие',
     'due_date' => 'Падеж',
     'parent_invoice' => 'Фактура',
+    'issued' => 'от',
     'from_supplier' => 'Доставчик',
     'to_customer' => 'Получател',
     'vat_id' => 'ДДС №',

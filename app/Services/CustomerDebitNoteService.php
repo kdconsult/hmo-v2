@@ -4,8 +4,13 @@ namespace App\Services;
 
 use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
+use App\Enums\VatScenario;
 use App\Models\CustomerDebitNote;
 use App\Models\CustomerDebitNoteItem;
+use App\Models\CustomerInvoice;
+use App\Models\VatRate;
+use App\Support\TenantVatStatus;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 
 class CustomerDebitNoteService
@@ -58,6 +63,81 @@ class CustomerDebitNoteService
     }
 
     /**
+     * Confirm a debit note with VAT scenario logic (Art. 219 / чл. 115 ЗДДС).
+     * Parent-attached: inherit parent's scenario. Standalone: fresh VatScenario::determine().
+     *
+     * @param  string|null  $subCode  Required for standalone zero-rate + mixed goods/services.
+     */
+    public function confirmWithScenario(CustomerDebitNote $note, ?string $subCode = null): void
+    {
+        DB::transaction(function () use ($note, $subCode): void {
+            $parent = $note->customerInvoice()->with('partner')->first();
+
+            if ($parent) {
+                if ($parent->status !== DocumentStatus::Confirmed) {
+                    throw new \DomainException(
+                        "Cannot confirm debit note against an unconfirmed parent invoice (#{$parent->invoice_number}, status={$parent->status->value})."
+                    );
+                }
+
+                if ($note->currency_code !== $parent->currency_code) {
+                    throw new \DomainException(
+                        "Debit note currency ({$note->currency_code}) must match parent invoice currency ({$parent->currency_code})."
+                    );
+                }
+
+                $scenario = $parent->vat_scenario;
+                $finalSubCode = $parent->vat_scenario_sub_code;
+                $isRc = $parent->is_reverse_charge;
+            } else {
+                // Standalone debit note — fresh determination
+                $partner = $note->partner;
+                $tenantCountry = TenantVatStatus::country() ?? 'BG';
+                $isRegistered = TenantVatStatus::isRegistered();
+
+                $scenario = VatScenario::determine(
+                    $partner,
+                    $tenantCountry,
+                    tenantIsVatRegistered: $isRegistered,
+                );
+
+                if (in_array($scenario, [VatScenario::EuB2bReverseCharge, VatScenario::NonEuExport], true)) {
+                    $itemKind = $this->classifyItems($note);
+                    if ($itemKind === 'mixed' && $subCode === null) {
+                        throw new \DomainException(
+                            'Standalone debit note with mixed goods and services requires an explicit sub_code (goods or services).'
+                        );
+                    }
+                    $finalSubCode = $subCode ?? ($itemKind === 'services' ? 'services' : 'goods');
+                } else {
+                    $finalSubCode = $subCode ?? 'default';
+                }
+
+                $isRc = $scenario === VatScenario::EuB2bReverseCharge;
+            }
+
+            if ($scenario?->requiresVatRateChange()) {
+                $this->applyZeroRateToItems($note, TenantVatStatus::country() ?? 'BG');
+            }
+
+            $this->warnOnLateIssuance($note);
+
+            $note->update([
+                'vat_scenario' => $scenario,
+                'vat_scenario_sub_code' => $finalSubCode,
+                'is_reverse_charge' => $isRc,
+                'status' => DocumentStatus::Confirmed,
+            ]);
+
+            // OSS positive delta for parent-attached debit notes only; standalone deferred.
+            if ($parent) {
+                $deltaEur = $this->noteToParentEur($note, $parent);
+                app(EuOssService::class)->adjust($parent, $deltaEur);
+            }
+        });
+    }
+
+    /**
      * Confirm a debit note, wrapped in a transaction.
      * Future: update parent invoice balance if applicable.
      */
@@ -77,5 +157,57 @@ class CustomerDebitNoteService
         DB::transaction(function () use ($cdn): void {
             $cdn->update(['status' => DocumentStatus::Cancelled]);
         });
+    }
+
+    private function classifyItems(CustomerDebitNote $note): string
+    {
+        $types = $note->items
+            ->map(fn ($i) => $i->productVariant?->product?->type?->value)
+            ->filter()
+            ->unique();
+
+        if ($types->count() === 1) {
+            return $types->first() === 'service' ? 'services' : 'goods';
+        }
+
+        return $types->isEmpty() ? 'goods' : 'mixed';
+    }
+
+    private function applyZeroRateToItems(CustomerDebitNote $note, string $tenantCountry): void
+    {
+        $zero = VatRate::where('country_code', $tenantCountry)
+            ->where('rate', 0)
+            ->first() ?? TenantVatStatus::zeroExemptRate();
+
+        foreach ($note->items as $item) {
+            $item->update(['vat_rate_id' => $zero->id]);
+            $this->recalculateItemTotals($item->fresh());
+        }
+
+        $this->recalculateDocumentTotals($note->fresh());
+    }
+
+    private function warnOnLateIssuance(CustomerDebitNote $note): void
+    {
+        $trigger = $note->triggering_event_date ?? $note->issued_at;
+        if ($trigger && $note->issued_at && $trigger->diffInDays($note->issued_at, false) > 5) {
+            Notification::make()
+                ->title(__('invoice-form.note_late_issuance_title'))
+                ->body(__('invoice-form.note_late_issuance_body'))
+                ->warning()
+                ->send();
+        }
+    }
+
+    /**
+     * Convert the note's total to EUR using the PARENT's exchange rate.
+     */
+    private function noteToParentEur(CustomerDebitNote $note, CustomerInvoice $parent): float
+    {
+        $rate = (float) $parent->exchange_rate;
+
+        return $rate > 0
+            ? (float) bcdiv((string) $note->total, (string) $rate, 6)
+            : (float) $note->total;
     }
 }

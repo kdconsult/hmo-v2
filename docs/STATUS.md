@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1–4 complete; Wave 1 hotfix + legal-references + pdf-rewrite + domestic-exempt + blocks shipped.** 643 tests pass (8 todos). Next: `tasks/vat-vies/blocks-credit-debit.md` (blocks for credit/debit notes) and `tasks/vat-vies/invoice-credit-debit.md`. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit driving the remaining waves.
+**VAT/VIES Areas 1–4 complete; Wave 1 hotfix + legal-references + pdf-rewrite + domestic-exempt + blocks + invoice-credit-debit shipped.** 657 tests pass (8 todos). Next: `tasks/vat-vies/blocks-credit-debit.md` (blocks for credit/debit notes). See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit driving the remaining waves.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 

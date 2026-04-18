@@ -798,8 +798,8 @@ Line on a delivery note. Optionally links back to the SO item it fulfils.
 These models mirror their purchase-side equivalents with the following key differences:
 - `CustomerInvoice` — mirrors `SupplierInvoice`; adds `sales_order_id`, `invoice_type (InvoiceType enum)`, `is_reverse_charge (bool)`; drops `supplier_invoice_number`, `received_at`, `purchase_order_id`
 - `CustomerInvoiceItem` — mirrors `SupplierInvoiceItem`; adds `sales_order_item_id`; has `creditedQuantity()` + `remainingCreditableQuantity()` methods
-- `CustomerCreditNote` — exact mirror of `SupplierCreditNote` (same column structure)
-- `CustomerDebitNote` — same structure as `CustomerCreditNote`; uses `DebitNoteReason` enum; `customer_invoice_id` is nullable (informational link only)
+- `CustomerCreditNote` — mirrors `SupplierCreditNote`; adds `vat_scenario`, `vat_scenario_sub_code`, `is_reverse_charge`, `triggering_event_date`; immutability guard (FROZEN_FIELDS + booted) identical to `CustomerInvoice` — throws `RuntimeException` on update/delete of frozen fields once Confirmed (Art. 219 / чл. 115 ЗДДС)
+- `CustomerDebitNote` — same added columns as `CustomerCreditNote`; uses `DebitNoteReason` enum; `customer_invoice_id` is nullable (standalone debit notes have no parent); same immutability guard
 - `SalesReturn` — mirrors `PurchaseReturn`; links to `delivery_note_id` instead of `goods_received_note_id`
 - `AdvancePayment` — no purchase-side mirror; tracks advance/prepayment received from customer; status pipeline: Open → PartiallyApplied → FullyApplied / Refunded; `remainingAmount()` method
 - `AdvancePaymentApplication` — pivot linking `AdvancePayment` to `CustomerInvoice`; composite unique on `(advance_payment_id, customer_invoice_id)`

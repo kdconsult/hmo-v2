@@ -5,17 +5,75 @@ namespace App\Models;
 use App\Enums\CreditNoteReason;
 use App\Enums\DocumentStatus;
 use App\Enums\PricingMode;
+use App\Enums\VatScenario;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RuntimeException;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
 class CustomerCreditNote extends Model
 {
     use HasFactory, LogsActivity, SoftDeletes;
+
+    /**
+     * Fields locked once the credit note leaves Draft status.
+     * Mutable post-Draft: status, subtotal, tax_amount, total, triggering_event_date, vat_scenario_sub_code.
+     * Legal basis: Art. 219 Directive 2006/112/EC; чл. 115 ЗДДС.
+     */
+    protected const FROZEN_FIELDS = [
+        'credit_note_number',
+        'issued_at',
+        'partner_id',
+        'customer_invoice_id',
+        'document_series_id',
+        'currency_code',
+        'exchange_rate',
+        'pricing_mode',
+        'vat_scenario',
+        'is_reverse_charge',
+        'reason',
+        'created_by',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $note): void {
+            $original = $note->getOriginal('status');
+            $originalValue = $original instanceof DocumentStatus ? $original->value : $original;
+
+            if ($originalValue === null || $originalValue === DocumentStatus::Draft->value) {
+                return;
+            }
+
+            $disallowed = array_intersect(array_keys($note->getDirty()), self::FROZEN_FIELDS);
+            if ($disallowed === []) {
+                return;
+            }
+
+            throw new RuntimeException(
+                'Confirmed credit notes are immutable (Art. 219 Directive 2006/112/EC; chl. 115 ZDDS). '
+                ."Credit note #{$note->credit_note_number} (status={$originalValue}). "
+                .'Disallowed field changes: '.implode(', ', $disallowed).'. '
+                .'Issue a new corrective document to correct.'
+            );
+        });
+
+        static::deleting(function (self $note): void {
+            $original = $note->getOriginal('status') ?? $note->status;
+            $originalValue = $original instanceof DocumentStatus ? $original->value : $original;
+
+            if ($originalValue !== null && $originalValue !== DocumentStatus::Draft->value) {
+                throw new RuntimeException(
+                    "Cannot delete a non-Draft credit note (#{$note->credit_note_number}, status={$originalValue}). "
+                    .'Cancel it via the Cancel action instead.'
+                );
+            }
+        });
+    }
 
     protected $fillable = [
         'credit_note_number',
@@ -29,7 +87,10 @@ class CustomerCreditNote extends Model
         'pricing_mode',
         'reason',
         'reason_description',
+        'vat_scenario',
         'vat_scenario_sub_code',
+        'is_reverse_charge',
+        'triggering_event_date',
         'subtotal',
         'tax_amount',
         'total',
@@ -43,6 +104,9 @@ class CustomerCreditNote extends Model
             'status' => DocumentStatus::class,
             'pricing_mode' => PricingMode::class,
             'reason' => CreditNoteReason::class,
+            'vat_scenario' => VatScenario::class,
+            'is_reverse_charge' => 'boolean',
+            'triggering_event_date' => 'date',
             'exchange_rate' => 'decimal:6',
             'subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',

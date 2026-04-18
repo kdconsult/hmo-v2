@@ -2,11 +2,10 @@
     $document = $note;
     $document->document_number = $note->credit_note_number;
     $document->supplied_at = $note->customerInvoice?->supplied_at;
-    $document->vat_scenario = $note->customerInvoice?->vat_scenario;
-    $document->is_reverse_charge = $note->customerInvoice?->is_reverse_charge;
     $document->vies_request_id = $note->customerInvoice?->vies_request_id;
     $document->vies_checked_at = $note->customerInvoice?->vies_checked_at;
     $parent_invoice_number = $note->customerInvoice?->invoice_number;
+    $parent_invoice_issued_at = $note->customerInvoice?->issued_at;
 @endphp
 <!DOCTYPE html>
 <html lang="{{ app()->getLocale() }}">
@@ -24,6 +23,7 @@
         'supplied_at' => $document->supplied_at,
         'due_date' => $document->due_date,
         'parent_invoice' => $parent_invoice_number,
+        'parent_invoice_issued_at' => $parent_invoice_issued_at ?? null,
     ])
 
     @include('pdf.components._parties', [
@@ -31,9 +31,9 @@
     ])
 
     @include('pdf.components._vat-treatment', [
-        'vat_scenario' => $document->vat_scenario,
-        'vat_scenario_sub_code' => $document->vat_scenario_sub_code,
-        'is_reverse_charge' => $document->is_reverse_charge,
+        'vat_scenario' => $note->vat_scenario,
+        'vat_scenario_sub_code' => $note->vat_scenario_sub_code,
+        'is_reverse_charge' => $note->is_reverse_charge,
         'vies_request_id' => $document->vies_request_id,
         'vies_checked_at' => $document->vies_checked_at,
     ])

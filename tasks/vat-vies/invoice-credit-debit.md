@@ -3,7 +3,7 @@
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Plan:** `tasks/vat-vies/invoice-credit-debit-plan.md`
 > **Review:** `review.md` (F-010, F-011, F-021, F-024)
-> **Status:** 📋 PLANNED
+> **Status:** ✅ COMPLETE
 > **Depends on:** `pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md` all landed
 > **Unblocks:** `blocks-credit-debit.md`, `pre-launch.md`
 
@@ -164,17 +164,17 @@ Credit / debit note forms:
 
 ## Checklist
 
-- [ ] Investigation complete (current credit/debit note models, services, forms)
-- [ ] Plan written (`invoice-credit-debit-plan.md`)
-- [ ] Migrations for note columns
-- [ ] Immutability guards on both note models
-- [ ] Credit note service `confirmWithScenario()`
-- [ ] Debit note service `confirmWithScenario()` (both paths)
-- [ ] `EuOssService::adjust()` method
-- [ ] PDF templates (credit + debit) using shared partials
-- [ ] Form changes (triggering_event_date, inheritance banner)
-- [ ] Automated tests pass
+- [x] Investigation complete (current credit/debit note models, services, forms)
+- [x] Plan written (`invoice-credit-debit-plan.md`)
+- [x] Migrations for note columns
+- [x] Immutability guards on both note models and their item models
+- [x] Credit note service `confirmWithScenario()`
+- [x] Debit note service `confirmWithScenario()` (both paths)
+- [x] `EuOssService::adjust()` method
+- [x] PDF templates (credit + debit) — shared partials updated to read stored fields; Art. 219 date/number reference rendered
+- [x] Form changes (triggering_event_date, inheritance banner/helper text)
+- [x] Automated tests pass (657 passed, 0 failures)
 - [ ] Browser-tested: create credit note against reverse-charge invoice → correct PDF
 - [ ] Browser-tested: standalone debit note for a non-EU services → correct sub-code
-- [ ] Pint clean
-- [ ] Final test run green
+- [x] Pint clean
+- [x] Final test run green

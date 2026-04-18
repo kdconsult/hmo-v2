@@ -75,13 +75,15 @@ it('credit note inherits parent invoice legal reference for reverse-charge servi
             'vies_request_id' => 'WAPIAAAAXREV1234',
             'vies_checked_at' => now(),
         ]);
-        // Note owns its own sub_code (the template passes $note->vat_scenario_sub_code to _vat-treatment).
+        // Note stores its own VAT scenario (inherited from parent on confirmation).
         $note = CustomerCreditNote::factory()->create([
             'customer_invoice_id' => $invoice->id,
             'partner_id' => $partner->id,
             'status' => DocumentStatus::Confirmed,
             'issued_at' => now()->toDateString(),
+            'vat_scenario' => VatScenario::EuB2bReverseCharge,
             'vat_scenario_sub_code' => 'services',
+            'is_reverse_charge' => true,
         ]);
 
         $html = renderCreditNoteHtml($note);

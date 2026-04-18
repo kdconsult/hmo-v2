@@ -520,13 +520,17 @@ Handles EU One-Stop Shop (OSS) VAT compliance for cross-border B2C digital/goods
 - `getDestinationVatRate(string $countryCode): float`
   - Looks up `EuCountryVatRate::getStandardRate($countryCode)`. Returns `0.0` if country not found.
 
+- `adjust(CustomerInvoice $parent, float $deltaEur): void`
+  - Records a signed OSS delta (negative for credit notes, positive for parent-attached debit notes).
+  - Applies the same B2C cross-border eligibility checks as `accumulate()`.
+  - Uses `$parent->issued_at->year` — NOT `now()->year` — so the ledger reconciles across cross-year FX-drift scenarios.
+  - Calls `EuOssAccumulation::accumulate(countryCode, year, deltaEur)` with the signed amount.
+
 ---
 
 ### CustomerCreditNoteService
 
 Location: `/app/Services/CustomerCreditNoteService.php`
-
-Mirrors `SupplierCreditNoteService` exactly — same calculation logic, different model types.
 
 **Methods:**
 
@@ -536,18 +540,38 @@ Mirrors `SupplierCreditNoteService` exactly — same calculation logic, differen
 - `recalculateDocumentTotals(CustomerCreditNote $creditNote): void`
   - Sums `line_total` and `vat_amount` across all items. Sets `subtotal`, `tax_amount`, `total`. Saves document.
 
+- `confirmWithScenario(CustomerCreditNote $note): void`
+  - Wrapped in `DB::transaction`. Guards: parent must exist (schema-enforced NOT NULL), parent must be Confirmed, currencies must match — throws `DomainException` on violation.
+  - Inherits `vat_scenario`, `vat_scenario_sub_code`, `is_reverse_charge` from the parent invoice (Art. 219 / чл. 115 ЗДДС — amending documents carry the same VAT treatment as the original).
+  - If `$scenario->requiresVatRateChange()`, applies zero-rate to all note items via `applyZeroRateToItems()`.
+  - Fires a non-blocking Filament warning if `issued_at` is more than 5 days after `triggering_event_date` (чл. 115 ЗДДС).
+  - Sets `status = Confirmed`, then calls `EuOssService::adjust($parent, -noteEur)` — negative delta using parent's exchange rate.
+
+- `confirm(CustomerCreditNote $ccn): void`
+  - Thin backward-compatibility wrapper: sets status to Confirmed with no VAT logic.
+
+- `cancel(CustomerCreditNote $ccn): void`
+  - Sets status to Cancelled.
+
 ---
 
 ### CustomerDebitNoteService
 
 Location: `/app/Services/CustomerDebitNoteService.php`
 
-Same structure as `CustomerCreditNoteService` — applies to debit notes.
-
 **Methods:**
 
 - `recalculateItemTotals(CustomerDebitNoteItem $item): void`
 - `recalculateDocumentTotals(CustomerDebitNote $debitNote): void`
+
+- `confirmWithScenario(CustomerDebitNote $note, ?string $subCode = null): void`
+  - Wrapped in `DB::transaction`. Two paths:
+  - **Parent-attached** (`customer_invoice_id` is set): inherits `vat_scenario`, `vat_scenario_sub_code`, `is_reverse_charge` from parent (same guards as credit note). Records a positive OSS delta via `EuOssService::adjust($parent, +noteEur)`.
+  - **Standalone** (no parent): runs `VatScenario::determine()` fresh against current partner/tenant state. For RC/NonEU scenarios with mixed goods+services items, `$subCode` is required — throws `DomainException` if absent. OSS accumulation for standalone debit notes is deferred (not implemented yet).
+  - Both paths: applies zero-rate to items if `$scenario->requiresVatRateChange()`, fires 5-day late-issuance warning.
+
+- `confirm(CustomerDebitNote $cdn): void` / `cancel(CustomerDebitNote $cdn): void`
+  - Thin status-only wrappers.
 
 ---
 

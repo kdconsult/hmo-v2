@@ -81,7 +81,9 @@ it('debit note inherits parent invoice legal reference for reverse-charge goods'
             'partner_id' => $partner->id,
             'status' => DocumentStatus::Confirmed,
             'issued_at' => now()->toDateString(),
+            'vat_scenario' => VatScenario::EuB2bReverseCharge,
             'vat_scenario_sub_code' => 'goods',
+            'is_reverse_charge' => true,
         ]);
 
         $html = renderDebitNoteHtml($note);

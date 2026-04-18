@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\DocumentStatus;
 use App\Enums\InvoiceType;
 use App\Enums\PricingMode;
+use App\Enums\VatScenario;
 use App\Models\CustomerInvoice;
 use App\Models\Partner;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -42,6 +43,8 @@ class CustomerInvoiceFactory extends Factory
             'notes' => null,
             'internal_notes' => null,
             'created_by' => null,
+            'vat_scenario' => null,
+            'vat_scenario_sub_code' => null,
         ];
     }
 
@@ -62,5 +65,41 @@ class CustomerInvoiceFactory extends Factory
     public function cancelled(): static
     {
         return $this->state(fn () => ['status' => DocumentStatus::Cancelled]);
+    }
+
+    public function domestic(): static
+    {
+        return $this->state(fn () => [
+            'vat_scenario' => VatScenario::Domestic,
+            'vat_scenario_sub_code' => 'default',
+            'is_reverse_charge' => false,
+        ]);
+    }
+
+    public function euB2bReverseCharge(): static
+    {
+        return $this->state(fn () => [
+            'vat_scenario' => VatScenario::EuB2bReverseCharge,
+            'vat_scenario_sub_code' => 'services',
+            'is_reverse_charge' => true,
+        ]);
+    }
+
+    public function euB2cOverThreshold(): static
+    {
+        return $this->state(fn () => [
+            'vat_scenario' => VatScenario::EuB2cOverThreshold,
+            'vat_scenario_sub_code' => 'default',
+            'is_reverse_charge' => false,
+        ]);
+    }
+
+    public function exempt(): static
+    {
+        return $this->state(fn () => [
+            'vat_scenario' => VatScenario::Exempt,
+            'vat_scenario_sub_code' => 'default',
+            'is_reverse_charge' => false,
+        ]);
     }
 }

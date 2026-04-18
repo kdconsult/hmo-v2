@@ -16,17 +16,17 @@
 | 1 | Tenant company VAT setup | `tenant.md` | ✅ SHIPPED — refactor queue in `tenant-plan.md` |
 | 2 | Partner VAT setup | `partner.md` | ✅ SHIPPED — refactor queue in `partner-plan.md` |
 | 3 | Invoice VAT determination | `invoice.md` | ✅ SHIPPED — refactor queue in `invoice-plan.md` |
-| 4 | Non-VAT-registered tenant blocks (invoice) | `blocks.md` | 📋 PLANNED — `blocks-plan.md` |
+| 4 | Non-VAT-registered tenant blocks (invoice) | `blocks.md` | ✅ SHIPPED |
 
 ### Cross-cutting / derived tasks (added after 2026-04-17 review)
 
 | Task | File | Depends on | Status |
 |------|------|-----------|--------|
-| Post-review hotfix (country_code, immutability, doc drift) | `hotfix.md` | — | 🔧 TODO |
-| Legal references foundation (vat_legal_references table) | `legal-references.md` | hotfix landed | 📋 PLANNED |
-| Invoice PDF rewrite (Art. 226 compliance) | `pdf-rewrite.md` | legal-references | 📋 PLANNED |
-| DomesticExempt scenario (чл. 39–49 ЗДДС) | `domestic-exempt.md` | legal-references | 📋 PLANNED |
-| Credit / debit note VAT determination | `invoice-credit-debit.md` | pdf-rewrite, domestic-exempt | 📋 PLANNED |
+| Post-review hotfix (country_code, immutability, doc drift) | `hotfix.md` | — | ✅ SHIPPED |
+| Legal references foundation (vat_legal_references table) | `legal-references.md` | hotfix landed | ✅ SHIPPED |
+| Invoice PDF rewrite (Art. 226 compliance) | `pdf-rewrite.md` | legal-references | ✅ SHIPPED |
+| DomesticExempt scenario (чл. 39–49 ЗДДС) | `domestic-exempt.md` | legal-references | ✅ SHIPPED |
+| Credit / debit note VAT determination | `invoice-credit-debit.md` | pdf-rewrite, domestic-exempt | ✅ SHIPPED |
 | Non-VAT-registered blocks — credit / debit notes | `blocks-credit-debit.md` | blocks, invoice-credit-debit | 📋 PLANNED |
 | Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | 📋 PLANNED |
 

@@ -11,6 +11,7 @@ return [
     'date_of_supply' => 'Date of supply',
     'due_date' => 'Due date',
     'parent_invoice' => 'Related invoice',
+    'issued' => 'issued',
     'from_supplier' => 'From (Seller)',
     'to_customer' => 'To (Customer)',
     'vat_id' => 'VAT No',

@@ -49,6 +49,9 @@ class CustomerDebitNoteForm
                             ->searchable()
                             ->nullable()
                             ->live()
+                            ->helperText(fn (Get $get): ?string => CustomerInvoice::find($get('customer_invoice_id'))?->vat_scenario?->description()
+                                ? __('invoice-form.vat_treatment_inherited_hint')
+                                : null)
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if ($state) {
                                     $invoice = CustomerInvoice::find($state);
@@ -75,6 +78,11 @@ class CustomerDebitNoteForm
                             ->default(now()->toDateString())
                             ->live(onBlur: true)
                             ->afterStateUpdated(CurrencyRateService::makeAfterDateChanged()),
+                        DatePicker::make('triggering_event_date')
+                            ->label(__('invoice-form.triggering_event_date'))
+                            ->helperText(__('invoice-form.triggering_event_date_hint'))
+                            ->nullable()
+                            ->default(now()->toDateString()),
                         Select::make('currency_code')
                             ->label('Currency')
                             ->options(Currency::active()->orderBy('name')->pluck('name', 'code'))

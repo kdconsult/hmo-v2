@@ -36,6 +36,10 @@ class CustomerCreditNoteFactory extends Factory
             'total' => '0.00',
             'issued_at' => null,
             'created_by' => null,
+            'vat_scenario' => null,
+            'vat_scenario_sub_code' => null,
+            'is_reverse_charge' => false,
+            'triggering_event_date' => null,
         ];
     }
 
@@ -55,5 +59,19 @@ class CustomerCreditNoteFactory extends Factory
     public function cancelled(): static
     {
         return $this->state(fn () => ['status' => DocumentStatus::Cancelled]);
+    }
+
+    public function withParent(CustomerInvoice $parent): static
+    {
+        return $this->state(fn () => [
+            'customer_invoice_id' => $parent->id,
+            'partner_id' => $parent->partner_id,
+            'currency_code' => $parent->currency_code,
+            'exchange_rate' => $parent->exchange_rate,
+            'pricing_mode' => $parent->pricing_mode,
+            'vat_scenario' => $parent->vat_scenario,
+            'vat_scenario_sub_code' => $parent->vat_scenario_sub_code,
+            'is_reverse_charge' => $parent->is_reverse_charge,
+        ]);
     }
 }

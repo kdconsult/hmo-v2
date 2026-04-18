@@ -28,7 +28,12 @@
                     <div class="document-meta">{{ __('invoice-pdf.due_date') }}: {{ $due_date->format('d.m.Y') }}</div>
                 @endif
                 @if($parent_invoice)
-                    <div class="document-meta">{{ __('invoice-pdf.parent_invoice') }}: {{ $parent_invoice }}</div>
+                    <div class="document-meta">
+                        {{ __('invoice-pdf.parent_invoice') }}: {{ $parent_invoice }}
+                        @if(!empty($parent_invoice_issued_at))
+                            {{ __('invoice-pdf.issued') }} {{ $parent_invoice_issued_at->format('d.m.Y') }}
+                        @endif
+                    </div>
                 @endif
             </td>
         </tr>
