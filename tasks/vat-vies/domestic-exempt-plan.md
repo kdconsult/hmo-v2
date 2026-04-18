@@ -3,7 +3,7 @@
 > **Task:** `tasks/vat-vies/domestic-exempt.md`
 > **Ships with:** `tasks/vat-vies/pdf-rewrite-plan.md` — combined push in one branch / PR. Migration, enum case, and PDF rendering are owned by that plan and NOT duplicated here.
 > **Review note:** No direct review finding; derived from `spec.md` Area 3 Phase B (BG tenant must be able to issue an exempt-under-ЗДДС invoice with correct legal-basis citation).
-> **Status:** Ready to implement (after `legal-references.md`, `hotfix.md`, and `pdf-rewrite-plan.md` Steps 1–3 land in the same PR)
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Task:** `tasks/vat-vies/blocks.md`
 > **Review:** `review.md` (F-004, F-022)
-> **Status:** Ready to implement after `legal-references.md` + `domestic-exempt.md`
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

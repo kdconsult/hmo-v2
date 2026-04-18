@@ -2,7 +2,7 @@
 
 > **Task:** `tasks/vat-vies/hotfix.md`
 > **Review:** `review.md` (F-030, F-031, F-005, F-017, F-018, F-034, F-036)
-> **Status:** Ready to implement
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

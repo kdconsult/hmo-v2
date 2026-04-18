@@ -3,7 +3,7 @@
 > **Task:** `tasks/vat-vies/pdf-rewrite.md`
 > **Ships with:** `tasks/vat-vies/domestic-exempt-plan.md` — single branch / single PR. The shared `VatScenario::DomesticExempt` enum case and the `vat_scenario_sub_code` column are emitted here because the templates cannot render without them; scenario semantics (form toggle, service routing) live in the other plan.
 > **Review:** `tasks/vat-vies/review.md` findings F-001, F-002, F-004, F-013, F-023, F-028, F-029
-> **Status:** 📋 PLANNED
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

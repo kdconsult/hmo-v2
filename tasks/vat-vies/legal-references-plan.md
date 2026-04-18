@@ -3,7 +3,7 @@
 > **Task:** `tasks/vat-vies/legal-references.md`
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Review:** `tasks/vat-vies/review.md` (F-001, F-004)
-> **Status:** Ready to implement
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

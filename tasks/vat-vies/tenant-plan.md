@@ -2,7 +2,7 @@
 
 > **Task:** `tasks/vat-vies/tenant.md`
 > **Review:** `tasks/vat-vies/review.md`
-> **Status:** Refactor-only plan (Area 1 implementation is already shipped). Covers the deferred items from the refactor findings.
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **Task:** `tasks/vat-vies/invoice-credit-debit.md`
 > **Review:** `review.md` (F-010, F-011, F-021, F-024)
-> **Status:** Ready to implement after `pdf-rewrite.md`, `domestic-exempt.md`, `blocks.md`
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 

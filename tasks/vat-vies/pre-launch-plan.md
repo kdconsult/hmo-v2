@@ -2,15 +2,15 @@
 
 > **Task:** `tasks/vat-vies/pre-launch.md`
 > **Review:** `review.md` (F-009, F-012, F-014, F-015, F-016, F-022, F-032)
-> **Status:** Ready to implement after all feature work
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 
 ## Prerequisites
 
-- [ ] All feature tasks merged: hotfix, legal-references, pdf-rewrite, domestic-exempt, blocks, invoice-credit-debit, blocks-credit-debit
-- [ ] Refactor plans merged: tenant-plan, partner-plan, invoice-plan
-- [ ] Test suite fully green
+- [x] All feature tasks merged: hotfix, legal-references, pdf-rewrite, domestic-exempt, blocks, invoice-credit-debit, blocks-credit-debit
+- [x] Refactor plans merged: tenant-plan, partner-plan, invoice-plan
+- [x] Test suite fully green
 
 ---
 

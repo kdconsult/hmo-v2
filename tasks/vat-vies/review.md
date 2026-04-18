@@ -97,42 +97,42 @@ Legal · Accounting · UX · Security
 
 | ID | Title | Severity | Category | Status |
 |----|-------|----------|----------|--------|
-| F-001 | Invoice PDF omits exemption legal reference (Art. 226(11)) | **Critical** | Legal | Open — BLOCKER |
-| F-002 | PDF lacks other Art. 226 mandatory content (date of supply, per-rate VAT, localized "Reverse charge", full supplier address) | **Critical** | Legal | Open — BLOCKER |
+| F-001 | Invoice PDF omits exemption legal reference (Art. 226(11)) | **Critical** | Legal | ✅ Resolved — shipped in pdf-rewrite.md |
+| F-002 | PDF lacks other Art. 226 mandatory content (date of supply, per-rate VAT, localized "Reverse charge", full supplier address) | **Critical** | Legal | ✅ Resolved — shipped in pdf-rewrite.md |
 | F-003 | No recapitulative statement (VIES declaration / ECSL) — Art. 138 substantive condition unmet | **Critical** | Legal · Accounting | Open — HIGH-PRIORITY gap |
-| F-004 | Stale "Art. 96 ЗДДС" citation in blocks.md and blocks-credit-debit.md | High | Legal | Open |
-| F-005 | VIES cache key not per-tenant at application layer | High (Critical if bootstrapper off) | Security · Legal | Open — verify tenancy cache bootstrapper |
-| F-006 | OSS threshold uses `now()->year`, not the invoice's chargeable-event year | High | Legal · Accounting | Open — Phase B fix pending |
-| F-007 | Non-EU B2B services mis-classified as `NonEuExport` | High | Legal · Accounting | Open |
-| F-008 | Silent partner downgrade on VIES invalid | Medium | UX · Legal · Accounting | Open |
-| F-009 | "Confirm with Reverse Charge" override legal-risk caps missing | High | Legal | Open |
-| F-010 | 5-day credit/debit-note window not enforced (чл. 115 ЗДДС) | Medium | Legal · Accounting | Open |
-| F-011 | Credit/debit note PDF doesn't reference the original invoice date | Medium | Legal | Open |
-| F-012 | GDPR posture for sole-proprietor VAT numbers not documented | Medium | Security · Legal | Open — must land before launch |
+| F-004 | Stale "Art. 96 ЗДДС" citation in blocks.md and blocks-credit-debit.md | High | Legal | ✅ Resolved — shipped in pdf-rewrite.md |
+| F-005 | VIES cache key not per-tenant at application layer | High (Critical if bootstrapper off) | Security · Legal | ✅ Resolved — shipped in hotfix.md |
+| F-006 | OSS threshold uses `now()->year`, not the invoice's chargeable-event year | High | Legal · Accounting | ✅ Resolved — shipped in invoice-plan.md |
+| F-007 | Non-EU B2B services mis-classified as `NonEuExport` | High | Legal · Accounting | ✅ Resolved — shipped in invoice-plan.md |
+| F-008 | Silent partner downgrade on VIES invalid | Medium | UX · Legal · Accounting | ✅ Resolved — shipped in partner-plan.md |
+| F-009 | "Confirm with Reverse Charge" override legal-risk caps missing | High | Legal | ✅ Resolved — shipped in invoice-plan.md |
+| F-010 | 5-day credit/debit-note window not enforced (чл. 115 ЗДДС) | Medium | Legal · Accounting | ✅ Resolved — shipped in invoice-credit-debit.md |
+| F-011 | Credit/debit note PDF doesn't reference the original invoice date | Medium | Legal | ✅ Resolved — shipped in pdf-rewrite.md |
+| F-012 | GDPR posture for sole-proprietor VAT numbers not documented | Medium | Security · Legal | ✅ Resolved — shipped in pre-launch.md |
 | F-013 | VIES consultation number not shown on invoice PDF | Medium | Legal · Accounting | Open |
-| F-014 | No OSS threshold-approaching warning | Medium | UX · Accounting | Open |
-| F-015 | Exchange-rate source and rounding rule not documented | Medium | Accounting · Legal | Open |
-| F-016 | No retention policy for VAT records (10-year BG) | Medium | Legal · Security | Open |
-| F-017 | Spec / impl drift — VIES cooldown (spec says localStorage, code uses server) | Low | UX · Doc | Open — trivial |
-| F-018 | `checkVatApprox` WSDL uncertainty is stale | Low | Doc | Open — trivial |
-| F-019 | `VatStatus::Pending` semantics under-specified outside invoice flow | Medium | Legal · UX | Open |
+| F-014 | No OSS threshold-approaching warning | Medium | UX · Accounting | ✅ Resolved — shipped in pre-launch.md |
+| F-015 | Exchange-rate source and rounding rule not documented | Medium | Accounting · Legal | ✅ Resolved — shipped in pre-launch.md |
+| F-016 | No retention policy for VAT records (10-year BG) | Medium | Legal · Security | ✅ Resolved — shipped in pre-launch.md |
+| F-017 | Spec / impl drift — VIES cooldown (spec says localStorage, code uses server) | Low | UX · Doc | ✅ Resolved — shipped in hotfix.md |
+| F-018 | `checkVatApprox` WSDL uncertainty is stale | Low | Doc | ✅ Resolved — shipped in hotfix.md |
+| F-019 | `VatStatus::Pending` semantics under-specified outside invoice flow | Medium | Legal · UX | ✅ Resolved — shipped in partner-plan.md |
 | F-020 | 2026-01-01 BG SME regime / new threshold / new basis not modelled | Medium | Legal · Accounting | Open |
-| F-021 | Credit-note inheritance vs partner/tenant status drift (blocks override bug) | Medium | Legal · Accounting | Open |
-| F-022 | OSS coverage for TBE services and special-rule services not verified | Medium | Legal · Accounting | Open |
-| F-023 | Tenant without own VAT gets null `request_id` on reverse-charge invoices | High | Legal · Accounting | Open |
-| F-024 | Partner mutation not inside invoice-confirmation transaction | Medium | Security · Accounting | Open |
-| F-025 | VIES address "best-effort parse" — PDF address quality risk | Low | UX · Data quality | Open |
+| F-021 | Credit-note inheritance vs partner/tenant status drift (blocks override bug) | Medium | Legal · Accounting | ✅ Resolved — shipped in blocks-credit-debit.md |
+| F-022 | OSS coverage for TBE services and special-rule services not verified | Medium | Legal · Accounting | ✅ Resolved — shipped in pre-launch.md |
+| F-023 | Tenant without own VAT gets null `request_id` on reverse-charge invoices | High | Legal · Accounting | ✅ Resolved — shipped in tenant-plan.md |
+| F-024 | Partner mutation not inside invoice-confirmation transaction | Medium | Security · Accounting | ✅ Resolved — shipped in invoice-plan.md |
+| F-025 | VIES address "best-effort parse" — PDF address quality risk | Low | UX · Data quality | ✅ Resolved — shipped in partner-plan.md |
 | F-026 | SUPTO / fiscal-printer mapping from VAT scenario not documented | Medium | Legal · Accounting | Open — cross-team |
 | F-027 | No path for Art. 18(1)(b) "VAT applied-but-not-yet-issued" fallback | Low | Legal | Open — future work |
-| F-028 | Invoice 5-day issuance rule (чл. 113, ал. 4 ЗДДС) not enforced | High | Legal · Accounting | Open |
-| F-029 | PDF heading reads "INVOICE"; BG requires "ФАКТУРА" (чл. 114, ал. 1, т. 1) | High | Legal | Open — BLOCKER for BG |
-| F-030 | `VatScenario::determine()` routes empty `country_code` to `NonEuExport` — silent 0% VAT on domestic sales (**live bug**) | **Critical** | Legal · Accounting | Open — BLOCKER + remediation |
-| F-031 | Confirmed-invoice immutability guard absent (чл. 114, ал. 6; Art. 233) — VERIFIED MISSING | **Critical** | Legal · Security | Open — BLOCKER |
-| F-032 | Invoice number sequential / no-gaps guarantee (чл. 114, ал. 1, т. 2) not verified | Medium | Legal · Accounting | Open — verify |
+| F-028 | Invoice 5-day issuance rule (чл. 113, ал. 4 ЗДДС) not enforced | High | Legal · Accounting | ✅ Resolved — shipped in pdf-rewrite.md |
+| F-029 | PDF heading reads "INVOICE"; BG requires "ФАКТУРА" (чл. 114, ал. 1, т. 1) | High | Legal | ✅ Resolved — shipped in pdf-rewrite.md |
+| F-030 | `VatScenario::determine()` routes empty `country_code` to `NonEuExport` — silent 0% VAT on domestic sales (**live bug**) | **Critical** | Legal · Accounting | ✅ Resolved — shipped in hotfix.md |
+| F-031 | Confirmed-invoice immutability guard absent (чл. 114, ал. 6; Art. 233) — VERIFIED MISSING | **Critical** | Legal · Security | ✅ Resolved — shipped in hotfix.md |
+| F-032 | Invoice number sequential / no-gaps guarantee (чл. 114, ал. 1, т. 2) not verified | Medium | Legal · Accounting | ✅ Resolved — shipped in pre-launch.md |
 | F-033 | Advance payments / prepayments chargeable event not modelled (Art. 65; чл. 25, ал. 7 ЗДДС) | Medium | Legal · Accounting | Open — future phase |
 | F-034 | Legacy `VAT-DETERMINATION-1` code — VERIFIED gone from `app/`, memory cleanup only | Low | Doc · Architecture | **Resolved** |
-| F-035 | `blocks-credit-debit.md` references `applyExemptScenario()` with no definition | Low | Doc · Planning | Open |
-| F-036 | `invoice.md` ↔ `invoice-plan.md` drift on `$ignorePartnerVat` | Low | Doc hygiene | Open — trivial |
+| F-035 | `blocks-credit-debit.md` references `applyExemptScenario()` with no definition | Low | Doc · Planning | ✅ Resolved — shipped in blocks-credit-debit.md |
+| F-036 | `invoice.md` ↔ `invoice-plan.md` drift on `$ignorePartnerVat` | Low | Doc hygiene | ✅ Resolved — shipped in hotfix.md |
 
 ---
 
@@ -245,7 +245,7 @@ _(Per-discovery; newest at the bottom.)_
 4. Add a PDF block that always renders when `vat_scenario !== Domestic` and the scenario's resolved legal reference is non-null. Block location: below the meta box, before the line-items table.
 5. Back-fill: for every confirmed invoice already in DB with a non-Domestic scenario and no resolved reference, either (a) render the reference at print time from the lookup table + stored `vat_scenario` (falling back to `default` sub-code), or (b) mark those invoices for re-issuance if the BG tax authority requires a reissued document. This is a **legal-risk call** that should be escalated to the tenant's accountant, not decided in code.
 
-**Status:** Open — BLOCKER
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -275,7 +275,7 @@ _(Per-discovery; newest at the bottom.)_
 4. Add a service-layer guard in `CustomerInvoiceService::confirmWithScenario()`: if scenario is `EuB2bReverseCharge` and `$invoice->partner->vat_number` is null → hard-fail with a clear error. (This is a side-invariant of F-001.)
 5. Treat this as a blocker at the same priority as F-001. Same "reissue vs accept" call for already-issued docs.
 
-**Status:** Open — BLOCKER
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -325,7 +325,7 @@ If Phase A is implemented, the data layer is correct. But until `blocks.md` and 
 
 **Recommendation:** Purge all "Art. 96 ЗДДС" references from `blocks.md` and `blocks-credit-debit.md`; replace with "чл. 113, ал. 9 ЗДДС" and add a `> **Legal citation resolved by:** Phase A — `vat_legal_references` table` pointer so future readers reach the correct seeded data. Add the same cross-reference in `spec.md`.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -355,7 +355,7 @@ Whether this happens in practice depends on the stancl/tenancy `CacheTenancyBoot
 3. Additionally, document that the VIES requestIdentifier is stored at the **invoice level** (`customer_invoices.vies_request_id`), not at the Partner level. Good — cached leakage never reaches a confirmed invoice because `runViesPreCheck()` passes `fresh: true`. But the **Partner form's** "Check VIES" action reads cached data and could display a foreign `requestIdentifier` in the UI.
 4. Consider whether caching successful VIES responses at all is desirable. If a VIES lookup is cheap, skipping the cache removes the whole class of issues. TTL of 24h on a compliance-critical lookup is defensible but not free.
 
-**Status:** Open — requires verification of tenancy cache bootstrapper before severity can be finalised.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 
@@ -383,7 +383,7 @@ The Phase B plan already calls out the fix: `$invoice->issued_at->year` in both 
 3. Add a regression test: a supply dated December 2025 confirmed in January 2026 — the scenario must be evaluated against the 2025 accumulator.
 4. Cross-year credit notes (Phase C `adjust()`) must negatively reduce the parent's year accumulator, never the current year. Phase C plan already specifies this — flag to keep the test.
 
-**Status:** Open — fix is scheduled in Phase B; adding a unit test today that captures the regression is worth it.
+**Status:** ✅ Resolved — shipped in invoice-plan.md
 
 ---
 
@@ -410,7 +410,7 @@ The enum conflates three different legal treatments into one label. Phase A plan
 3. Where the code currently calls `requiresVatRateChange()` — it returns true for `NonEuExport` (correct — 0% rate applied in both cases). No logic change needed; only the label/citation on the PDF and the modal.
 4. Split at a later date if accounting rules diverge materially (e.g. for VAT-return reporting line).
 
-**Status:** Open — label-only; Phase B change captures most of this. Ensure PDF uses resolved reference, not enum description.
+**Status:** ✅ Resolved — shipped in invoice-plan.md
 
 ---
 
@@ -436,7 +436,7 @@ Legal and accounting implications:
 3. Leave the mutation in place — it is correct per spec. The issue is visibility, not logic.
 4. Consider a "contest / re-check" action on the Partner view page that runs a fresh VIES call with `fresh: true` and, on valid, bumps the partner back to `confirmed`. This already exists ("Validate VAT" action) but is hidden for pending partners — extend visibility to partners downgraded from `confirmed` within the last 30 days.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in partner-plan.md
 
 ---
 
@@ -464,7 +464,7 @@ The spec allows the override any time `partner.vat_status = confirmed`, regardle
 4. Add a "Request documentation" prompt: when the override is used, queue a reminder for the accountant to verify the partner's VAT status via alternative proof within 7 days.
 5. Expand the `ReverseChargeOverrideReason` enum once more reasons appear. For now only `vies_unavailable` exists — that is correct.
 
-**Status:** Open — acceptable short-term, but N-day cap and alt-proof acknowledgement should land before the first non-BG tenant ships.
+**Status:** ✅ Resolved — shipped in invoice-plan.md
 
 ---
 
@@ -486,7 +486,7 @@ The spec allows the override any time `partner.vat_status = confirmed`, regardle
 4. Add a test: confirming a note where the gap > 5 days surfaces the warning.
 5. Cross-check other MS. Not every MS has a 5-day rule — Germany is 6 months, France varies. Make the window configurable per tenant country.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in invoice-credit-debit.md
 
 ---
 
@@ -504,7 +504,7 @@ The spec allows the override any time `partner.vat_status = confirmed`, regardle
 **Recommendation:**
 Make the note PDF print `Referring to invoice: <number>, issued <date>, chargeable event <supplied_at if != issued_at>`. Include all three data points in the model's existing relations; no new schema needed — only template work.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -534,7 +534,7 @@ The plans contain none of this. For a pan-EU SaaS this is a blocker for launch i
 3. Ensure VIES activity is logged with `{looked_up_vat, requester, invoice_id?, timestamp, request_identifier}` — the `LogsActivity` pattern used on Partner/CustomerInvoice already covers invoice-linked lookups; add it to standalone partner-form lookups.
 4. Document that the tenant is the **data controller** for partner VAT data they store; the SaaS is the **processor**. DPA between tenants and operator should reference this.
 
-**Status:** Open — future phase item, but **must land before launch** in any MS.
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -586,7 +586,7 @@ From the user's perspective, a single order can cross the threshold mid-invoice.
 3. Emit an event / notification when the threshold is first crossed (e-mail to the tenant's admin contact, Filament notification, audit entry).
 4. Document the OSS registration timeline: a tenant who crosses the threshold must register for OSS **in the quarter of crossing** (or deregister the origin treatment; rules vary) — link to the tenant's MS OSS guidance.
 
-**Status:** Open — medium, pure UX/ops. Not a legal violation; *not warning* the user is a correctness-of-implementation issue.
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -620,7 +620,7 @@ Silent inconsistency between these two sites will produce audit-fail discrepanci
 4. Per-MS variance is real — plan to make the rate-source strategy plug-in (BNB, ECB, HNB, MNB, etc.) once non-BG tenants onboard.
 5. **Rounding rule**: document explicitly. BG requires half-up to the nearest cent; some MS use banker's rounding.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -647,7 +647,7 @@ Silent inconsistency between these two sites will produce audit-fail discrepanci
 4. Document that historical pre-Euro BGN invoices remain valid at their original values and need not be reissued (НАП guidance confirms).
 5. Per-MS variance: confirm DE (10 years), FR (6 years + DAF 10 years for some records), IT (10 years), etc., when expanding. Make retention window configurable per tenant country.
 
-**Status:** Open — not a code-in-the-current-file violation; it is a scope gap that will bite on tenant deletion.
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -662,7 +662,7 @@ Silent inconsistency between these two sites will produce audit-fail discrepanci
 
 **Recommendation:** Update `tasks/vat-vies/spec.md:196` to say "1-minute cooldown enforced at the service layer via `partners.vies_last_checked_at`; the UI just reads the server response to decide whether to show retry." Delete the localStorage sentence.
 
-**Status:** Open — trivial doc edit.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 
@@ -679,7 +679,7 @@ Silent inconsistency between these two sites will produce audit-fail discrepanci
 1. Remove the "may require" comment in `ViesValidationService.php:48-49` (replace with a one-liner: "WSDL at checkVatService.wsdl exposes both operations").
 2. Strike the open question from `invoice-plan.md`.
 
-**Status:** Open — trivial cleanup.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 
@@ -702,7 +702,7 @@ The **invoice scenario helper** already handles `Pending` defensively (treat as 
 2. On reports / lists, display Pending partners with a clear visual marker (icon + tooltip) so no user confuses them with `Confirmed`.
 3. Add a test: creating an invoice for a `Pending` partner never applies `EuB2bReverseCharge`.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in partner-plan.md
 
 ---
 
@@ -758,7 +758,7 @@ None of this is captured in the plans. The implementation assumes a binary `is_v
 3. On the credit-note form, render a read-only banner: "This note inherits the parent invoice's VAT treatment (‹scenario›). Current partner / tenant VAT status does not affect this note."
 4. Add a refusal: if parent is not yet `Confirmed` (i.e. draft), block the note. Accounting correctness depends on the parent having a frozen treatment to mirror.
 
-**Status:** Open — real correctness issue in credit-note logic as currently planned.
+**Status:** ✅ Resolved — shipped in blocks-credit-debit.md
 
 ---
 
@@ -786,7 +786,7 @@ Separately: some B2C services (immovable-property services, event admission, tra
 3. Add a product/category flag: `service_place_of_supply = default | immovable_property | event_admission | passenger_transport | b2c_to_third_country_art_59`. Use it at scenario determination.
 4. Until such tagging exists, render a warning on any service-line invoice to a cross-EU partner: "If this service is bound to immovable property, event admission, or passenger transport, re-check VAT treatment manually."
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -815,7 +815,7 @@ However, the current code reads `tenancy()->tenant?->vat_number` at each call. I
 2. At onboarding, prevent `is_vat_registered=true` from being set with a null `vat_number` (already enforced by invariant; good).
 3. Add a test: confirming an EU B2B reverse-charge invoice with a tenant whose VAT number is null must fail.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in tenant-plan.md
 
 ---
 
@@ -841,7 +841,7 @@ Impact is not always legal (partner might legitimately be invalid), but it is a 
 2. If the invoice confirmation is cancelled / fails, the partner stays at its pre-check state. A re-run of the flow re-mutates.
 3. If the user decides to proceed with "Confirm with VAT" (not reverse charge) after a VIES `invalid` — still downgrade the partner, because the partner's VAT number is objectively invalid. Just tie it to the invoice transaction.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in invoice-plan.md
 
 ---
 
@@ -860,7 +860,7 @@ Impact is not always legal (partner might legitimately be invalid), but it is a 
 3. Allow the user to manually override all address fields (already true — spec says "editable").
 4. Add per-MS parser strategies when the pattern matters (DE uses "Street-Number, Postcode City"; FR uses newline-separated; etc.). Start with a generic parser; open stubs for MS-specific parsers.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in partner-plan.md
 
 ---
 
@@ -930,7 +930,7 @@ The app has no expression of this state. `VatStatus` has `NotRegistered | Confir
 3. Per-MS variance: BG 5 days, DE end of month following, FR end of month, IT 12 days, etc. Make the window a function of tenant country.
 4. Regression test covers confirmation straddling the threshold.
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -952,7 +952,7 @@ For a BG tenant issuing to a BG customer, the PDF is **formally defective** on i
 2. Same treatment for credit notes (ИЗВЕСТИЕ ЗА КРЕДИТ), debit notes (ИЗВЕСТИЕ ЗА ДЕБИТ), and any protocols added later (ПРОТОКОЛ).
 3. Ship the translation file alongside the F-002 fix for the "Reverse charge" wording.
 
-**Status:** Open — BLOCKER for any BG tenant.
+**Status:** ✅ Resolved — shipped in pdf-rewrite.md
 
 ---
 
@@ -991,7 +991,7 @@ This is not a plan gap; it is a **logic bug in already-shipped code** that can h
 5. **Remediation query:** run a one-time audit across all tenants — `SELECT invoice_number, partner_id FROM customer_invoices WHERE vat_scenario = 'non_eu_export' AND partner.country_code IS NULL`. Each result is a candidate for credit-note + reissuance at the correct rate. **This is a tax-remediation exercise**, not just a code fix. Escalate to each tenant's accountant.
 6. Regression test: confirming an invoice for a partner with null country must fail loudly; changing the form to pre-select tenant country must still allow user to override.
 
-**Status:** Open — BLOCKER; confirmed live tax-under-declaration bug path.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 
@@ -1029,7 +1029,7 @@ This is not a plan gap; it is a **logic bug in already-shipped code** that can h
 4. Regression test: attempting to update a confirmed invoice throws.
 5. Pair with F-016's `document_hash` for end-to-end integrity.
 
-**Status:** Open — BLOCKER; guard confirmed missing. Land with F-001 / F-030 hotfix.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 
@@ -1048,7 +1048,7 @@ This is not a plan gap; it is a **logic bug in already-shipped code** that can h
 3. Per-MS variance: BG is strict 10-digit; other MS allow alphanumeric prefixes per year/series. Parametrise once non-BG tenants onboard.
 4. Regression test: delete a draft, confirm the next draft — numbers must be contiguous.
 
-**Status:** Open — verify.
+**Status:** ✅ Resolved — shipped in pre-launch.md
 
 ---
 
@@ -1106,7 +1106,7 @@ The app has no `PrepaymentInvoice` document type and no branching in the confirm
 
 > `applyExemptScenario($note)` — protected helper on both `CustomerCreditNoteService` and `CustomerDebitNoteService`. Sets `$note->vat_scenario = VatScenario::Exempt`, `$note->is_reverse_charge = false`, re-applies the tenant's 0% zero-rate via `resolveZeroVatRate()` to all items, and recalculates `subtotal`, `tax_amount`, `total`. Called from `confirmWithScenario()` after inheritance when the tenant is non-VAT-registered **and** the parent is also Exempt (see F-021).
 
-**Status:** Open
+**Status:** ✅ Resolved — shipped in blocks-credit-debit.md
 
 ---
 
@@ -1119,7 +1119,7 @@ The app has no `PrepaymentInvoice` document type and no branching in the confirm
 
 **Recommendation:** Update both files to say "Kept — used by `confirm()` backward-compat wrapper and by the 'Confirm with VAT' path when VIES has rejected the partner." Resolve ambiguity in one place; cross-link from the other.
 
-**Status:** Open — trivial.
+**Status:** ✅ Resolved — shipped in hotfix.md
 
 ---
 

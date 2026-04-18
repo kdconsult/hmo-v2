@@ -3,7 +3,7 @@
 > **Spec:** `tasks/vat-vies/spec.md` — Area 4
 > **Plan:** `tasks/vat-vies/blocks-plan.md`
 > **Review:** `review.md` (F-004, F-021, F-022)
-> **Status:** 📋 PLANNED
+> **Status:** ✅ SHIPPED (2026-04-18)
 > **Depends on:** `legal-references.md` landed (for the `чл. 113, ал. 9 ЗДДС` notice), `domestic-exempt.md` landed (for `vat_scenario_sub_code`)
 > **Unblocks:** `blocks-credit-debit.md` (credit/debit notes reuse the same block logic)
 

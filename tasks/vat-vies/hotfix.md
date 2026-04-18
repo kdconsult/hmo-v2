@@ -2,7 +2,7 @@
 
 > **Spec:** `tasks/vat-vies/spec.md`
 > **Plan:** `tasks/vat-vies/hotfix-plan.md`
-> **Status:** 🔧 TODO — highest priority, no phase dependency
+> **Status:** ✅ SHIPPED (2026-04-18)
 > **Unblocks:** everything else (removes live bugs + establishes stable foundation)
 
 ---

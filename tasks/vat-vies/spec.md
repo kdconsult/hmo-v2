@@ -28,7 +28,7 @@
 | DomesticExempt scenario (чл. 39–49 ЗДДС) | `domestic-exempt.md` | legal-references | ✅ SHIPPED |
 | Credit / debit note VAT determination | `invoice-credit-debit.md` | pdf-rewrite, domestic-exempt | ✅ SHIPPED |
 | Non-VAT-registered blocks — credit / debit notes | `blocks-credit-debit.md` | blocks, invoice-credit-debit | ✅ SHIPPED |
-| Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | ⏭️ NEXT |
+| Pre-launch polish (GDPR, retention, FX, OSS warning, …) | `pre-launch.md` | all above | ✅ SHIPPED (2026-04-18) |
 
 ### Recommended execution order
 

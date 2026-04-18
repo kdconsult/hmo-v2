@@ -3,7 +3,7 @@
 > **Spec:** `tasks/vat-vies/spec.md` — Area 3
 > **Plan:** `tasks/vat-vies/invoice-plan.md` — refactor queue for the items below
 > **Review:** `tasks/vat-vies/review.md` — 2026-04-17 audit
-> **Status:** Discussion complete — ready to plan
+> **Status:** ✅ SHIPPED + refactored (2026-04-18)
 
 ---
 

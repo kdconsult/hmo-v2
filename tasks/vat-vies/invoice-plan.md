@@ -2,7 +2,7 @@
 
 > **Task:** `tasks/vat-vies/invoice.md`
 > **Review:** `tasks/vat-vies/review.md` (F-006, F-007, F-009, F-024, F-036)
-> **Status:** Refactor-only plan (Area 3 implementation is already shipped). Covers the four review findings above; F-003 deferred to backlog.
+> **Status:** ✅ SHIPPED (2026-04-18)
 
 ---
 
