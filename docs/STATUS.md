@@ -4,7 +4,7 @@
 
 ## Current State
 
-**VAT/VIES Areas 1–4 complete; all six pre-launch waves shipped** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit). 665 tests pass (8 todos). Next: `tasks/vat-vies/pre-launch.md`. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
+**VAT/VIES Areas 1–4 complete; all six pre-launch waves shipped + all three refactor plans implemented** (hotfix → legal-references → pdf-rewrite → domestic-exempt → blocks → invoice-credit-debit → blocks-credit-debit → invoice-plan → partner-plan → tenant-plan). 675 tests pass (8 todos). Next: `tasks/vat-vies/pre-launch.md`. See `tasks/vat-vies/spec.md` for full agreed design and `tasks/vat-vies/review.md` for the 36-finding audit.
 
 The app is a multi-tenant SaaS ERP (HMO) built with Laravel 13 + Filament v5 + stancl/tenancy. Target market is the **entire EU**. Current implementation targets Bulgarian SMEs first (SUPTO/NRA fiscal compliance). Architecture is designed for EU-wide rollout. Landlord is the SaaS operator.
 
@@ -295,3 +295,4 @@ See `tasks/phase-3.2-plan.md` for full spec.
 | VAT/VIES Wave 3 — blocks/Area 4 (TenantVatStatus helper, invoice form blocks, confirmWithScenario Exempt short-circuit, items RM 0% gate) | **~639** |
 | VAT/VIES Wave 4 — invoice-credit-debit (note VAT columns, confirmWithScenario inherit/standalone, EuOssService::adjust, PDF Art. 219 reference, immutability guards, 26 new tests) | **657** |
 | VAT/VIES Wave 5 — blocks-credit-debit (F-021 inheritance rule, standalone non-registered → Exempt, form/items RM gating, withItems() factory states, 8 new tests) | **665** |
+| Session 4 refactor plans — invoice-plan (F-006/F-007/F-009/F-024), partner-plan (F-019/F-025), tenant-plan (4-step registration wizard, DB invariant `tenants_vat_invariant`, TenantOnboardingService country_code seed, hmo:tenants-require-vies-recheck command, F-023 guard removed as dead code) | **675** |

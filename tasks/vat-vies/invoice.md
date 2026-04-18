@@ -15,11 +15,11 @@ Implement VAT scenario determination, VIES re-validation at confirmation, and th
 
 ## What Needs Investigation Before Planning
 
-- [ ] What columns exist today on `customer_invoices` for VAT? (`is_reverse_charge`, any `vat_scenario` column already?)
-- [ ] Does `ViesValidationService::callVies()` currently capture and return `requestIdentifier` from the SOAP response? If not, add it.
-- [ ] What RBAC roles/permissions exist — which role should gate the reverse charge manual override opt-in?
-- [ ] Does `EuOssAccumulation::isThresholdExceeded()` work correctly standalone for scenario determination?
-- [ ] Confirm `VatScenario::determine()` currently uses `hasValidEuVat()` — verify the exact call site and update plan accordingly.
+- [x] What columns exist today on `customer_invoices` for VAT? (`is_reverse_charge`, any `vat_scenario` column already?)
+- [x] Does `ViesValidationService::callVies()` currently capture and return `requestIdentifier` from the SOAP response? If not, add it.
+- [x] What RBAC roles/permissions exist — which role should gate the reverse charge manual override opt-in?
+- [x] Does `EuOssAccumulation::isThresholdExceeded()` work correctly standalone for scenario determination?
+- [x] Confirm `VatScenario::determine()` currently uses `hasValidEuVat()` — verify the exact call site and update plan accordingly.
 
 ---
 

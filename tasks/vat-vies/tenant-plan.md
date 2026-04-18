@@ -79,7 +79,7 @@ $tenant->run(function () use ($countryCode) {
 
 The `country_code` is typically provided at tenant creation (from the registration form). Explicit seed removes the need for the `mount()` fallback in Company Settings.
 
-Remove the `?? tenancy()->tenant->country_code` fallback in `CompanySettingsPage::mount()` after the seed is guaranteed.
+**Decision: retain the `CompanySettingsPage::mount()` fallback** (`if (empty($companyGroup['country_code'])) { $companyGroup['country_code'] = $tenant->country_code; }`). The `hmo:tenants-require-vies-recheck` command does NOT reseed `CompanySettings`, so tenants created before this onboarding change may still lack the setting. Removing the fallback would break those tenants. Keep it as defense-in-depth; it becomes a no-op for newly registered tenants.
 
 ---
 

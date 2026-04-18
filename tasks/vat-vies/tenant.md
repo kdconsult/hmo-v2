@@ -102,6 +102,6 @@ Covers data model, service layer, and UI only. App-wide VAT blocking is a separa
 - [x] Code review clean — advisor-reviewed, 5 bugs found and fixed
 - [x] Browser tested (manual)
 - [x] Refactor findings written
-- [ ] Refactor implemented — deferred (see `tenant-plan.md`)
+- [x] Refactor implemented — see `tenant-plan.md` ✅
 - [x] Pint clean
 - [x] Final test run — 541/541 pass

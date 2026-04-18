@@ -97,6 +97,6 @@ Invoice-time re-verification behaviour is defined in `invoice.md`.
 - [x] Code review clean (2026-04-17 audit — review.md)
 - [ ] Browser tested (manual)
 - [x] Refactor findings written (2026-04-17)
-- [ ] Refactor implemented — see `partner-plan.md`
+- [x] Refactor implemented — see `partner-plan.md` ✅
 - [x] Pint clean
 - [x] Final test run
